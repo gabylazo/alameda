@@ -649,11 +649,11 @@ function vCompra() {
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
     const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : ''].join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
-    html += `<div class="producto ${estado}" data-clave="${esc(f.clave)}">
+    html += `<div class="fila-desliza" data-fila="${esc(f.clave)}"><div class="producto ${estado}" data-clave="${esc(f.clave)}">
       ${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" width="50" height="50"${f.img ? ' style="object-fit:contain"' : ''}>` : `<div class="sinfoto">${f.otro ? '📝' : emojiSeccion(f.seccion)}</div>`}
       <button class="info" data-info="${esc(f.clave)}"><div class="pn">${esc(nombreFila(f))}</div><div class="pc">${esc(cant)}${etiquetas}</div></button>
       <div class="pp">${f.precio ? euros(f.precio) : ''}</div>
-      <div class="sino"><button class="b-si" data-si="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="Comprado">${SVG.check}</button><button class="b-no" data-no="${esc(f.clave)}" aria-pressed="${estado === 'no'}" aria-label="No lo hemos comprado">${SVG.equis}</button></div></div>`;
+      <div class="sino"><button class="b-si" data-si="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="Comprado">${SVG.check}</button><button class="b-no" data-no="${esc(f.clave)}" aria-pressed="${estado === 'no'}" aria-label="No lo hemos comprado">${SVG.equis}</button></div></div></div>`;
   }
   if (sec) html += '</div>';
   const noFilas = filas.filter(f => s.noComprado[f.clave] && s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
@@ -694,6 +694,7 @@ function vCompra() {
   $$('[data-si]').forEach(b => b.addEventListener('click', () => marca(b.dataset.si, 'si')));
   $$('[data-no]').forEach(b => b.addEventListener('click', () => marca(b.dataset.no, 'no')));
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
+  $$('[data-fila]').forEach(fila => deslizaParaQuitar(fila, () => quitaDeLista(filas.find(f => f.clave === fila.dataset.fila))));
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
   $$('[data-volver]').forEach(b => b.addEventListener('click', () => { delete s.quitados[b.dataset.volver]; salva(); vCompra(); }));
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
@@ -758,6 +759,44 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
     if (!E.secciones.some(s => s.n === n)) E.secciones.push({ n, e });
     anadeALista([{ texto: capital(t), sec: n }]); vCompra();
   });
+}
+
+// Deslizar un producto a la izquierda lo quita de la lista (con «Deshacer»).
+function deslizaParaQuitar(fila, alQuitar) {
+  const el = fila.querySelector('.producto');
+  let x0 = null, y0 = 0, dx = 0, horizontal = null;
+  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; horizontal = null; el.style.transition = 'none'; }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (x0 == null) return;
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (horizontal == null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) horizontal = Math.abs(mx) > Math.abs(my);
+    if (!horizontal) return;
+    dx = Math.min(0, mx); el.style.transform = `translateX(${dx}px)`; fila.classList.toggle('listo', dx < -90);
+  }, { passive: true });
+  el.addEventListener('touchend', () => {
+    if (x0 == null) return;
+    if (horizontal) el.dataset.deslizado = Date.now();
+    if (horizontal && dx < -90) {
+      el.style.transition = 'transform .18s'; el.style.transform = 'translateX(-110%)';
+      setTimeout(() => { fila.style.maxHeight = fila.offsetHeight + 'px'; fila.style.transition = 'max-height .22s, opacity .22s';
+        requestAnimationFrame(() => { fila.style.maxHeight = '0'; fila.style.opacity = '0'; }); setTimeout(alQuitar, 240); }, 160);
+    } else { el.style.transition = 'transform .2s'; el.style.transform = ''; fila.classList.remove('listo'); }
+    x0 = null;
+  });
+  // tras deslizar, que no cuente como toque en ✓, ✕ o la ficha
+  el.addEventListener('click', e => { if (Date.now() - (+el.dataset.deslizado || 0) < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+function quitaDeLista(f) {
+  if (!f) return;
+  const p = planActivo(), s = est(p.id), antes = JSON.stringify(s);
+  if (f.k && !f.extra) { s.quitados[f.k] = true; s.extra = s.extra.filter(x => x.k !== f.k); delete s.menos[f.k]; }
+  if (f.extra) s.extra = s.extra.filter(x => x.id !== f.extra && !(f.extras || []).includes(x.id));
+  if (f.otro) s.otrosHechos[f.clave] = true;
+  if (f.fijo && !f.k) s.fijosHechos[f.clave] = true;
+  if (f.despensa) delete s.faltaDespensa[f.k];
+  delete s.marcados[f.clave]; delete s.noComprado[f.clave];
+  salva(); const y = window.scrollY; vCompra(); window.scrollTo(0, y);
+  conDeshacer(`🗑️ ${nombreFila(f)}`, () => { E.semanas[p.id] = JSON.parse(antes); salva(); const y2 = window.scrollY; vCompra(); window.scrollTo(0, y2); });
 }
 
 function sigueBuscando(texto) {
