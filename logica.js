@@ -411,3 +411,109 @@ export function nutrientesOFF(prod) {
     sal: v('salt'), nova: prod.nova_group ?? null, nutri: prod.nutriscore_grade ?? null,
     bebida: (prod.categories_tags || []).some(c => /beverages|bebidas|drinks/.test(c)) };
 }
+
+// ——— Ticket digital de Mercadona (el PDF que llega por correo, o su texto copiado) ———
+// Renglones como «2 BEBIDA SOJA 0%  0,75  1,50», «1 PLATANO» + «1,050 kg  2,45 €/kg  2,57» y «TOTAL (€)  72,60».
+// Lo que no llega a tener precio (el rótulo «PESCADO», «ENTRADA… SALIDA…») se descarta. También vale si cada dato viene en su propio renglón (así sale al copiar el texto del PDF).
+const euro = s => parseFloat(s.replace(/\./g, '').replace(',', '.'));
+export function leeTicket(texto) {
+  const lineas = (Array.isArray(texto) ? texto : String(texto || '').split(/\r?\n/)).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const t = { fecha: null, hora: null, total: null, items: [] };
+  const cabecera = lineas.findIndex(l => /^descripci[oó]n\b/i.test(l));
+  let dentro = cabecera < 0, it = null, esperaTotal = false;
+  const cierra = () => {
+    if (!it) return;
+    const nums = it.nums;
+    if (it.kg != null) { it.imp = nums.at(-1) ?? null; it.pu = it.pkg ?? (it.imp != null ? +(it.imp / it.kg).toFixed(2) : null); }
+    else if (nums.length >= 2) { it.pu = nums[0]; it.imp = nums.at(-1); }
+    else if (nums.length === 1) { it.imp = nums[0]; it.pu = it.n ? +(nums[0] / it.n).toFixed(2) : nums[0]; }
+    if (it.imp != null && !/^parking\b/i.test(it.d)) t.items.push({ n: it.n, d: it.d, pu: it.pu ?? null, imp: it.imp, kg: it.kg });
+    it = null;
+  };
+  lineas.forEach((l, i) => {
+    let m;
+    if (!t.fecha && (m = l.match(/\b(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}))?/))) { t.fecha = `${m[3]}-${m[2]}-${m[1]}`; t.hora = m[4] || null; }
+    if (i === cabecera) { dentro = true; return; }
+    if (esperaTotal) { if ((m = l.match(/^(-?\d[\d.]*,\d{2})$/))) { t.total = euro(m[1]); esperaTotal = false; } return; }
+    if ((m = l.match(/^TOTAL\s*\(€\)\s*(-?\d[\d.]*,\d{2})?$/i))) { cierra(); dentro = false; if (m[1]) t.total = euro(m[1]); else esperaTotal = true; return; }
+    if (!dentro) return;
+    if ((m = l.match(/^(-?\d{1,3})\s+(.*?\S)((?:\s+-?\d+,\d{2})*)$/))) { cierra(); it = { n: +m[1], d: m[2], nums: (m[3].match(/-?\d+,\d{2}/g) || []).map(euro), kg: null, pkg: null }; return; }
+    // En la pescadería el renglón no lleva cantidad: «SEPIA FRESCA» y debajo «0,506 kg  11,95 €/kg  6,05».
+    if (!/\d+,\d{2}/.test(l)) { cierra(); it = { n: 1, d: l, nums: [], kg: null, pkg: null }; return; }
+    if (!it) return;
+    for (const [, kg] of l.matchAll(/(\d+,\d{3})\s*kg\b/gi)) it.kg = euro(kg);
+    for (const [, p] of l.matchAll(/(\d+,\d{2})\s*€\s*\/\s*kg/gi)) it.pkg = euro(p);
+    const resto = l.replace(/\d+,\d{3}\s*kg\b/gi, ' ').replace(/\d+,\d{2}\s*€\s*\/\s*kg/gi, ' ');
+    for (const [, p] of resto.matchAll(/(?:^|\s)(-?\d+,\d{2})(?=\s|$)/g)) it.nums.push(euro(p));
+  });
+  cierra();
+  t.suma = +t.items.reduce((s, x) => s + x.imp, 0).toFixed(2);
+  t.cuadra = t.total != null && Math.abs(t.suma - t.total) < 0.02;
+  return t;
+}
+
+// ¿Cuánto se parece «ANACARDO TOST 0% SAL» a «Anacardo tostado 0% sal añadida Hacendado»? De 0 a 1.
+// El ticket abrevia («TOST», «NAT», «S/PIEL», «T.CHERRY»), así que una palabra del ticket vale si empieza igual.
+const VACIAS_T = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'en', 'con', 'y', 'a', 'al', 'para', 'hacendado', 'g', 'gr', 'grs', 'kg', 'ml', 'l', 'cl', 'ud', 'uds', 'p', 'pack', 'x']);
+const SINONIMOS_T = { noquis: 'gnocchi', noqui: 'gnocchi', ñoquis: 'gnocchi' };
+export const palabrasTicket = s => Array.isArray(s) ? s : normaliza(String(s || '').replace(/\bs\/\s*piel\b/gi, ' pelada ').replace(/\b([sc])\//gi, (_, c) => c.toLowerCase() === 's' ? ' sin ' : ' con ').replace(/(\d)\s+%/g, '$1%'))
+  .replace(/[\/\-+()'’*]/g, ' ').split(' ').filter(w => w && !VACIAS_T.has(w)).map(w => SINONIMOS_T[w] || w);
+const baseT = w => w.replace(/(es|s)$/, '').replace(/[oa]$/, '');
+const relT = (t, p) => p === t || (baseT(t).length >= 3 && baseT(p) === baseT(t)) || (t.length >= 3 && p.startsWith(t)) ? 1 : t.length < 3 && /^[a-z]+$/.test(t) && p.startsWith(t) ? 0.5 : 0;
+const pesoT = w => /^\d+$/.test(w) ? 0.25 : w.length < 3 && !/%$/.test(w) ? 0.5 : 1;
+// Qué parte del renglón del ticket está en el nombre. La primera palabra (lo que es: «NOQUIS de patata», «POLLO 1/4 patatas»)
+// cuenta el doble, para que «ÑOQUIS DE PATATA» no se tome por patatas. Las cifras sueltas pesan poco.
+function cubreTicket(ts, ps) {
+  const cabeza = ts.findIndex(w => !/^\d+$/.test(w));
+  let a = 0, t = 0;
+  ts.forEach((x, i) => { const w = pesoT(x) * (i === cabeza ? 2 : 1); t += w; a += w * Math.max(0, ...ps.map(p => relT(x, p))); });
+  return t ? a / t : 0;
+}
+// Y al revés: qué parte del nombre sale en el ticket (rel se pregunta desde el ticket).
+const cubreNombre = (ts, ps) => { let a = 0, t = 0; for (const p of ps) { const w = pesoT(p); t += w; a += w * Math.max(0, ...ts.map(x => relT(x, p))); } return t ? a / t : 0; };
+// El formato distingue productos: «PECHUGA PAVO FILETE» no son lonchas de pechuga de pavo, ni «CHAMPIÑON ENTERO» los laminados.
+const FORMATOS = ['filet', 'lonch', 'trocead', 'enter', 'picad', 'molid', 'rallad', 'laminad', 'hamburgues', 'escalop'];
+const formatos = ws => new Set(ws.map(baseT).flatMap(b => b.length >= 4 ? FORMATOS.filter(f => f.startsWith(b) || b.startsWith(f)) : []));
+export function parecido(ticket, nombre) {
+  const ts = palabrasTicket(ticket), ps = palabrasTicket(nombre);
+  if (!ts.length || !ps.length) return 0;
+  const ct = cubreTicket(ts, ps);
+  // Si menos de la mitad del renglón está en el nombre, no es ese producto (sale por debajo de 0,4).
+  const p = ct < 0.5 ? 0.8 * ct : 0.8 * ct + 0.2 * cubreNombre(ts, ps);
+  const ft = formatos(ts), fp = formatos(ps);
+  return ft.size && fp.size && ![...ft].some(f => fp.has(f)) ? p * 0.6 : p;
+}
+
+// Empareja los renglones del ticket con los productos de la lista: el reparto que más se parece en total
+// (método húngaro), para que «FILETE PECHUGA» y «PECHUGA PAVO FILETE» no se crucen. puntua(renglón, fila) da de 0 a 1;
+// por debajo de «minimo» no se empareja, y uno justo en el mínimo casi no cuenta, para que varios flojos no ganen a pocos seguros.
+function asigna(coste) {
+  const n = coste.length, INF = 1e9, u = Array(n + 1).fill(0), v = Array(n + 1).fill(0), p = Array(n + 1).fill(0), way = Array(n + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i; let j0 = 0;
+    const minv = Array(n + 1).fill(INF), usado = Array(n + 1).fill(false);
+    do {
+      usado[j0] = true; const i0 = p[j0]; let delta = INF, j1 = 0;
+      for (let j = 1; j <= n; j++) if (!usado[j]) {
+        const c = coste[i0 - 1][j - 1] - u[i0] - v[j];
+        if (c < minv[j]) { minv[j] = c; way[j] = j0; }
+        if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+      }
+      for (let j = 0; j <= n; j++) if (usado[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta;
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+  }
+  const fila = Array(n).fill(-1);
+  for (let j = 1; j <= n; j++) if (p[j]) fila[p[j] - 1] = j - 1;
+  return fila;
+}
+export function cruzaTicket(renglones, filas, puntua, minimo = 0.59) {
+  const n = Math.max(renglones.length, filas.length);
+  if (!renglones.length || !filas.length) return [];
+  const pts = renglones.map(r => filas.map(f => puntua(r, f)));
+  const coste = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => i < renglones.length && j < filas.length && pts[i][j] >= minimo ? 1 - (pts[i][j] - minimo) / (1 - minimo) * 0.999 : 1));
+  const a = asigna(coste), pares = [];
+  for (let i = 0; i < renglones.length; i++) { const j = a[i]; if (j >= 0 && j < filas.length && pts[i][j] >= minimo) pares.push([i, j, pts[i][j]]); }
+  return pares;
+}

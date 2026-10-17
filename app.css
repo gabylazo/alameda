@@ -284,6 +284,21 @@ button.comida { width: 100%; text-align: left; font: inherit; color: inherit; cu
 .pregunta { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0 0 12px; font-size: 14.5px; }
 .pregunta .emo { font-size: 28px; }
 .pregunta .boton { flex: 0 0 auto; min-height: 40px; padding: 8px 12px; }
+.pregunta .t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.pregunta .t .nota { font-size: 13px; margin-top: 2px; }
+.ticket-ok { background: linear-gradient(135deg, #ecfdf5, #fff); border-color: #bbf7d0; }
+.emparejados { margin-top: 14px; background: var(--tarjeta-2); border-radius: 14px; padding: 10px 12px; }
+.emparejados summary { font-weight: 800; color: var(--acento); cursor: pointer; }
+.emparejados .par { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--linea); font-size: 14px; }
+.emparejados .par:last-child { border-bottom: 0; }
+.emparejados .par .nota { font-size: 12px; text-align: right; }
+/* Pestañitas de la lista: Todo · Faltan · ✓ · ✕ */
+.segmento { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1fr; gap: 4px; background: #e8edf3; border-radius: 16px; padding: 4px; margin: 2px 0 8px; }
+.segmento button { border: 0; background: none; border-radius: 12px; padding: 9px 2px; font-weight: 850; font-size: 14.5px; color: var(--suave); display: flex; align-items: center; justify-content: center; gap: 6px; transition: background .15s; }
+.segmento button b { font-size: 12.5px; font-weight: 850; background: rgba(15, 23, 42, .07); border-radius: 999px; padding: 1px 7px; }
+.segmento button[aria-selected="true"] { background: #fff; color: var(--texto); box-shadow: 0 1px 4px rgba(15, 23, 42, .14); }
+.segmento .si { color: var(--acento); } .segmento .si[aria-selected="true"] { color: var(--acento); } .segmento .si[aria-selected="true"] b { background: var(--acento-suave); }
+.segmento .no { color: var(--malo); } .segmento .no[aria-selected="true"] { color: var(--malo); } .segmento .no[aria-selected="true"] b { background: var(--malo-suave); }
 .ing-fila.una { grid-template-columns: 1fr auto; }
 .macros.una { grid-template-columns: 1fr; }
 

@@ -97,12 +97,12 @@ async function descifra(clave) {
 }
 
 // ——— Estado guardado en el móvil ———
-function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [] }; }
+function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {} }; }
 const salva = () => guarda(ESTADO, E);
 function est(id) {
   if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
   const s = E.semanas[id];
-  s.recetasLista ||= []; s.otrosHechos ||= {}; s.fijosHechos ||= {}; s.noComprado ||= {}; s.alternativas ||= {}; s.menos ||= {};
+  s.recetasLista ||= []; s.otrosHechos ||= {}; s.fijosHechos ||= {}; s.noComprado ||= {}; s.alternativas ||= {}; s.menos ||= {}; s.ticketCant ||= {};
   return s;
 }
 function perfiles() {
@@ -171,6 +171,9 @@ async function inicio() {
   if (!E.casa) E.casa = { ...(D.casa_inicial || {}) };
   if (!E.fijos) E.fijos = [...(D.fijos || [])];
   E.fijosQuitados ||= [];
+  E.precios ||= {};
+  // El precio del último ticket, si es más nuevo que los datos (cuando se rehacen los datos, mandan los suyos).
+  for (const [k, v] of Object.entries(E.precios)) { const [pr, f] = Array.isArray(v) ? v : []; if (D.productos[k] && pr > 0 && f >= (D.generado || '').slice(0, 10)) D.productos[k].precio = pr; }
   for (const f of D.fijos || []) if (f.reemplaza) E.fijos = E.fijos.filter(x => x.texto !== f.reemplaza);   // favoritos que antes eran solo texto y ahora son el producto de Mercadona
   for (const f of D.fijos || []) { const id = idFav(f); if (!E.fijos.some(x => idFav(x) === id) && !E.fijosQuitados.includes(id)) E.fijos.push(f); }
   recalcula();
@@ -583,16 +586,18 @@ const ALGOLIA = 'https://7uzjkl1dj0-dsn.algolia.net/1/indexes/products_prod_mad1
 const cacheMerca = new Map();
 const tamano = pi => !pi ? '' : pi.size_format === 'kg' && pi.unit_size ? `${r0(pi.unit_size * 1000)} g` : pi.size_format === 'l' && pi.unit_size ? `${r0(pi.unit_size * 1000)} ml`
   : pi.total_units ? `${pi.total_units} ${pi.unit_name || 'uds'}` : '';
+let idaKcache = null;
+const idaK = () => idaKcache ||= Object.fromEntries(Object.entries(D.productos).filter(([, x]) => x.id).map(([kk, x]) => [String(x.id), kk]));
+const deAlgolia = h => ({ id: String(h.id), n: h.display_name, foto: (h.thumbnail || '').replace('h=300&w=300', 'h=160&w=160'),
+  precio: parseFloat(h.price_instructions?.unit_price) || 0, ref: parseFloat(h.price_instructions?.reference_price) || 0,
+  env: [h.packaging, tamano(h.price_instructions)].filter(Boolean).join(' '), cat: h.categories?.[0]?.name || 'Otros', k: idaK()[String(h.id)] || null });
 async function buscaMercadona(q, n = 6) {
   const k = L.normaliza(q) + '|' + n;
   if (cacheMerca.has(k)) return cacheMerca.get(k);
   const r = await fetch(ALGOLIA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params: 'query=' + encodeURIComponent(q) + '&hitsPerPage=' + n }) });
   if (!r.ok) throw new Error('Mercadona no responde');
   const j = await r.json();
-  const idaK = Object.fromEntries(Object.entries(D.productos).filter(([, x]) => x.id).map(([kk, x]) => [String(x.id), kk]));
-  const res = (j.hits || []).filter(h => h.published !== false).map(h => ({ id: String(h.id), n: h.display_name, foto: (h.thumbnail || '').replace('h=300&w=300', 'h=160&w=160'),
-    precio: parseFloat(h.price_instructions?.unit_price) || 0, env: [h.packaging, tamano(h.price_instructions)].filter(Boolean).join(' '),
-    cat: h.categories?.[0]?.name || 'Otros', k: idaK[String(h.id)] || null }));
+  const res = (j.hits || []).filter(h => h.published !== false).map(deAlgolia);
   cacheMerca.set(k, res);
   return res;
 }
@@ -642,14 +647,28 @@ const nombreFila = f => f.k ? nombreCorto(D.productos[f.k]) : f.m ? f.m.n : f.te
 const nivelDe = f => f.k ? L.veredicto(L.nutrientesDe(D.productos[f.k])).nivel : f.nivel || null;
 const pillNivel = n => n ? `<span class="pill ${n}">${L.NIVEL[n].e}</span>` : '';
 
+// Tarjeta de arriba: subir el ticket digital; con el ticket ya leído, terminar; y, recién terminada, ver la última compra.
+const fechaCorta = f => { const d = fecha(f); return `${DS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; };
+function tarjetaTicket(s, marcas) {
+  const u = E.compras[0];
+  if (s.ticket) return `<div class="tarjeta pregunta ticket-ok"><span class="emo">🧾</span><div class="t"><b>Ticket${s.ticket.fecha ? ' del ' + fechaCorta(s.ticket.fecha) : ''} · ${euros(s.ticket.total)}</b>
+    <span class="nota">${s.ticket.fuera.length ? `＋ ${s.ticket.fuera.length} fuera de la lista` : 'Todo era de la lista'}</span></div><button class="boton principal" id="b-terminar-ticket">Terminar</button></div>`;
+  if (!marcas && u && Date.now() - new Date(u.f) < 4 * 864e5) return `<div class="tarjeta pregunta"><span class="emo">🗂️</span><div class="t"><b>Compra del ${fechaCorta(iso(new Date(u.f)))}</b>
+    <span class="nota">${u.no.length ? `✕ ${u.no.length} no había` : '✓ No faltó nada'}${u.ticket ? ' · 🧾 ' + euros(u.ticket.total) : ''}</span></div><button class="boton" id="b-ultima">Ver</button></div>`;
+  return `<div class="tarjeta pregunta"><span class="emo">🧾</span><div class="t"><b>Ticket digital</b><span class="nota">Súbelo y marco la lista</span></div><button class="boton principal" id="b-ticket">📄 Subir</button></div>`;
+}
+
 function vCompra() {
   const { p, s, filas, despensa, total, quitados } = lineaCompra();
-  const si = filas.filter(f => s.marcados[f.clave]).length, no = filas.filter(f => s.noComprado[f.clave]).length;
+  const si = filas.filter(f => s.marcados[f.clave]).length, no = filas.filter(f => s.noComprado[f.clave]).length, marcas = si + no > 0;
+  // Pestañitas para ver solo lo que falta por mirar, lo comprado (✓) o lo que no había (✕).
+  const filtro = marcas ? V.filtroCompra || 'todo' : 'todo', todo = filtro === 'todo';
+  const visibles = filas.filter(f => todo || (filtro === 'si' ? s.marcados[f.clave] : filtro === 'no' ? s.noComprado[f.clave] : !s.marcados[f.clave] && !s.noComprado[f.clave]));
   cabecera('Compra', `Mercadona · ${filas.length} productos`);
   let sec = '', html = '';
   const cuenta = {};
-  for (const f of filas) cuenta[f.seccion] = (cuenta[f.seccion] || 0) + 1;
-  for (const f of filas) {
+  for (const f of visibles) cuenta[f.seccion] = (cuenta[f.seccion] || 0) + 1;
+  for (const f of visibles) {
     const x = f.k ? D.productos[f.k] : null;
     if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; }
     const estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
@@ -666,6 +685,8 @@ function vCompra() {
   const noFilas = filas.filter(f => s.noComprado[f.clave] && s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<button class="chip" data-quitar-receta="${x.id}">${emojiReceta(recetas[x.r])} ${esc(recetas[x.r].n)} ✕</button>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
+  const vacio = { todo: '<span class="emo">🎉</span>No falta nada para el menú.', faltan: '<span class="emo">✅</span>Ya está todo mirado.',
+    si: '<span class="emo">🛒</span>Todavía no hay nada con ✓.', no: '<span class="emo">🎉</span>No hay nada con ✕.' }[filtro];
   $('#vista').innerHTML = `
     <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">✓ ${si} · ✕ ${no} · faltan ${filas.length - si - no}</div></div>${anillo(filas.length ? (si + no) / filas.length : 0, '#fff', `${si}/${filas.length}`, 'comprados', 78)}</div>
     <div class="rapidas">
@@ -674,23 +695,27 @@ function vCompra() {
       <button class="rapida" id="b-favoritos"><span class="emo">⭐</span>Favoritos</button>
       <button class="rapida" id="b-escanear"><span class="emo">🔎</span>¿Es bueno?</button>
     </div>
-    ${letrero('ticket', '🧾', '<b>En caja:</b> pedid el ticket digital')}
-    ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
-    ${html || '<div class="vacio"><span class="emo">🎉</span>No falta nada para el menú.</div>'}
-    ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
-    <div class="tarjeta anadir-mas" id="anadir-mas">
+    ${tarjetaTicket(s, marcas)}
+    ${marcas ? `<div class="segmento" role="tablist" aria-label="Qué ver">${[['todo', 'Todo', filas.length], ['faltan', 'Faltan', filas.length - si - no], ['si', '✓', si], ['no', '✕', no]]
+      .map(([k, t, n]) => `<button class="${k}" data-filtro="${k}" role="tab" aria-selected="${filtro === k}">${t}<b>${n}</b></button>`).join('')}</div>` : ''}
+    ${filtro === 'no' && no ? '<button class="boton suave ancho" id="b-enviar-no" style="margin:4px 0 2px">📤 Enviar lo que no había</button>' : ''}
+    ${todo && recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
+    ${html || `<div class="vacio">${vacio}</div>`}
+    ${(todo || filtro === 'no') && noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
+    ${todo ? `<div class="tarjeta anadir-mas" id="anadir-mas">
       <h3 style="margin-top:0">➕ ¿Añadir algo más?</h3>
       <form class="anadir" id="f-anadir"><div class="caja"><input id="i-anadir" placeholder="Escribe: papel higiénico, yuca…" autocomplete="off" enterkeyhint="search">
         <button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
       <div id="resultados"></div>
       <button class="boton suave ancho" id="b-escanear-2" style="margin-top:8px">🔎 ¿Es bueno? Foto del código</button>
-    </div>
-    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
-    ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
+    </div>` : ''}
+    ${todo && despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
+    ${todo && quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
     <button class="boton principal ancho" id="b-a-casa" style="margin-top:20px"${si ? '' : ' disabled'}>${I.caja}Terminar: lo comprado a «En casa»</button>
     <div class="botones" style="margin:10px 0 18px;justify-content:center">
       <button class="boton" id="b-compartir">📤 Enviar la lista</button>
       <label class="boton" for="i-foto">📷 Foto del ticket a Claude</label><input id="i-foto" type="file" accept="image/*" class="sr">
+      ${E.compras.length ? '<button class="boton" id="b-ultima-2">🗂️ Última compra</button>' : ''}
     </div>`;
   activaLetreros();
   const marca = (k, cual) => {
@@ -706,18 +731,26 @@ function vCompra() {
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
   $$('[data-volver]').forEach(b => b.addEventListener('click', () => { delete s.quitados[b.dataset.volver]; salva(); vCompra(); }));
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
-  $('#b-ir-anadir').addEventListener('click', () => { $('#anadir-mas').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#i-anadir').focus(), 350); });
+  $$('[data-filtro]').forEach(b => b.addEventListener('click', () => {
+    V.filtroCompra = b.dataset.filtro; const arriba = $('.segmento').getBoundingClientRect().top + window.scrollY - 70;
+    vCompra(); if (window.scrollY > arriba) window.scrollTo(0, arriba);
+  }));
+  $('#b-ticket')?.addEventListener('click', elegirTicket);
+  $('#b-terminar-ticket')?.addEventListener('click', () => terminarCompra(filas));
+  $$('#b-ultima, #b-ultima-2').forEach(b => b.addEventListener('click', () => hojaCompra(E.compras[0])));
+  $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(filas.filter(f => s.noComprado[f.clave]).map(nombreFila)));
+  $('#b-ir-anadir').addEventListener('click', () => { if (!$('#anadir-mas')) { V.filtroCompra = 'todo'; vCompra(); } $('#anadir-mas').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#i-anadir').focus(), 350); });
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
   $('#b-favoritos').addEventListener('click', abrirFavoritos);
   $('#b-escanear').addEventListener('click', abrirEscaner);
-  $('#b-escanear-2').addEventListener('click', abrirEscaner);
+  $('#b-escanear-2')?.addEventListener('click', abrirEscaner);
   $('#b-a-casa').addEventListener('click', () => terminarCompra(filas));
   $('#b-compartir').addEventListener('click', () => compartirLista(filas));
   $('#i-foto').addEventListener('change', e => mandarFoto(e.target.files[0]));
   // Añadir: se busca en Mercadona mientras escribes y se elige el producto.
   let tBusca;
-  $('#i-anadir').addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => buscaParaAnadir(e.target.value, seccionesLista), 380); });
-  $('#f-anadir').addEventListener('submit', e => { e.preventDefault(); clearTimeout(tBusca); buscaParaAnadir($('#i-anadir').value, seccionesLista, true); });
+  $('#i-anadir')?.addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => buscaParaAnadir(e.target.value, seccionesLista), 380); });
+  $('#f-anadir')?.addEventListener('submit', e => { e.preventDefault(); clearTimeout(tBusca); buscaParaAnadir($('#i-anadir').value, seccionesLista, true); });
   // Alternativas para lo que no había
   for (const f of noFilas) pintaAlternativa(f, s);
 }
@@ -967,38 +1000,77 @@ function anadeALista(items) {
   if (nombres.length) tostada('➕ ' + nombres.join(', '));
 }
 
-// Terminar la compra: lo marcado con ✓ pasa a «En casa»; lo marcado con ✕ sigue en la lista; queda un resumen para Claude.
+// Terminar la compra: lo marcado con ✓ pasa a «En casa» (con lo que dice el ticket, si se subió); lo marcado con ✕ sigue en la lista;
+// lo del ticket que no estaba en la lista también pasa a «En casa». Queda un resumen, para Claude y para «Última compra».
 function terminarCompra(filas) {
   const { s } = lineaCompra();
-  const res = { f: new Date().toISOString(), si: [], no: [], extra: [] };
+  const res = { f: new Date().toISOString(), si: [], no: [], extra: [], estimado: 0 };
   for (const f of filas) {
     const n = nombreFila(f);
-    if (s.marcados[f.clave]) { res.si.push(n); if (f.manual) res.extra.push(n); }
+    if (s.marcados[f.clave]) { res.si.push(n); res.estimado += f.precio || 0; if (f.manual) res.extra.push(n); }
     else if (s.noComprado[f.clave]) res.no.push(n);
   }
   let n = 0;
   for (const f of filas) {
     if (!s.marcados[f.clave]) continue;
-    if (f.k) { E.casa[f.k] = (E.casa[f.k] || 0) + f.envases * D.productos[f.k].util; n++; if (f.despensa) delete s.faltaDespensa[f.k]; }
+    if (f.k) {
+      const x = D.productos[f.k], c = s.ticketCant[f.clave];   // con ticket, lo que se compró de verdad
+      E.casa[f.k] = (E.casa[f.k] || 0) + (c ? (c.kg ? c.kg * 1000 : c.n * x.util) : f.envases * x.util); n++;
+      if (f.despensa) delete s.faltaDespensa[f.k];
+    }
     else if (f.m && !NO_COMIDA.has(f.m.cat)) { E.casaOtros = [...new Set([...E.casaOtros, f.m.n])]; }
     if (f.extra) s.extra = s.extra.filter(y => y.id !== f.extra);
     if (f.extras) s.extra = s.extra.filter(y => !f.extras.includes(y.id));
     if (f.fijo && !f.k) s.fijosHechos[f.clave] = true;
     if (f.otro) s.otrosHechos[f.clave] = true;
   }
-  s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.compraHecha = true;
+  if (s.ticket) {
+    n += aCasaTicket(s.ticket.fuera);
+    res.extra.push(...s.ticket.fuera.map(nombreFuera));
+    res.ticket = { fecha: s.ticket.fecha, total: s.ticket.total, cuadra: s.ticket.cuadra, lineas: s.ticket.lineas };
+  }
+  res.estimado = +res.estimado.toFixed(2);
+  s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.ticketCant = {}; s.ticket = null; s.compraHecha = true;
+  V.filtroCompra = 'todo';
   E.compras = [res, ...E.compras].slice(0, 20); salva();
-  hoja(`<h2>🧾 Compra terminada</h2>
-    <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
-    <p class="nota">${n} productos pasan a «En casa». Lo que no había sigue en la lista.</p>
-    <button class="boton principal ancho" id="b-resumen-claude">${I.enviar}Mandar a Claude para compararlo con el ticket</button>
-    <button class="boton ancho" id="b-ir-casa" style="margin-top:8px">${I.caja}Ver «En casa»</button>`, h => {
-    $('#b-resumen-claude', h).addEventListener('click', () => mandarAClaude(`Compra del ${new Date().toLocaleDateString('es-ES')}.\nComprado (${res.si.length}): ${res.si.join(', ')}\nNo había (${res.no.length}): ${res.no.join(', ') || '—'}\nAñadido fuera del menú: ${res.extra.join(', ') || '—'}\nCompáralo con el ticket y ajusta el plan.`));
-    $('#b-ir-casa', h).addEventListener('click', () => { cierraHoja(); location.hash = 'casa'; });
-  });
+  hojaCompra(res, n);
   vCompra();
 }
 
+// Resumen de una compra (al terminarla o desde «Última compra»): lo que no había, lo de fuera de la lista y el ticket.
+function hojaCompra(res, nCasa = null) {
+  if (!res) return;
+  const t = res.ticket, chips = l => `<div class="chips-despensa">${l.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>`;
+  hoja(`<h2>${nCasa != null ? '🧾 Compra terminada' : '🗂️ Compra del ' + fechaCorta(iso(new Date(res.f)))}</h2>
+    <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
+    ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.no.length ? ' Lo que no había sigue en la lista.' : ''}</p>` : ''}
+    ${t ? `<p class="nota">🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}: <b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>` : ''}
+    ${res.no.length ? `<h3>✕ No había</h3>${chips(res.no)}` : ''}
+    ${res.sinTicket?.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${chips(res.sinTicket)}` : ''}
+    ${res.extra.length ? `<h3>＋ Extra</h3>${chips(res.extra)}` : ''}
+    <div class="botones" style="margin-top:14px">
+      ${res.no.length ? '<button class="boton" id="b-enviar-no-h">📤 Enviar lo que no había</button>' : ''}
+      ${t ? '' : '<button class="boton" id="b-ticket-h">📄 Subir el ticket</button>'}
+    </div>
+    <button class="boton principal ancho" id="b-resumen-claude" style="margin-top:10px">${I.enviar}Mandar a Claude para ajustar el plan</button>
+    ${nCasa != null ? `<button class="boton ancho" id="b-ir-casa" style="margin-top:8px">${I.caja}Ver «En casa»</button>` : ''}`, h => {
+    $('#b-enviar-no-h', h)?.addEventListener('click', () => compartirNoHabia(res.no));
+    $('#b-ticket-h', h)?.addEventListener('click', elegirTicket);
+    $('#b-resumen-claude', h).addEventListener('click', () => mandarAClaude(textoCompra(res)));
+    $('#b-ir-casa', h)?.addEventListener('click', () => { cierraHoja(); location.hash = 'casa'; });
+  });
+}
+const textoCompra = r => [`Compra del ${new Date(r.f).toLocaleDateString('es-ES')}.`,
+  r.ticket ? `Ticket${r.ticket.fecha ? ' del ' + r.ticket.fecha : ''}: ${euros(r.ticket.total)}${r.estimado ? ` (la lista calculaba ${euros(r.estimado)})` : ''}.` : 'Sin ticket.',
+  `Comprado (${r.si.length}): ${r.si.join(', ')}`, `No había (${r.no.length}): ${r.no.join(', ') || '—'}`, `Extra (${r.extra.length}): ${r.extra.join(', ') || '—'}`,
+  r.sinTicket?.length ? `Con ✓ pero no salen en el ticket: ${r.sinTicket.join(', ')}` : '',
+  r.ticket?.lineas?.length ? `Renglones del ticket: ${r.ticket.lineas.map(([n, d, imp, kg]) => `${kg ? String(kg).replace('.', ',') + ' kg' : n} ${d} ${euros(imp)}`).join('; ')}` : '',
+  r.ticket ? 'Compáralo con el plan y ajústalo.' : 'Compáralo con el ticket y ajusta el plan.'].filter(Boolean).join('\n');
+
+async function compartirTexto(titulo, txt, copiado) {
+  try { if (navigator.share) { await navigator.share({ title: titulo, text: txt }); return; } } catch { return; }
+  try { await navigator.clipboard.writeText(txt); tostada(copiado); } catch { tostada('No he podido compartirlo'); }
+}
 async function compartirLista(filas) {
   const { s } = lineaCompra();
   let sec = '', txt = 'Lista de la compra (Mercadona) · NutriHome\n';
@@ -1007,18 +1079,187 @@ async function compartirLista(filas) {
     if (f.seccion !== sec) { sec = f.seccion; txt += `\n${emojiSeccion(sec)} ${sec}\n`; }
     txt += `☐ ${nombreFila(f)}${f.k ? ` — ${L.cantidadCompra(f, D.productos)}` : f.m ? ` — ${f.m.env}` : ''}\n`;
   }
-  try { if (navigator.share) { await navigator.share({ title: 'Lista de la compra', text: txt }); return; } } catch { return; }
-  try { await navigator.clipboard.writeText(txt); tostada('Lista copiada: pégala en WhatsApp'); } catch { tostada('No he podido compartirla'); }
+  compartirTexto('Lista de la compra', txt, 'Lista copiada: pégala en WhatsApp');
 }
+const compartirNoHabia = nombres => compartirTexto('Lo que no había', 'No había en Mercadona · NutriHome\n' + nombres.map(n => '☐ ' + n).join('\n'), 'Copiado: pégalo en WhatsApp');
 
-async function mandarFoto(fichero) {
+async function mandarFoto(fichero, texto = 'Para Claude: foto del ticket o de una lista. Compárala con la compra y métela en NutriHome.') {
   if (!fichero) return;
-  const texto = 'Para Claude: foto del ticket o de una lista. Compárala con la compra y métela en NutriHome.';
   try {
     if (navigator.canShare && navigator.canShare({ files: [fichero] })) { await navigator.share({ files: [fichero], text: texto }); tostada('Elige Telegram y el chat con @' + (D.perfiles.bot || 'el bot')); return; }
   } catch { return; }
-  hoja(`<h2>📷 Mandar la foto</h2><p>Este móvil no deja compartir fotos desde la app. Mándala al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b>.</p>
+  hoja(`<h2>📷 Mandárselo a Claude</h2><p>Este móvil no deja compartir ficheros desde la app. Mándalo al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b>.</p>
     <a class="boton principal" href="https://t.me/${esc(D.perfiles.bot || '')}" target="_blank" rel="noopener">Abrir Telegram</a>`);
+}
+
+// ——— Ticket digital: el PDF que manda Mercadona por correo ———
+// Se lee en el móvil (pdf.js, en vendor/), cada renglón se busca en Mercadona para saber qué producto es (si el precio coincide,
+// es ese seguro) y se cruza con la lista: lo comprado se marca con ✓, lo que no sale con ✕ y lo de fuera pasa a «En casa» al terminar.
+let cargaPDF;
+function cargaPDFJS() {
+  if (window.pdfjsLib) return Promise.resolve();
+  return cargaPDF ||= new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'vendor/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; res(); };
+    s.onerror = () => { cargaPDF = null; rej(new Error('Sin conexión no puedo abrir el lector de PDF')); };
+    document.head.appendChild(s);
+  });
+}
+// Los trozos de texto del PDF se juntan por renglón (misma altura) y de izquierda a derecha.
+async function lineasPDF(fichero) {
+  await cargaPDFJS();
+  const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await fichero.arrayBuffer()) }).promise, lineas = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const tc = await (await doc.getPage(n)).getTextContent();
+    const trozos = tc.items.filter(t => t.str.trim()).map(t => ({ s: t.str.trim(), x: t.transform[4], y: t.transform[5], h: Math.abs(t.transform[3]) || 8 }))
+      .sort((a, b) => b.y - a.y || a.x - b.x);
+    let fila = [], y0 = null;
+    const cierra = () => { if (fila.length) lineas.push(fila.sort((a, b) => a.x - b.x).map(t => t.s).join('  ')); fila = []; };
+    for (const t of trozos) { if (y0 !== null && Math.abs(t.y - y0) > Math.min(t.h, 6) / 2) cierra(); if (!fila.length) y0 = t.y; fila.push(t); }
+    cierra();
+  }
+  doc.destroy();
+  return lineas;
+}
+function elegirTicket() {
+  $$('input.elige-ticket').forEach(x => x.remove());
+  const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf,.pdf'; i.className = 'sr elige-ticket';
+  i.addEventListener('change', () => { const f = i.files[0]; i.remove(); abreTicket(f); });
+  document.body.appendChild(i); i.click();
+}
+async function abreTicket(fichero) {
+  if (!fichero) return;
+  if (/^image\//.test(fichero.type)) return mandarFoto(fichero);
+  hoja('<h2>🧾 Leyendo el ticket…</h2><div class="cargando"></div><div class="cargando" style="width:70%"></div>');
+  let t;
+  try { t = L.leeTicket(/pdf$/i.test(fichero.type) || /\.pdf$/i.test(fichero.name) ? await lineasPDF(fichero) : await fichero.text()); }
+  catch (e) { return ticketIlegible(fichero, e.message); }
+  if (!t.items.length) return ticketIlegible(fichero);
+  muestraTicket(t);
+}
+function ticketIlegible(fichero, motivo = '') {
+  hoja(`<h2>🧾 No he podido leerlo</h2>
+    <p class="nota">${motivo ? esc(motivo) + '. ' : ''}¿Es el PDF del ticket digital de Mercadona? Puedes mandárselo a Claude, o copiar el texto del ticket y pegarlo aquí.</p>
+    <button class="boton principal ancho" id="b-ticket-claude">${I.enviar}Mandárselo a Claude</button>
+    <textarea class="campo-texto" id="t-ticket" placeholder="MERCADONA, S.A. … TOTAL (€) …" style="margin-top:12px"></textarea>
+    <button class="boton ancho" id="b-leer-ticket" style="margin-top:8px">🧾 Leer el texto</button>`, h => {
+    $('#b-ticket-claude', h).addEventListener('click', () => mandarFoto(fichero, 'Para Claude: el ticket digital de Mercadona. Compáralo con la compra de NutriHome.'));
+    $('#b-leer-ticket', h).addEventListener('click', () => { const t = L.leeTicket($('#t-ticket', h).value); if (t.items.length) muestraTicket(t); else tostada('No encuentro productos en ese texto'); });
+  });
+}
+
+// Cada renglón distinto se busca en Mercadona, de 20 en 20 en una sola llamada. Sin conexión se compara solo por el nombre.
+const ALGOLIA_VARIAS = ALGOLIA.replace('/products_prod_mad1_es/query', '/*/queries');
+async function identificaTicket(items) {
+  for (let i = 0; i < items.length; i += 20) {
+    const trozo = items.slice(i, i + 20);
+    const r = await fetch(ALGOLIA_VARIAS, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: trozo.map(it => ({
+      indexName: 'products_prod_mad1_es', params: 'query=' + encodeURIComponent(it.d) + '&hitsPerPage=3&queryType=prefixAll&removeWordsIfNoResults=allOptional' })) }) });
+    if (!r.ok) throw new Error('Mercadona no responde');
+    (await r.json()).results.forEach((res, n) => {
+      const it = trozo[n], hits = (res.hits || []).filter(h => h.published !== false).map(deAlgolia);
+      it.hits = hits; it.seguro = hits.find(h => it.kg ? h.ref && Math.abs(h.ref - it.pu) < 0.011 : it.pu && Math.abs(h.precio - it.pu) < 0.011) || null;
+    });
+  }
+}
+// Un mismo producto puede salir en varios renglones: se suman.
+function juntaRenglones(items) {
+  const m = new Map();
+  for (const it of items) {
+    const k = L.normaliza(it.d), x = m.get(k);
+    if (!x) { m.set(k, { ...it }); continue; }
+    x.n += it.n; x.imp = +(x.imp + it.imp).toFixed(2); if (it.kg) x.kg = +((x.kg || 0) + it.kg).toFixed(3);
+  }
+  return [...m.values()];
+}
+const idFila = f => f.k ? String(D.productos[f.k].id) : f.m?.id ? String(f.m.id) : null;
+const nombreLargo = f => f.k ? D.productos[f.k].n : f.m ? f.m.n : f.texto || '';
+// De 0 a 1: ¿es este renglón del ticket esa fila de la lista? Si Mercadona dice (por el precio) que es otro producto,
+// solo vale si el nombre es casi igual (otro tamaño del mismo yogur, por ejemplo).
+function puntuaTicket(it, f) {
+  const id = idFila(f), nombre = nombreLargo(f), t = L.parecido(it.d, nombre);
+  if (!id) { const pr = it.seguro || it.hits?.[0]; return pr ? Math.max(t, (it.seguro ? 0.9 : 0.75) * L.parecido(nombre, pr.n)) : t; }
+  if (it.seguro) return it.seguro.id === id ? 1 : t >= 0.85 ? t : t * 0.6;
+  return it.hits?.[0]?.id === id && t >= 0.3 ? Math.max(t, 0.7) : t;   // lo primero que encuentra Mercadona, si el nombre también se parece
+}
+const sinMarca = n => nombreCorto({ n }).replace(/ (Deliplus|Bosque Verde|Sabroz|Compy)\b/g, '');
+const nombreFuera = x => x.m?.n ? sinMarca(x.m.n) : capital(x.d.toLowerCase());
+const resumenTicket = (t, fuera) => ({ fecha: t.fecha, hora: t.hora, total: t.total ?? t.suma, cuadra: t.cuadra, lineas: t.items.map(it => [it.n, it.d, it.imp, it.kg]),
+  fuera: fuera.map(it => ({ d: it.d, n: it.n, kg: it.kg, imp: it.imp, k: it.seguro?.k || null,
+    m: it.seguro ? { id: it.seguro.id, n: it.seguro.n, cat: it.seguro.cat, foto: it.seguro.foto } : it.hits?.[0] ? { cat: it.hits[0].cat } : null })) });
+// Lo de fuera de la lista pasa a «En casa» (lo que no es comida, no). Devuelve cuántos.
+function aCasaTicket(fuera = []) {
+  let n = 0;
+  for (const x of fuera) {
+    const cat = x.k ? D.productos[x.k].cat : x.m?.cat;
+    if (!cat || NO_COMIDA.has(cat)) continue;
+    if (x.k) E.casa[x.k] = (E.casa[x.k] || 0) + (x.kg ? x.kg * 1000 : x.n * D.productos[x.k].util);
+    else E.casaOtros = [...new Set([...E.casaOtros, nombreFuera(x)])];
+    n++;
+  }
+  return n;
+}
+// Si Mercadona confirma el producto y su precio ha cambiado, la lista usa el precio nuevo (con la fecha del ticket).
+function aprendePrecios(items, f = hoy()) {
+  for (const it of items) { const k = it.seguro?.k; if (k && !it.kg && it.pu > 0 && Math.abs(D.productos[k].precio - it.pu) > 0.004) { E.precios[k] = [it.pu, f]; D.productos[k].precio = it.pu; } }
+}
+const filaTicket = it => `<div class="res sin-borde">${it.seguro?.foto ? `<img src="${esc(it.seguro.foto)}" alt="" loading="lazy">` : '<div class="sinfoto">🧾</div>'}
+  <span class="res-t"><b>${esc(it.seguro ? sinMarca(it.seguro.n) : capital(it.d.toLowerCase()))}</b><span class="nota">${it.kg ? String(it.kg).replace('.', ',') + ' kg' : it.n + ' ud.'}</span></span><span class="res-p">${euros(it.imp)}</span></div>`;
+
+async function muestraTicket(t) {
+  const items = juntaRenglones(t.items);
+  hoja('<h2>🧾 Buscando cada producto…</h2><div class="cargando"></div><div class="cargando" style="width:70%"></div>');
+  let sinRed = false;
+  try { await identificaTicket(items); } catch { sinRed = true; }
+  const { s, filas } = lineaCompra();
+  const marcas = filas.some(f => s.marcados[f.clave] || s.noComprado[f.clave]);
+  // ¿La compra ya se terminó sin ticket? Entonces se compara con lo que se marcó.
+  const u = E.compras[0], fu = u && iso(new Date(u.f));
+  if (!marcas && u && !u.ticket && t.fecha && t.fecha <= fu && fecha(fu) - fecha(t.fecha) <= 3 * 864e5) return ticketDeTerminada(t, items, u, sinRed);
+  const pares = L.cruzaTicket(items, filas, puntuaTicket);
+  const enFila = new Set(pares.map(([, j]) => j)), usados = new Set(pares.map(([i]) => i));
+  const faltan = filas.filter((_, j) => !enFila.has(j)), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
+  const fuera = items.filter((_, i) => !usados.has(i));
+  const chips = l => `<div class="chips-despensa">${l.map(f => `<span class="chip">${esc(nombreFila(f))}</span>`).join('')}</div>`;
+  hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
+    <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${pares.length}</b><span>de la lista</span></div><div><b>✕ ${noEstan.length}</b><span>no está</span></div><div><b>＋ ${fuera.length}</b><span>fuera de lista</span></div></div>
+    <p class="nota"><b>${euros(t.total ?? t.suma)}</b>${t.cuadra ? '' : ' · ⚠️ no me cuadra el total'}${sinRed ? ' · 📡 sin conexión: comparo solo por el nombre' : ''}</p>
+    ${noEstan.length ? `<h3>✕ No está en el ticket</h3>${chips(noEstan)}` : ''}
+    ${raros.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${chips(raros)}` : ''}
+    ${fuera.length ? `<h3>＋ Fuera de la lista</h3>${fuera.map(filaTicket).join('')}` : ''}
+    ${pares.length ? `<details class="emparejados"><summary>✓ Ver los ${pares.length} de la lista</summary>${pares.map(([i, j]) => `<div class="par"><span>${esc(nombreFila(filas[j]))}</span><span class="nota">${esc(items[i].d)}</span></div>`).join('')}</details>` : ''}
+    <button class="boton principal ancho" id="b-aplicar-ticket" style="margin-top:14px">✅ Marcar la lista</button>`, h => {
+    $('#b-aplicar-ticket', h).addEventListener('click', () => {
+      for (const [i, j] of pares) { const f = filas[j], it = items[i]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
+      for (const f of noEstan) s.noComprado[f.clave] = true;
+      s.ticket = resumenTicket(t, fuera); aprendePrecios(items, t.fecha || hoy());
+      V.filtroCompra = noEstan.length ? 'no' : 'todo';
+      salva(); cierraHoja();
+      if (V.pestana !== 'compra') location.hash = 'compra'; else { vCompra(); window.scrollTo({ top: 0 }); }
+      tostada(`🧾 ✓ ${pares.length} · ✕ ${noEstan.length} · ＋ ${fuera.length}`);
+    });
+  });
+}
+// El ticket llega cuando la compra ya estaba terminada: se compara con lo marcado y lo de fuera de la lista pasa a «En casa».
+function ticketDeTerminada(t, items, u, sinRed) {
+  const filas = u.si.map(n => ({ texto: n })), pares = L.cruzaTicket(items, filas, puntuaTicket);
+  const usados = new Set(pares.map(([i]) => i)), vistos = new Set(pares.map(([, j]) => j));
+  const fuera = items.filter((_, i) => !usados.has(i)), sinTicket = u.si.filter((_, j) => !vistos.has(j));
+  hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
+    <p class="nota">La compra ya estaba terminada: lo comparo con lo que marcasteis.</p>
+    <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${pares.length}</b><span>coinciden</span></div><div><b>🤔 ${sinTicket.length}</b><span>no salen</span></div><div><b>＋ ${fuera.length}</b><span>fuera de lista</span></div></div>
+    <p class="nota"><b>${euros(t.total ?? t.suma)}</b>${t.cuadra ? '' : ' · ⚠️ no me cuadra el total'}${sinRed ? ' · 📡 sin conexión: comparo solo por el nombre' : ''}</p>
+    ${sinTicket.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3><div class="chips-despensa">${sinTicket.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${fuera.length ? `<h3>＋ Fuera de la lista</h3>${fuera.map(filaTicket).join('')}` : ''}
+    <button class="boton principal ancho" id="b-guardar-ticket" style="margin-top:14px">✅ Guardar${fuera.length ? ' y pasar lo de fuera a «En casa»' : ''}</button>`, h => {
+    $('#b-guardar-ticket', h).addEventListener('click', () => {
+      const r = resumenTicket(t, fuera);
+      aCasaTicket(r.fuera); aprendePrecios(items, t.fecha || hoy());
+      u.ticket = { fecha: r.fecha, total: r.total, cuadra: r.cuadra, lineas: r.lineas };
+      u.extra = [...u.extra, ...r.fuera.map(nombreFuera)]; u.sinTicket = sinTicket;
+      salva(); hojaCompra(u); tostada('🧾 Ticket guardado');
+    });
+  });
 }
 
 // ——— ¿Es buena compra? Escáner de códigos de barras + Open Food Facts + semáforo ———
