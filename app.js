@@ -54,7 +54,6 @@ const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['casa', 'En casa'
 const APARATO = { airfryer: 'Air fryer', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora' };
 const APARATO_EMO = { airfryer: '🌀', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤' };
 const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙' };
-const PLURAL_COMIDA = { desayuno: 'Desayunos', comida: 'Comidas', merienda: 'Meriendas', cena: 'Cenas' };
 // Secciones de la tienda, en el orden en que se recorre Mercadona.
 const SECCIONES = ['Fruta y verdura', 'Panadería y pastelería', 'Carne', 'Marisco y pescado', 'Charcutería y quesos', 'Huevos, leche y mantequilla',
   'Postres y yogures', 'Arroz, legumbres y pasta', 'Conservas, caldos y cremas', 'Aceite, especias y salsas', 'Cereales y galletas', 'Aperitivos',
@@ -313,11 +312,9 @@ function vSemana() {
     <div class="dias" role="tablist">${pe.dias.map(x => { const dd = fecha(x.f); return `<button class="dia-btn${x.f === h ? ' hoy' : ''}" data-f="${x.f}" aria-pressed="${x.f === V.dia}"><span class="ds">${x.f === h ? 'hoy' : DS[dd.getDay()]}</span><span class="dn">${dd.getDate()}</span><span class="puntos">${puntos(x)}</span></button>`; }).join('')}</div>
     <div class="tarjeta anillos"><div class="anillos-cab"><b>Lo que coméis ${d.f === h ? 'hoy' : 'este día'}</b><span class="leyenda"><i class="l1"></i>kcal <i class="l2"></i>proteína</span></div>${caja('G', tG)}${caja('P', tP)}</div>
     ${consejosDia(pe, i)}
-    ${L.COMIDAS.map(c => tarjetaComida(p, d, i, c, s, d.f === h && c === horaComida())).join('')}
-    <div class="proponer"><div class="proponer-t">${I.chispas}Proponer otros</div><div class="botones">${L.COMIDAS.map(c => `<button class="chip" data-proponer="${c}">${COMIDA_EMO[c]} ${PLURAL_COMIDA[c]}</button>`).join('')}</div></div>`;
+    ${L.COMIDAS.map(c => tarjetaComida(p, d, i, c, s, d.f === h && c === horaComida())).join('')}`;
   $$('.dia-btn').forEach(b => b.addEventListener('click', () => { V.dia = b.dataset.f; vSemana(); }));
   $$('[data-acc]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.acc, b.dataset.q || null)));
-  $$('[data-proponer]').forEach(b => b.addEventListener('click', () => proponer(p, b.dataset.proponer)));
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
   activaLetreros();
   $('.dia-btn[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -390,11 +387,17 @@ function consejosDia(pe, i) {
   return partes.join('');
 }
 
+// Guarda cómo estaba un hueco del menú para poder deshacer el cambio.
+function recuerdaHueco(p, k) {
+  const s = est(p.id), habia = k in s.cambios, antes = s.cambios[k];
+  return () => { if (habia) s.cambios[k] = antes; else delete s.cambios[k]; salva(); vSemana(); };
+}
 function alternaFuera(p, f, c) {
-  const s = est(p.id), k = f + '|' + c, actual = efectivo(p).dias.find(d => d.f === f)[c];
+  const s = est(p.id), k = f + '|' + c, actual = efectivo(p).dias.find(d => d.f === f)[c], deshaz = recuerdaHueco(p, k);
   if (actual && actual.fuera) { const orig = p.dias.find(d => d.f === f)[c]; if (orig && orig.fuera) s.cambios[k] = null; else delete s.cambios[k]; }
   else s.cambios[k] = { fuera: true };
   salva(); vSemana();
+  conDeshacer(actual && actual.fuera ? '↩️ Ya no coméis fuera' : '🍽️ Coméis fuera', deshaz);
 }
 function alternaHecho(p, f, c) {
   const s = est(p.id), k = f + '|' + c, ck = p.id + '|' + k;
@@ -405,19 +408,6 @@ function alternaHecho(p, f, c) {
     tostada('✅ ¡Comido! Descontado de «En casa»');
   }
   salva(); vSemana();
-}
-// Proponer otros platos de un tipo (desayunos, comidas…) para el resto de la semana, con opción de deshacer.
-function proponer(p, comida) {
-  const s = est(p.id), pe = efectivo(p), h = hoy(), antes = JSON.stringify(s.cambios);
-  const desde = h > pe.dias[0].f ? h : null;
-  const nuevo = L.proponerSemana(pe, recetas, D.productos, fac, obj.G, Date.now(), comida, desde);
-  for (const d of nuevo.dias) {
-    if (desde && d.f < desde) continue;
-    const orig = pe.dias.find(x => x.f === d.f)[comida];
-    if (orig === null || typeof orig === 'string' || L.esDoble(orig)) s.cambios[d.f + '|' + comida] = d[comida];
-  }
-  salva(); vSemana();
-  conDeshacer(`✨ ${PLURAL_COMIDA[comida]} nuevos`, () => { s.cambios = JSON.parse(antes); salva(); vSemana(); });
 }
 function siguienteSemana() {
   const ult = planActivo(), inicio = masDias(ult.dias.at(-1).f, 1);
@@ -448,10 +438,10 @@ function abrirCambiar(p, i, c, q) {
   hoja(`<h2>${COMIDA_EMO[c]} Cambiar ${L.NOMBRE_COMIDA[c].toLowerCase()}</h2><div class="nota">${persona ? `Para ${esc(NOM[persona])} · ` : ''}${capital(DL[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}</div>
     ${alts.map(r => filaReceta(r, persona)).join('')}`, h => {
     $$('[data-id]', h).forEach(b => b.addEventListener('click', () => {
-      const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c;
+      const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
       else s.cambios[k] = id;
-      salva(); cierraHoja(); vSemana(); tostada('🔄 Plato cambiado');
+      salva(); cierraHoja(); vSemana(); conDeshacer('🔄 Plato cambiado', deshaz);
     }));
   });
 }
