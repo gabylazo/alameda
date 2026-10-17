@@ -216,7 +216,7 @@ export const normaliza = s => (s || '').toLowerCase().normalize('NFD').replace(/
 const NUMEROS = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, medio: 0.5, media: 0.5 };
 const RELLENO = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'paquete', 'paquetes', 'bandeja', 'bandejas', 'bote', 'botes', 'tarrina', 'tarrinas', 'bolsa', 'bolsas', 'kilo', 'kilos', 'mas', 'tambien', 'por', 'favor', 'lista', 'compra', 'a', 'en', 'unos', 'unas', 'algo', 'poco']);
 const SINONIMOS = {
-  pechuga_pollo: 'pollo pechuga pechugas', pavo_filetes: 'pavo filetes', pavo_lonchas: 'fiambre lonchas jamon york',
+  pechuga_pollo: 'pollo pechuga pechugas', aguacate: 'aguacate aguacates palta', noquis: 'noquis noqui gnocchi', yuca: 'yuca mandioca', lima: 'lima limas', pavo_filetes: 'pavo filetes', pavo_lonchas: 'fiambre lonchas jamon york',
   huevos: 'huevo huevos docena', queso_batido: 'queso batido', yogur_proteinas: 'yogur yogures proteinas',
   leche_soja: 'leche soja bebida', platano: 'platano platanos banana bananas', tomate_cherry: 'tomate tomates cherry',
   frutos_rojos: 'frutos rojos', aceite_oliva: 'aceite', claras: 'claras', kefir: 'kefir', avena: 'avena copos',
@@ -263,26 +263,139 @@ function comidaDe(t) {
   if (/\bcom(ida|o|emos|er)\b|almuerz/.test(t)) return 'comida';
   return null;
 }
-const separa = s => s.split(/,| y | e /).map(x => x.trim()).filter(Boolean);
+export const separa = s => s.split(/,| y | e /).map(x => x.trim()).filter(Boolean);
+
+// Productos de una orden («apunta huevos, leche y pan»): se separan sobre el texto original, que conserva comas y tildes.
+function itemsDe(texto, m, prod) {
+  const nVerbo = m[0].split(' ').length - m[1].split(' ').length;
+  const resto = texto.trim().replace(/^[¿¡\s]+/, '').split(/\s+/).slice(nVerbo).join(' ');
+  return separa(resto.replace(/[¿?¡!.]/g, ' ')).map(s => { const b = buscaProducto(s, prod); return b && { ...b, original: s.trim() }; }).filter(Boolean);
+}
 
 export function interpretar(texto, prod) {
   const t = normaliza(texto);
   if (!t) return { accion: 'nada' };
   let m;
   if ((m = t.match(/^(?:anade|anadir|apunta|apuntar|pon|poner|agrega|agregar|compra|comprar|necesitamos|hay que comprar|falta|faltan)\s+(.+)$/)))
-    return { accion: 'anadir', items: separa(m[1]).map(s => buscaProducto(s, prod)).filter(Boolean) };
+    return { accion: 'anadir', items: itemsDe(texto, m, prod) };
   if ((m = t.match(/^(?:quita|quitar|borra|borrar|elimina|eliminar)\s+(.+)$/)))
-    return { accion: 'quitar', items: separa(m[1]).map(s => buscaProducto(s, prod)).filter(Boolean) };
+    return { accion: 'quitar', items: itemsDe(texto, m, prod) };
   if ((m = t.match(/^(?:ya tenemos|tenemos|todavia hay|aun hay|hay|queda|quedan|nos queda|nos quedan)\s+(.+)$/)) && !/\bque\b/.test(m[1].split(' ')[0]))
-    return { accion: 'casa', items: separa(m[1]).map(s => buscaProducto(s, prod)).filter(Boolean) };
+    return { accion: 'casa', items: itemsDe(texto, m, prod) };
   if ((m = t.match(/^(?:ya )?(?:hemos comprado|compramos|comprado)\s+(.+)$/)))
-    return { accion: 'comprado', items: separa(m[1]).map(s => buscaProducto(s, prod)).filter(Boolean) };
+    return { accion: 'comprado', items: itemsDe(texto, m, prod) };
   if (/\bfuera\b/.test(t) && /(comemos|cenamos|comer|cenar|desayunamos|salimos)/.test(t))
     return { accion: 'fuera', dia: diaDe(t) || 'hoy', comida: comidaDe(t) || 'cena' };
   if (/^(cambia|cambiar|cambiame|otra|otro|no me apetece|no nos apetece)/.test(t))
     return { accion: 'cambiar', dia: diaDe(t) || 'hoy', comida: comidaDe(t) };
   if (/\bque\b/.test(t) && comidaDe(t))
     return { accion: 'ver', dia: diaDe(t) || 'hoy', comida: comidaDe(t) };
+  if (/^(?:nueva receta|receta nueva|anade (?:una |la )?receta|agrega (?:una |la )?receta|apunta (?:una |la )?receta)\b/.test(t)) return { accion: 'receta', texto };
+  if (/(escanea|escanear|es bueno|es buena|es malo|es sano|codigo de barras)/.test(t)) return { accion: 'escanear' };
   if (/lista|compra/.test(t)) return { accion: 'ir', a: 'compra' };
   return { accion: 'desconocida', texto };
+}
+
+// ——— Recetas propias: de lo que se escribe o se dicta a una receta con gramos ———
+// Cada línea es un ingrediente: «150 g de pechuga de pollo», «2 huevos», «media cebolla», «un chorrito de aceite».
+// Lo que coincide con un producto de la app entra con sus gramos (para las calorías y la lista); lo demás queda como texto.
+const UNIDADES = [
+  [/^(kg|kilo|kilos|kilogramos?)$/, 1000], [/^(g|gr|grs|gramos?)$/, 1], [/^(l|litros?)$/, 1000], [/^(ml|mililitros?|cc)$/, 1],
+  [/^(cucharadas?|cda|cdas)$/, 15], [/^(cucharaditas?|cdta|cdtas)$/, 5], [/^(tazas?|vasos?)$/, 200], [/^(pizcas?|pellizcos?)$/, 0.5],
+  [/^(chorritos?|chorros?)$/, 5], [/^(dientes?)$/, 4], [/^(lonchas?|lonchitas?)$/, 20], [/^(rebanadas?)$/, 30],
+  [/^(puñados?|punados?)$/, 25], [/^(latas?|botes?|unidades?|uds?|piezas?|filetes?)$/, 0],
+];
+const ESCALA_CAT = { 'Carne': 'p', 'Marisco y pescado': 'p', 'Huevos, leche y mantequilla': 'p', 'Charcutería y quesos': 'p', 'Postres y yogures': 'p',
+  'Arroz, legumbres y pasta': 'h', 'Panadería y pastelería': 'h', 'Cereales y galletas': 'h', 'Fruta y verdura': 'v', 'Congelados': 'v',
+  'Conservas, caldos y cremas': 'v', 'Aperitivos': 'g', 'Aceite, especias y salsas': '1' };
+const HIDRATOS_FRESCOS = ['patata', 'boniato', 'platano', 'yuca', 'noquis'];
+export const BASICOS = /^(sal|sal fina|sal gorda|agua|hielo|sal y pimienta|cilantro|perejil|albahaca|comino|laurel|tomillo|romero|ajo y perejil)$/;
+const LIMPIA = s => s.replace(/\b(al gusto|poco|pizca|pellizco|chorrito|chorro|hojas?|ramitas?|unas?|unos|algo|de|del)\b/g, ' ').replace(/\s+/g, ' ').trim();
+
+export function lineaIngrediente(linea, prod) {
+  const original = linea.trim().replace(/^[-•·*\d]+[.)]\s+/, '');
+  let t = normaliza(original).replace(/(\d)([a-z])/g, '$1 $2').replace(/(\d+)\s*\/\s*(\d+)/g, (_, a, b) => String(+a / +b));
+  if (!t) return null;
+  const pal = t.split(' ');
+  let n = null, factor = null, i = pal.findIndex(w => NUMEROS[w] != null || /^\d+(\.\d+)?$/.test(w));
+  if (i >= 0) {
+    n = NUMEROS[pal[i]] ?? parseFloat(pal[i]);
+    if (pal[i + 1] === 'y' && pal[i + 2] === 'medio') { n += 0.5; pal.splice(i + 1, 2); }
+    const u = UNIDADES.find(([re]) => re.test(pal[i + 1] || ''));
+    pal.splice(i, u ? 2 : 1);
+    if (u) factor = u[1];
+  } else {
+    const j = pal.findIndex(w => UNIDADES.some(([re]) => re.test(w)));   // «un chorrito de aceite» ya sale arriba; «pizca de sal» sin número
+    if (j >= 0) { factor = UNIDADES.find(([re]) => re.test(pal[j]))[1]; n = 1; pal.splice(j, 1); }
+  }
+  const resto = pal.join(' ');
+  if (BASICOS.test(LIMPIA(resto))) return { texto: original, k: null, basico: true };
+  const b = buscaProducto(resto, prod);
+  const k = b && b.k, x = k && prod[k];
+  if (!x) return { texto: original, k: null };
+  let g;
+  if (n == null) g = x.despensa ? (k.startsWith('aceite') ? 5 : 1) : x.gud || 100;
+  else if (factor) g = n * factor;
+  else g = n * (x.gud || (x.util && x.util <= 250 ? x.util : 100));
+  const esc = x.despensa ? '1' : HIDRATOS_FRESCOS.includes(k) ? 'h' : (ESCALA_CAT[x.cat] || '1');
+  return { texto: original, k, g: Math.round(g * 10) / 10, esc, aprox: n == null || (!factor && !x.gud) };
+}
+
+export function interpretaReceta(ingTexto, pasosTexto, prod) {
+  const lineas = (ingTexto || '').split(/\n/).flatMap(l => l.split(/,|;| y | e (?=[a-z])/i)).map(l => l.trim()).filter(Boolean);
+  const detalle = lineas.map(l => lineaIngrediente(l, prod)).filter(Boolean);
+  const ing = [], otros = [], basicos = [];
+  for (const d of detalle) {
+    if (d.basico) { basicos.push(d.texto); continue; }
+    if (!d.k) { otros.push(d.texto); continue; }
+    const ya = ing.find(i => i[0] === d.k);
+    if (ya) ya[1] += d.g; else ing.push([d.k, d.g, d.esc]);
+  }
+  const pasos = (pasosTexto || '').split(/\n|(?<=[.!])\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(p => p.trim().replace(/^\d+[.)]\s*/, '')).filter(p => p.length > 2).map(p => p[0].toUpperCase() + p.slice(1));
+  return { ing, otros, basicos, pasos, detalle };
+}
+
+const EMOJIS_RECETA = [[/taco/, '🌮'], [/hamburguesa/, '🍔'], [/pizza/, '🍕'], [/sushi|poke/, '🍣'], [/wrap|burrito|fajita/, '🌯'], [/pasta|noqui|espagueti|macarron|fideo|lasana/, '🍝'],
+  [/ensalada/, '🥗'], [/tortilla|revuelto/, '🍳'], [/sopa|crema|caldo|guiso|potaje/, '🍲'], [/batido|smoothie/, '🥤'], [/tostada|sandwich|bocadillo/, '🥪'], [/tortita|crepe|pancake/, '🥞'],
+  [/pollo|contramuslo/, '🍗'], [/pavo/, '🦃'], [/ternera|entrecot|anojo|filete|hamburguesa/, '🥩'], [/cerdo|lomo|solomillo/, '🍖'],
+  [/salmon|merluza|pescado|bacalao|atun/, '🐟'], [/gamba|langostino|marisco/, '🦐'], [/pasta|noqui|espagueti|macarron|fideo|lasana/, '🍝'],
+  [/arroz|risotto/, '🍚'], [/ensalada/, '🥗'], [/tortilla|huevo|revuelto/, '🍳'], [/pizza/, '🍕'], [/wrap|burrito|fajita/, '🌯'],
+  [/sopa|crema|caldo|lenteja|garbanzo|guiso/, '🍲'], [/batido|smoothie/, '🥤'], [/yogur|queso batido|kefir/, '🥛'], [/tostada|sandwich|pan /, '🥪'],
+  [/tortita|crepe|pancake/, '🥞'], [/yuca|patata|boniato/, '🥔'], [/fruta|manzana|platano|fresa/, '🍓'], [/verdura|brocoli|calabacin/, '🥦']];
+export const emojiDe = texto => (EMOJIS_RECETA.find(([re]) => re.test(normaliza(texto))) || [null, '🍽️'])[1];
+
+// ——— ¿Es buena compra? Semáforo para vuestro objetivo (perder grasa con mucha proteína) ———
+// n: valores por 100 g { kcal, p, hc, az, g, sat, f, sal, nova, nutri, bebida }
+export function veredicto(n) {
+  let pts = 0; const pros = [], contras = [];
+  const kcal = n.kcal ?? (n.p * 4 + n.hc * 4 + n.g * 9);
+  const densP = kcal > 0 ? (n.p || 0) * 4 / kcal : 0;
+  if (n.bebida) {
+    if ((n.az ?? 0) >= 5) { pts -= 3; contras.push('bebida con mucho azúcar'); }
+    else if (kcal <= 5) { pts += 1; pros.push('casi sin calorías'); }
+  }
+  if (densP >= 0.3 && kcal > 20) { pts += 2; pros.push('mucha proteína'); } else if (densP >= 0.2) { pts += 1; pros.push('buena proteína'); }
+  const fruto = (n.g || 0) >= 40 && (n.f || 0) >= 5 && (n.az ?? 0) < 10;
+  if (n.az != null && !(n.bebida && n.az >= 5)) { if (n.az >= 15) { pts -= 2; contras.push('mucho azúcar'); } else if (n.az >= 7) { pts -= 1; contras.push('bastante azúcar'); } }
+  if (n.sat != null) { if (n.sat >= 5) { pts -= 2; contras.push('mucha grasa saturada'); } else if (n.sat >= 2.5) { pts -= 1; contras.push('algo de grasa saturada'); } }
+  else if (n.g >= 20) { pts -= 1; contras.push('mucha grasa'); }
+  if (kcal >= 400) { pts -= 1; contras.push('muchas calorías: ración pequeña'); } else if (kcal <= 120 && !n.bebida) { pts += 1; pros.push('ligero'); }
+  if (densP < 0.1 && kcal > 200 && !n.bebida) contras.push('poca proteína');
+  if ((n.f ?? 0) >= 6) { pts += 1; pros.push('mucha fibra'); }
+  if ((n.sal ?? 0) >= 1.5) { pts -= 1; contras.push('mucha sal'); }
+  if (n.nova === 4) { pts -= 1; contras.push('ultraprocesado'); } else if (n.nova === 1) { pts += 1; pros.push('poco procesado'); }
+  const ns = { a: 1, b: 0.5, c: 0, d: -1, e: -2 }[String(n.nutri || '').toLowerCase()];
+  if (ns != null) pts += ns;
+  if (fruto) { pts = Math.max(pts, -1); pros.unshift('grasas buenas'); const i = contras.indexOf('muchas calorías: ración pequeña'); if (i >= 0) contras[i] = 'ración de 20 g'; }
+  const nivel = pts >= 2 ? 'bueno' : pts <= -2 ? 'malo' : 'regular';
+  return { nivel, pts, pros, contras, kcal: Math.round(kcal) };
+}
+export const NIVEL = { bueno: { e: '🟢', t: 'Bueno' }, regular: { e: '🟡', t: 'Regular' }, malo: { e: '🔴', t: 'Mejor no' } };
+export const nutrientesDe = x => ({ kcal: x.m[0], p: x.m[1], hc: x.m[2], g: x.m[3], f: x.m[4], az: x.n2?.[0] ?? null, sat: x.n2?.[1] ?? null, sal: x.n2?.[2] ?? null });
+export function nutrientesOFF(prod) {
+  const n = prod.nutriments || {}, v = k => (n[k + '_100g'] ?? n[k + '_100ml'] ?? null);
+  const kcal = v('energy-kcal') ?? (v('energy') != null ? v('energy') / 4.184 : null);
+  return { kcal, p: v('proteins') ?? 0, hc: v('carbohydrates') ?? 0, az: v('sugars'), g: v('fat') ?? 0, sat: v('saturated-fat'), f: v('fiber'),
+    sal: v('salt'), nova: prod.nova_group ?? null, nutri: prod.nutriscore_grade ?? null,
+    bebida: (prod.categories_tags || []).some(c => /beverages|bebidas|drinks/.test(c)) };
 }
