@@ -19,7 +19,7 @@ export function objetivos(p) {
   return { tmb: Math.round(tmb), gasto: Math.round(gasto), kcal, prot, grasa, hc };
 }
 
-// Las recetas están escritas para la ración de Gabriela; la de Pablo se escala por tipo de ingrediente.
+// Las recetas están escritas para la ración de G (ella); la de P (él) se escala por tipo de ingrediente.
 export function factores(perfiles) {
   const a = objetivos(perfiles.G), b = objetivos(perfiles.P);
   return {
@@ -28,8 +28,8 @@ export function factores(perfiles) {
   };
 }
 
-// ing = [clave, gramos de Gabriela, escala (p proteína, h hidratos, v verdura, g grasa, 1 fija), opciones]
-// opciones: { P: gramos de Pablo } o { solo: 'G' | 'P' }
+// ing = [clave, gramos de G, escala (p proteína, h hidratos, v verdura, g grasa, 1 fija), opciones]
+// opciones: { P: gramos de P } o { solo: 'G' | 'P' }
 export function gramos(ing, quien, fac) {
   const [, g, esc = '1', op = {}] = ing;
   if (op.solo && op.solo !== quien) return 0;

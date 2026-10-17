@@ -13,7 +13,7 @@ const guardaTexto = (k, v) => { try { v == null ? localStorage.removeItem(k) : l
 const r0 = n => Math.round(n);
 const euros = n => n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
 
-let D, E, fac, obj, recetas;
+let D, E, fac, obj, recetas, NOM = { G: '', P: '' };
 const V = { pestana: 'semana', dia: null, filtro: 'todas', busca: '' };
 
 // ——— Fechas ———
@@ -56,7 +56,7 @@ async function descifra(clave) {
 function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null }; }
 const salva = () => guarda(ESTADO, E);
 function est(id) {
-  if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: {}, compraHecha: false };
+  if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
   return E.semanas[id];
 }
 function perfiles() {
@@ -66,7 +66,7 @@ function perfiles() {
   if (gym) for (const q of L.QUIEN) p[q].actividad = Math.max(p[q].actividad, 1.45);
   return p;
 }
-function recalcula() { const p = perfiles(); fac = L.factores(p); obj = { G: L.objetivos(p.G), P: L.objetivos(p.P) }; }
+function recalcula() { const p = perfiles(); fac = L.factores(p); obj = { G: L.objetivos(p.G), P: L.objetivos(p.P) }; NOM = { G: p.G.nombre || 'G', P: p.P.nombre || 'P' }; }
 
 // Planes: el que llega con los datos y los que se preparan en el móvil con «Preparar la siguiente semana».
 function planes() {
@@ -134,7 +134,7 @@ function puerta(error = '') {
     <div class="puerta">
       <img class="logo" src="iconos/icono-192.png" alt="">
       <h1>Alameda</h1>
-      <p>La app de la cocina de Gabriela y Pablo. Escribe la clave de casa para abrirla; solo se pide una vez en cada móvil.</p>
+      <p>La app de nuestra cocina. Escribe la clave de casa para abrirla; solo se pide una vez en cada móvil.</p>
       <form id="f-clave"><label class="sr" for="clave">Clave de casa</label>
         <input id="clave" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="clave de casa" required>
         <div class="error">${esc(error)}</div>
@@ -199,14 +199,14 @@ function vSemana() {
   const tot = q => L.totalesDia(d, q, recetas, D.productos, fac);
   const barra = (q, t) => {
     const o = obj[q], pk = Math.min(100, t.kcal / o.kcal * 100), pp = Math.min(100, t.p / o.prot * 100);
-    return `<div class="total-persona"><div class="quien ${q === 'G' ? 'persona-g' : 'persona-p'}">${q === 'G' ? 'Gabriela' : 'Pablo'} <span>${r0(t.kcal)} / ${o.kcal} kcal · ${r0(t.p)} / ${o.prot} g prot</span></div>
+    return `<div class="total-persona"><div class="quien ${q === 'G' ? 'persona-g' : 'persona-p'}">${esc(NOM[q])} <span>${r0(t.kcal)} / ${o.kcal} kcal · ${r0(t.p)} / ${o.prot} g prot</span></div>
       <div class="barra ${q.toLowerCase()}"><i style="width:${pk}%"></i></div><div class="barra ${q.toLowerCase()}" style="margin-top:4px;height:5px"><i style="width:${pp}%;opacity:.6"></i></div></div>`;
   };
   const tG = tot('G'), tP = tot('P');
   const faltaG = obj.G.kcal - tG.kcal, faltaP = obj.P.kcal - tP.kcal;
   const pista = tG.fuera ? '<div class="nota">Lo que comáis fuera no cuenta aquí. Fuera, mejor plancha y ensalada; no hace falta compensar después.</div>'
     : tG.libre ? '<div class="nota">Lo que no tiene plato puesto no cuenta en estas barras.</div>'
-    : (faltaG > 150 || faltaP > 200) ? `<div class="nota">Hoy os quedáis algo cortos (${faltaG > 150 ? `Gabriela ~${r0(faltaG / 10) * 10} kcal` : ''}${faltaG > 150 && faltaP > 200 ? ', ' : ''}${faltaP > 200 ? `Pablo ~${r0(faltaP / 10) * 10} kcal` : ''}): una fruta o un puñado de almendras (20 g) para picar.</div>` : '';
+    : (faltaG > 150 || faltaP > 200) ? `<div class="nota">Hoy os quedáis algo cortos (${faltaG > 150 ? `${esc(NOM.G)} ~${r0(faltaG / 10) * 10} kcal` : ''}${faltaG > 150 && faltaP > 200 ? ', ' : ''}${faltaP > 200 ? `${esc(NOM.P)} ~${r0(faltaP / 10) * 10} kcal` : ''}): una fruta o un puñado de almendras (20 g) para picar.</div>` : '';
   $('#vista').innerHTML = `
     ${banners.join('')}
     <div class="dias" role="tablist">${pe.dias.map(x => { const dd = fecha(x.f); return `<button class="dia-btn${x.f === h ? ' hoy' : ''}" data-f="${x.f}" aria-pressed="${x.f === V.dia}"><span class="ds">${DS[dd.getDay()]}</span><span class="dn">${dd.getDate()}</span></button>`; }).join('')}</div>
@@ -234,7 +234,7 @@ function tarjetaComida(p, d, i, c, s) {
   return `<article class="tarjeta comida${hecho ? ' hecha' : ''}">${cab}
     <button class="nombre" data-abrir="${r.id}" data-f="${d.f}" data-c="${c}">${esc(r.n)}</button>
     ${r.sub ? `<div class="subt">${esc(r.sub)}</div>` : ''}
-    <div class="raciones"><span class="persona-g"><b>Gabriela</b> ${r0(mg.kcal)} kcal · ${r0(mg.p)} g prot</span><span class="persona-p"><b>Pablo</b> ${r0(mp.kcal)} kcal · ${r0(mp.p)} g prot</span></div>
+    <div class="raciones"><span class="persona-g"><b>${esc(NOM.G)}</b> ${r0(mg.kcal)} kcal · ${r0(mg.p)} g prot</span><span class="persona-p"><b>${esc(NOM.P)}</b> ${r0(mp.kcal)} kcal · ${r0(mp.p)} g prot</span></div>
     <div class="acciones"><button data-hecho="${c}" aria-pressed="${hecho}">${hecho ? 'Hecho ✓' : 'Hecho'}</button><button data-cambiar="${c}">Cambiar</button><button data-fuera="${c}">Fuera</button></div>
   </article>`;
 }
@@ -316,7 +316,7 @@ function abrirCambiar(p, i, c) {
   const alts = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G);
   hoja(`<h2>Cambiar ${L.NOMBRE_COMIDA[c].toLowerCase()}</h2><div class="nota">${diaLargo(d.f)}. Primero, los que mejor encajan con el resto de la semana.</div>
     ${alts.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac), q = L.macrosReceta(r, 'P', D.productos, fac);
-      return `<button class="alternativa" data-id="${r.id}"><div class="nombre">${esc(r.n)}</div><div class="meta">${APARATO[r.ap]} · ${r.min} min · Gabriela ${r0(g.kcal)} kcal, ${r0(g.p)} g prot · Pablo ${r0(q.kcal)} kcal</div></button>`; }).join('')}
+      return `<button class="alternativa" data-id="${r.id}"><div class="nombre">${esc(r.n)}</div><div class="meta">${APARATO[r.ap]} · ${r.min} min · ${esc(NOM.G)} ${r0(g.kcal)} kcal, ${r0(g.p)} g prot · ${esc(NOM.P)} ${r0(q.kcal)} kcal</div></button>`; }).join('')}
     <div class="botones" style="margin-top:10px"><button class="boton" data-otro="fuera">Coméis fuera</button><button class="boton" data-otro="libre">Lo que haya en casa</button></div>`, h => {
     h.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => { est(p.id).cambios[d.f + '|' + c] = b.dataset.id; salva(); cierraHoja(); vSemana(); tostada('Plato cambiado'); }));
     h.querySelectorAll('[data-otro]').forEach(b => b.addEventListener('click', () => {
@@ -339,8 +339,8 @@ function abrirReceta(id, ctx) {
   const planes = planActivo();
   hoja(`<h2>${esc(r.n)}</h2>${r.sub ? `<div class="nota">${esc(r.sub)}</div>` : ''}
     <div class="botones" style="margin:10px 0 2px"><span class="etiqueta verde">${APARATO[r.ap]}</span><span class="etiqueta">${r.min} min</span>${r.ens ? '<span class="etiqueta">Con ensalada</span>' : ''}</div>
-    <table class="ingredientes"><thead><tr><th>Ingrediente</th><th class="persona-g">Gabriela</th><th class="persona-p">Pablo</th></tr></thead><tbody>${filas}</tbody></table>
-    <div class="macros">${m('Gabriela', 'g', mg)}${m('Pablo', 'p', mp)}</div>
+    <table class="ingredientes"><thead><tr><th>Ingrediente</th><th class="persona-g">${esc(NOM.G)}</th><th class="persona-p">${esc(NOM.P)}</th></tr></thead><tbody>${filas}</tbody></table>
+    <div class="macros">${m(esc(NOM.G), 'g', mg)}${m(esc(NOM.P), 'p', mp)}</div>
     <h3 style="margin-top:14px">Cómo se hace</h3><ol class="pasos">${r.pasos.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
     ${r.nota ? `<div class="aviso"><div>${esc(r.nota)}</div></div>` : ''}
     ${ctx ? '' : `<h3 style="margin-top:14px">Ponerla en el menú</h3><div class="botones" style="margin-top:8px">
@@ -406,7 +406,7 @@ function vCompra() {
       <button class="boton" id="b-compartir">Compartir lista</button>
       <label class="boton" for="i-foto">Foto del ticket o de una lista</label><input id="i-foto" type="file" accept="image/*" class="sr">
     </div>
-    <div class="nota" style="margin-bottom:18px">La foto se manda a Claude por Telegram (al bot @gabi_lazo_bot): la lee y mete en la app lo que hayáis comprado.</div>`;
+    <div class="nota" style="margin-bottom:18px">La foto se manda a Claude por Telegram (al bot @${esc(D.perfiles.bot || '')}): la lee y mete en la app lo que hayáis comprado.</div>`;
   $('#b-aviso-ticket')?.addEventListener('click', () => { E.avisos.ticket = 1; salva(); vCompra(); });
   document.querySelectorAll('[data-marca]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.marca; s.marcados[k] = !s.marcados[k]; salva(); vCompra(); }));
   document.querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
@@ -491,10 +491,10 @@ async function mandarFoto(fichero) {
   if (!fichero) return;
   const texto = 'Para Claude: foto de la compra o de una lista. Métela en la app.';
   try {
-    if (navigator.canShare && navigator.canShare({ files: [fichero] })) { await navigator.share({ files: [fichero], text: texto }); tostada('Elige Telegram y el chat con @gabi_lazo_bot'); return; }
+    if (navigator.canShare && navigator.canShare({ files: [fichero] })) { await navigator.share({ files: [fichero], text: texto }); tostada('Elige Telegram y el chat con @' + (D.perfiles.bot || 'el bot')); return; }
   } catch { return; }
-  hoja(`<h2>Mandar la foto</h2><p>Este móvil no deja compartir fotos desde la app. Mándala tú al bot de Telegram <b>@gabi_lazo_bot</b> y la meto yo.</p>
-    <a class="boton principal" href="https://t.me/gabi_lazo_bot" target="_blank" rel="noopener">Abrir Telegram</a>`);
+  hoja(`<h2>Mandar la foto</h2><p>Este móvil no deja compartir fotos desde la app. Mándala tú al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b> y la meto yo.</p>
+    <a class="boton principal" href="https://t.me/${esc(D.perfiles.bot || '')}" target="_blank" rel="noopener">Abrir Telegram</a>`);
 }
 
 // ——— En casa ———
@@ -568,7 +568,7 @@ function vRecetas() {
     ${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
       return `<button class="tarjeta receta-tarjeta" data-receta="${r.id}"><div class="nombre">${esc(r.n)}</div>
         <div class="linea"><span class="etiqueta verde">${APARATO[r.ap]}</span><span class="etiqueta">${r.min} min</span><span class="etiqueta">${r.tipo.map(c => L.NOMBRE_COMIDA[c]).join(' · ')}</span>${r.ens ? '<span class="etiqueta">Ensalada</span>' : ''}</div>
-        <div class="nota" style="margin-top:6px">Gabriela: ${r0(g.kcal)} kcal · ${r0(g.p)} g de proteína</div></button>`; }).join('') || '<div class="vacio">No hay recetas con ese filtro.</div>'}`;
+        <div class="nota" style="margin-top:6px">${esc(NOM.G)}: ${r0(g.kcal)} kcal · ${r0(g.p)} g de proteína</div></button>`; }).join('') || '<div class="vacio">No hay recetas con ese filtro.</div>'}`;
   $('#i-busca').addEventListener('input', e => { V.busca = e.target.value; const pos = e.target.selectionStart; vRecetas(); const i = $('#i-busca'); i.focus(); i.setSelectionRange(pos, pos); });
   document.querySelectorAll('[data-filtro]').forEach(b => b.addEventListener('click', () => { V.filtro = b.dataset.filtro; vRecetas(); }));
   document.querySelectorAll('[data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
@@ -590,14 +590,14 @@ function vNosotros() {
   const gym = E.gimnasio ?? p.gimnasio;
   $('#vista').innerHTML = `
     ${tarjeta('G')}${tarjeta('P')}
-    <details class="tarjeta perfil"><summary><b>Cómo lo calculo</b></summary><p class="nota">Gasto en reposo con la fórmula de Mifflin-St Jeor, por un factor de actividad ligera (×1,3; ×1,45 cuando vayáis al gimnasio), y un 20 % menos para perder grasa sin pasar hambre. Proteína: 1,9 g por kilo para Gabriela y 1,8 para Pablo. Grasa: 0,7 g por kilo, para no bajar de un mínimo (también por el ciclo). Lo demás, hidratos. Son estimaciones: si en 3 semanas no bajáis, se ajusta.</p>
-      <p class="nota">Las recetas están escritas para la ración de Gabriela; la de Pablo se calcula sola: más proteína y más hidratos.</p></details>
+    <details class="tarjeta perfil"><summary><b>Cómo lo calculo</b></summary><p class="nota">Gasto en reposo con la fórmula de Mifflin-St Jeor, por un factor de actividad ligera (×1,3; ×1,45 cuando vayáis al gimnasio), y un 20 % menos para perder grasa sin pasar hambre. Proteína: ${String(p.G.protKg).replace('.', ',')} g por kilo para ${esc(NOM.G)} y ${String(p.P.protKg).replace('.', ',')} para ${esc(NOM.P)}. Grasa: 0,7 g por kilo, para no bajar de un mínimo (también por el ciclo). Lo demás, hidratos. Son estimaciones: si en 3 semanas no bajáis, se ajusta.</p>
+      <p class="nota">Las recetas están escritas para la ración de ${esc(NOM.G)}; la de ${esc(NOM.P)} se calcula sola: más proteína y más hidratos.</p></details>
     <div class="tarjeta perfil"><h3>Gimnasio</h3>
       <div class="botones" style="margin-top:8px"><button class="chip" id="b-gym" aria-pressed="${!!gym}">${gym ? 'Ya vamos al gimnasio' : 'Todavía no vamos'}</button></div>
       <div class="nota" style="margin-top:8px">Cuando empecéis, decídmelo: subo la actividad y meto más hidratos los días de entreno.</div></div>
     <div class="tarjeta perfil"><h3>Suplementos</h3>
       <p><b>Creatina:</b> ${esc(D.perfiles.suplementos.creatina)}</p>
-      <div class="creatina"><span class="nota">Hoy:</span><button class="chip" data-crea="G" aria-pressed="${!!cr.G}">Gabriela ${cr.G ? '✓' : ''}</button><button class="chip" data-crea="P" aria-pressed="${!!cr.P}">Pablo ${cr.P ? '✓' : ''}</button></div>
+      <div class="creatina"><span class="nota">Hoy:</span><button class="chip" data-crea="G" aria-pressed="${!!cr.G}">${esc(NOM.G)} ${cr.G ? '✓' : ''}</button><button class="chip" data-crea="P" aria-pressed="${!!cr.P}">${esc(NOM.P)} ${cr.P ? '✓' : ''}</button></div>
       <p><b>Huel:</b> ${esc(D.perfiles.suplementos.huel)}</p></div>
     <div class="tarjeta perfil"><h3>Lo que os gusta</h3><ul class="lista-simple">${D.perfiles.gustos.map(g => `<li>${esc(g)}</li>`).join('')}</ul>
       <div class="nota">¿Algo más que no os guste o que os encante? Decídmelo por el micrófono o por Telegram.</div></div>

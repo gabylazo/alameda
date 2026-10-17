@@ -1,7 +1,7 @@
 :root {
   --fondo: #f6f3ed; --tarjeta: #ffffff; --tarjeta-2: #fbfaf7; --texto: #1e2320; --suave: #6a6f68; --tenue: #9a9e97;
   --linea: #e7e2d8; --acento: #2c7a57; --acento-texto: #ffffff; --acento-suave: #e2f0e8; --aviso: #a8650f; --aviso-suave: #fbf0dd;
-  --gabriela: #c0507a; --gabriela-suave: #f8e5ec; --pablo: #3769a8; --pablo-suave: #e3ecf8; --peligro: #b3412f;
+  --persona-g: #c0507a; --persona-g-suave: #f8e5ec; --persona-p: #3769a8; --persona-p-suave: #e3ecf8; --peligro: #b3412f;
   --sombra: 0 1px 2px rgba(30, 35, 32, .06), 0 4px 14px rgba(30, 35, 32, .05);
   --radio: 16px; --barra: 64px;
   color-scheme: light;
@@ -10,14 +10,14 @@
   :root:not([data-theme="light"]) {
     --fondo: #121412; --tarjeta: #1b1e1b; --tarjeta-2: #202320; --texto: #ecebe5; --suave: #a7aaa3; --tenue: #7d817a;
     --linea: #2d312d; --acento: #5cbf8e; --acento-texto: #0d1a12; --acento-suave: #1e3328; --aviso: #e0a24a; --aviso-suave: #33281a;
-    --gabriela: #e486a8; --gabriela-suave: #3a2430; --pablo: #7fa8e0; --pablo-suave: #1f2b3d; --peligro: #e07a68;
+    --persona-g: #e486a8; --persona-g-suave: #3a2430; --persona-p: #7fa8e0; --persona-p-suave: #1f2b3d; --peligro: #e07a68;
     --sombra: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --fondo: #121412; --tarjeta: #1b1e1b; --tarjeta-2: #202320; --texto: #ecebe5; --suave: #a7aaa3; --tenue: #7d817a;
   --linea: #2d312d; --acento: #5cbf8e; --acento-texto: #0d1a12; --acento-suave: #1e3328; --aviso: #e0a24a; --aviso-suave: #33281a;
-  --gabriela: #e486a8; --gabriela-suave: #3a2430; --pablo: #7fa8e0; --pablo-suave: #1f2b3d; --peligro: #e07a68;
+  --persona-g: #e486a8; --persona-g-suave: #3a2430; --persona-p: #7fa8e0; --persona-p-suave: #1f2b3d; --peligro: #e07a68;
   --sombra: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
 }
 
@@ -92,7 +92,7 @@ a { color: var(--acento); font-weight: 600; }
 .aviso b { color: var(--aviso); }
 .aviso .cerrar-aviso { margin-left: auto; border: 0; background: none; color: var(--suave); font-size: 20px; line-height: 1; padding: 0 2px; }
 .nota { color: var(--suave); font-size: 14px; }
-.persona-g { color: var(--gabriela); } .persona-p { color: var(--pablo); }
+.persona-g { color: var(--persona-g); } .persona-p { color: var(--persona-p); }
 .vacio { text-align: center; color: var(--suave); padding: 36px 12px; }
 
 /* Semana */
@@ -127,7 +127,7 @@ a { color: var(--acento); font-weight: 600; }
 .total-persona .quien span { font-weight: 500; color: var(--suave); font-size: 14px; }
 .barra { height: 8px; border-radius: 99px; background: var(--tarjeta-2); border: 1px solid var(--linea); overflow: hidden; margin-top: 5px; }
 .barra i { display: block; height: 100%; border-radius: 99px; }
-.barra.g i { background: var(--gabriela); } .barra.p i { background: var(--pablo); }
+.barra.g i { background: var(--persona-g); } .barra.p i { background: var(--persona-p); }
 .leyenda { font-size: 12px; color: var(--suave); margin-top: 3px; }
 
 /* Compra */
@@ -210,7 +210,7 @@ a { color: var(--acento); font-weight: 600; }
 .pasos li { margin: 8px 0; }
 .macros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
 .macros .m { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
-.macros .m.g { background: var(--gabriela-suave); } .macros .m.p { background: var(--pablo-suave); }
+.macros .m.g { background: var(--persona-g-suave); } .macros .m.p { background: var(--persona-p-suave); }
 .macros .m b { display: block; font-size: 15px; margin-bottom: 2px; }
 .alternativa { display: block; width: 100%; text-align: left; padding: 12px 14px; margin: 8px 0; border: 1px solid var(--linea); border-radius: 14px; background: var(--tarjeta-2); }
 .alternativa .nombre { font-weight: 650; }
