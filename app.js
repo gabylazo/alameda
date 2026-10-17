@@ -739,12 +739,21 @@ async function leeCodigo(fichero) {
   hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128]);
   hints.set(Z.DecodeHintType.TRY_HARDER, true);
   const lector = new Z.MultiFormatReader(); lector.setHints(hints);
-  for (const lado of [1400, 900, 2000]) for (const giro of [0, 90]) {
-    const e = Math.min(1, lado / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * e), h = Math.round(bmp.height * e);
+  // Primero la foto entera; si el código sale pequeño, por trozos que se solapan (centro y una rejilla de 3 × 3).
+  const W = bmp.width, H = bmp.height, zonas = [[0, 0, 1, 1, true], [0.15, 0.15, 0.7, 0.7], [0.25, 0.25, 0.5, 0.5]];
+  for (const y of [0, 0.25, 0.5]) for (const x of [0, 0.25, 0.5]) zonas.push([x, y, 0.5, 0.5]);
+  const intenta = (sx, sy, sw, sh, giro, lado) => {
+    const e = Math.min(2, lado / Math.max(sw, sh)), w = Math.round(sw * e), h = Math.round(sh * e);
     const c = document.createElement('canvas'), x = c.getContext('2d', { willReadFrequently: true });
     if (giro) { c.width = h; c.height = w; x.translate(h, 0); x.rotate(Math.PI / 2); } else { c.width = w; c.height = h; }
-    x.drawImage(bmp, 0, 0, w, h);
-    try { return lector.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch { /* otro tamaño */ }
+    x.drawImage(bmp, sx, sy, sw, sh, 0, 0, w, h);
+    const fuente = new Z.HTMLCanvasElementLuminanceSource(c);
+    for (const B of [Z.HybridBinarizer, Z.GlobalHistogramBinarizer]) { try { return lector.decode(new Z.BinaryBitmap(new B(fuente))).getText(); } catch { /* siguiente */ } }
+    return null;
+  };
+  for (const [zx, zy, zw, zh, entera] of zonas) for (const giro of entera ? [0, 90] : [0]) {
+    const t = intenta(zx * W, zy * H, zw * W, zh * H, giro, entera ? 1400 : 1100);
+    if (t) return t;
   }
   return null;
 }
