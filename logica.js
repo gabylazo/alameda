@@ -51,16 +51,20 @@ export function macrosReceta(receta, quien, prod, fac) {
   return t;
 }
 
-// Un hueco del menú puede ser el id de una receta, { fuera: true } o { libre: 'texto' }.
+// Un hueco del menú puede ser el id de una receta (los dos comen lo mismo), { G: id, P: id } (cada uno lo suyo:
+// desayunos y meriendas), { fuera: true } o { libre: 'texto' }.
 export const idDe = v => (typeof v === 'string' ? v : v && v.r) || null;
+export const esDoble = v => !!v && typeof v === 'object' && ('G' in v || 'P' in v);
+export const recetaDe = (v, q) => esDoble(v) ? v[q] || null : idDe(v);
+export const idsDe = v => esDoble(v) ? [...new Set([v.G, v.P].filter(Boolean))] : idDe(v) ? [idDe(v)] : [];
 
 export function totalesDia(dia, quien, recetas, prod, fac) {
   const t = { kcal: 0, p: 0, hc: 0, g: 0, f: 0, coste: 0, fuera: 0, libre: 0 };
   for (const c of COMIDAS) {
     const v = dia[c];
     if (v && v.fuera) { t.fuera++; continue; }
-    if (!idDe(v)) { t.libre++; continue; }
-    const m = macrosReceta(recetas[idDe(v)], quien, prod, fac);
+    if (!recetaDe(v, quien)) { t.libre++; continue; }
+    const m = macrosReceta(recetas[recetaDe(v, quien)], quien, prod, fac);
     for (const k of Object.keys(m)) t[k] += m[k];
   }
   return t;
@@ -71,10 +75,10 @@ export function necesidades(plan, recetas, fac, desde) {
   const nec = {};
   for (const d of plan.dias) {
     if (desde && d.f < desde) continue;
-    for (const c of COMIDAS) {
-      const r = recetas[idDe(d[c])];
+    for (const c of COMIDAS) for (const q of QUIEN) {
+      const r = recetas[recetaDe(d[c], q)];
       if (!r) continue;
-      for (const ing of r.ing) for (const q of QUIEN) {
+      for (const ing of r.ing) {
         const gr = gramos(ing, q, fac);
         if (gr) nec[ing[0]] = (nec[ing[0]] || 0) + gr;
       }
@@ -162,7 +166,7 @@ function azar(semilla) { let s = semilla >>> 0 || 1; return () => ((s = (s * 166
 function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
   let pen = 0;
   const dia = plan.dias[i];
-  const usado = plan.dias.some((d, j) => COMIDAS.some(c => !(j === i && c === comida) && idDe(d[c]) === r.id));
+  const usado = plan.dias.some((d, j) => COMIDAS.some(c => !(j === i && c === comida) && idsDe(d[c]).includes(r.id)));
   if (usado) pen += comida === 'desayuno' || comida === 'merienda' ? 4 : 20;
   if (comida === 'comida' || comida === 'cena') {
     const prots = (d, salvo) => d ? ['comida', 'cena'].filter(c => !(d === dia && c === salvo)).map(c => recetas[idDe(d[c])]?.prot).filter(Boolean) : [];
@@ -182,28 +186,30 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
   return pen + rnd() * 2.5;
 }
 
-export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now()) {
-  const rnd = azar(semilla), actual = idDe(plan.dias[i][comida]);
+export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
+  const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
     .filter(r => r.tipo.includes(comida) && r.id !== actual)
     .map(r => ({ r, pen: puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) }))
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
 
-// Rellena de nuevo los huecos que no estén marcados como «fuera» o «libre».
-export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.now()) {
-  const rnd = azar(semilla);
+// Rellena de nuevo los huecos que no estén marcados como «fuera» o «libre». Con «solo», únicamente ese tipo de comida;
+// con «desde», únicamente desde ese día. Desayunos y meriendas: uno distinto para cada uno.
+export const DOBLES = ['desayuno', 'merienda'];
+export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.now(), solo = null, desde = null) {
+  const rnd = azar(semilla), toca = (d, c) => (!solo || solo === c) && (!desde || d.f >= desde);
   const nuevo = { ...plan, dias: plan.dias.map(d => {
     const nd = { ...d };
-    for (const c of COMIDAS) if (typeof nd[c] === 'string') nd[c] = null;
+    for (const c of COMIDAS) if (toca(d, c) && (nd[c] === null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
     return nd;
   }) };
+  const mejor = (i, c, salvo) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo)
+    .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
   for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda']) {
-    if (nuevo.dias[i][c] !== null) continue;
-    const cand = Object.values(recetas).filter(r => r.tipo.includes(c))
-      .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) }))
-      .sort((a, b) => a.pen - b.pen);
-    nuevo.dias[i][c] = cand.length ? cand[0].r.id : null;
+    if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
+    if (DOBLES.includes(c)) { const g = mejor(i, c); nuevo.dias[i][c] = { G: g, P: null }; nuevo.dias[i][c].P = mejor(i, c, g); }
+    else nuevo.dias[i][c] = mejor(i, c);
   }
   return nuevo;
 }
@@ -233,16 +239,21 @@ function cantidadYResto(s) {
 }
 const raiz = w => w.replace(/(es|s)$/, '');
 
+// Vocabulario de todos los productos: una palabra que es de otro producto («avena» en «leche de avena») resta,
+// para no confundir la leche de avena con la bebida de soja.
+let vocab = null, vocabDe = null;
 export function buscaProducto(texto, prod) {
   const { n, resto } = cantidadYResto(normaliza(texto));
   const palabras = resto.split(' ').filter(w => w && !RELLENO.has(w)).map(raiz);
   if (!palabras.length) return null;
+  if (vocabDe !== prod) { vocabDe = prod; vocab = new Set(Object.entries(prod).flatMap(([k, x]) => (normaliza(x.n) + ' ' + (SINONIMOS[k] || '')).split(' ').map(raiz))); }
   let mejor = null, mejorP = 0;
   for (const [k, x] of Object.entries(prod)) {
     if (x.en_casa) continue;
     const nombre = new Set((normaliza(x.n) + ' ' + (SINONIMOS[k] || '')).split(' ').map(raiz));
     const aciertos = palabras.filter(w => nombre.has(w)).length;
-    const p = aciertos / palabras.length + (SINONIMOS[k] && palabras.every(w => SINONIMOS[k].split(' ').map(raiz).includes(w)) ? 0.5 : 0);
+    const ajenas = palabras.filter(w => !nombre.has(w) && vocab.has(w)).length;
+    const p = aciertos / palabras.length - 0.3 * ajenas + (SINONIMOS[k] && palabras.every(w => SINONIMOS[k].split(' ').map(raiz).includes(w)) ? 0.5 : 0);
     if (p > mejorP) { mejorP = p; mejor = k; }
   }
   return { texto: resto, n, k: mejorP >= 0.5 ? mejor : null };
@@ -276,7 +287,7 @@ export function interpretar(texto, prod) {
   const t = normaliza(texto);
   if (!t) return { accion: 'nada' };
   let m;
-  if ((m = t.match(/^(?:anade|anadir|apunta|apuntar|pon|poner|agrega|agregar|compra|comprar|necesitamos|hay que comprar|falta|faltan)\s+(.+)$/)))
+  if ((m = t.match(/^(?:anade|anadir|apunta|apuntar|pon|poner|agrega|agregar|compra|comprar|necesitamos|necesito|quiero|queremos|hay que comprar|falta|faltan)\s+(.+)$/)))
     return { accion: 'anadir', items: itemsDe(texto, m, prod) };
   if ((m = t.match(/^(?:quita|quitar|borra|borrar|elimina|eliminar)\s+(.+)$/)))
     return { accion: 'quitar', items: itemsDe(texto, m, prod) };
