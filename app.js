@@ -177,8 +177,22 @@ async function inicio() {
   window.addEventListener('hashchange', () => { V.pestana = (location.hash.slice(1) || 'semana').split('/')[0]; pinta(); });
   V.pestana = PESTANAS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : 'semana';
   pinta();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+    let recargada = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!recargada && versionCargada) { recargada = true; location.reload(); } });
+  }
+  versionCargada = await versionPublicada();
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    navigator.serviceWorker?.getRegistration().then(r => r?.update()).catch(() => {});
+    const v = await versionPublicada();
+    if (v && versionCargada && v !== versionCargada) location.reload();
+  });
 }
+// La versión publicada (la escribe construir.mjs): si cambia mientras la app estaba abierta en segundo plano, se recarga.
+let versionCargada = null;
+async function versionPublicada() { try { const r = await fetch('version.txt', { cache: 'no-store' }); return r.ok ? (await r.text()).trim() : null; } catch { return null; } }
 
 const marcaHTML = '<span class="nombre-app"><span class="nutri">Nutri</span><span class="home">Home</span></span>';
 function puerta(error = '') {
