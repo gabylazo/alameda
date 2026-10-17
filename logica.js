@@ -138,7 +138,7 @@ export function cantidadTexto(k, g, prod) {
     return `${c} ${c === 1 ? 'cucharadita' : 'cucharaditas'} (${Math.round(g)} g)`;
   }
   const r = g >= 30 ? Math.round(g / 5) * 5 : g >= 3 ? Math.round(g) : Math.round(g * 10) / 10;
-  const peso = k === 'claras' || k === 'leche_soja' ? `${r} ml` : `${r} g`;
+  const peso = ['claras', 'leche_soja', 'nata_ligera'].includes(k) ? `${r} ml` : `${r} g`;
   if (x.ud && x.gud) {
     const u = aproxUnidades(g / x.gud);
     if (u && u.n > 0) {
