@@ -170,7 +170,7 @@ const marcaHTML = '<span class="nombre-app"><span class="nutri">Nutri</span><spa
 function puerta(error = '') {
   document.body.innerHTML = `
     <div class="puerta">
-      <img class="logo" src="iconos/icono-192.png" alt="">
+      <img class="logo" src="iconos/nutrihome-192.png" alt="">
       <h1>${marcaHTML}</h1>
       <p>La app de nuestra cocina. Escribe la clave de casa: solo se pide una vez en cada móvil.</p>
       <form id="f-clave"><label class="sr" for="clave">Clave de casa</label>
