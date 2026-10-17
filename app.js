@@ -97,7 +97,7 @@ async function descifra(clave) {
 }
 
 // ——— Estado guardado en el móvil ———
-function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [] }; }
+function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [] }; }
 const salva = () => guarda(ESTADO, E);
 function est(id) {
   if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
@@ -114,7 +114,7 @@ function perfiles() {
 }
 function recalcula() { const p = perfiles(); fac = L.factores(p); obj = { G: L.objetivos(p.G), P: L.objetivos(p.P) }; NOM = { G: p.G.nombre || 'G', P: p.P.nombre || 'P' }; }
 const todasRecetas = () => [...(E.propias || []), ...D.recetas];
-function reconstruyeRecetas() { recetas = Object.fromEntries(todasRecetas().map(r => [r.id, r])); }
+function reconstruyeRecetas() { const fav = new Set(E.favRecetas || []); recetas = Object.fromEntries(todasRecetas().map(r => { r.fav = fav.has(r.id); return [r.id, r]; })); }
 const ini = q => esc((NOM[q] || q)[0]);
 
 // Planes: el que llega con los datos y los que se preparan en el móvil con «Preparar la siguiente semana».
@@ -160,7 +160,7 @@ function consumePasados() {
 // ——— Arranque ———
 async function inicio() {
   E = Object.assign(estadoNuevo(), lee(ESTADO, {}));
-  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras']) E[k] ||= [];
+  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados']) E[k] ||= [];
   const m = location.hash.match(/^#clave=(.+)$/);
   if (m) { guardaTexto(CLAVE, decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
   const clave = leeTexto(CLAVE);
@@ -171,7 +171,8 @@ async function inicio() {
   if (!E.casa) E.casa = { ...(D.casa_inicial || {}) };
   if (!E.fijos) E.fijos = [...(D.fijos || [])];
   E.fijosQuitados ||= [];
-  for (const f of D.fijos || []) { const id = f.k || f.texto; if (!E.fijos.some(x => (x.k || x.texto) === id) && !E.fijosQuitados.includes(id)) E.fijos.push(f); }
+  for (const f of D.fijos || []) if (f.reemplaza) E.fijos = E.fijos.filter(x => x.texto !== f.reemplaza);   // favoritos que antes eran solo texto y ahora son el producto de Mercadona
+  for (const f of D.fijos || []) { const id = idFav(f); if (!E.fijos.some(x => idFav(x) === id) && !E.fijosQuitados.includes(id)) E.fijos.push(f); }
   recalcula();
   consumePasados();
   pintaMarco();
@@ -474,7 +475,7 @@ function abrirReceta(id, ctx) {
     <div class="ing-lista"><div class="ing-fila cab${solo ? ' una' : ''}"><span>Ingrediente</span>${quienes.map(q => `<span class="c persona-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</div>${filas}</div>
     <h3>👩‍🍳 Cómo se hace</h3><ol class="pasos">${r.pasos.map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
-    <div class="botones" style="margin-top:14px"><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
+    <div class="botones" style="margin-top:14px"><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
       ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}A Claude</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
       <select id="s-dia" class="boton">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
@@ -488,6 +489,11 @@ function abrirReceta(id, ctx) {
       salva(); cierraHoja(); tostada('📅 Puesta en el menú'); if (V.pestana === 'semana') vSemana();
     });
     $('#b-a-lista', h).addEventListener('click', () => elegirRaciones(r));
+    $('#b-fav-receta', h).addEventListener('click', e => {
+      E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
+      reconstruyeRecetas(); salva(); e.currentTarget.textContent = r.fav ? '❤️ Favorita' : '🤍 Favorita'; e.currentTarget.classList.add('pop');
+      tostada(r.fav ? '❤️ En vuestras favoritas' : 'Quitada de favoritas'); if (V.pestana === 'recetas') vRecetas();
+    });
     $('#b-editar', h)?.addEventListener('click', () => editorReceta(r));
     $('#b-claude-receta', h)?.addEventListener('click', () => mandarAClaude(textoReceta(r)));
     $('#b-borrar-receta', h)?.addEventListener('click', () => {
@@ -624,7 +630,8 @@ function lineaCompra() {
     else if (x.m) vistas.push({ k: null, m: x.m, clave: 'x:' + x.id, envases: x.n || 1, precio: (x.n || 1) * (x.m.precio || 0), extra: x.id, manual: true, nivel: x.v });
     else vistas.push({ k: null, clave: 'x:' + x.id, texto: x.texto, n: x.n, extra: x.id, manual: true, nivel: x.v, img: x.img, sec: x.sec });
   }
-  for (const f of E.fijos) if (!f.k && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
+  for (const f of E.fijos) if (f.texto && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
+  for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
   for (const [kk, o] of otros) vistas.push({ k: null, clave: kk, texto: o.texto, otro: true, para: o.para });
   for (const v of vistas) v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros';
   vistas.sort((a, b) => (ordenSeccion(a.seccion) - ordenSeccion(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
@@ -664,8 +671,8 @@ function vCompra() {
     <div class="rapidas">
       <button class="rapida" id="b-ir-anadir"><span class="emo">➕</span>Añadir</button>
       <button class="rapida" id="b-receta-lista"><span class="emo">🍲</span>Receta</button>
+      <button class="rapida" id="b-favoritos"><span class="emo">⭐</span>Favoritos</button>
       <button class="rapida" id="b-escanear"><span class="emo">🔎</span>¿Es bueno?</button>
-      <button class="rapida" id="b-compartir"><span class="emo">📤</span>Enviar</button>
     </div>
     ${letrero('ticket', '🧾', '<b>En caja:</b> pedid el ticket digital')}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
@@ -682,6 +689,7 @@ function vCompra() {
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
     <button class="boton principal ancho" id="b-a-casa" style="margin-top:20px"${si ? '' : ' disabled'}>${I.caja}Terminar: lo comprado a «En casa»</button>
     <div class="botones" style="margin:10px 0 18px;justify-content:center">
+      <button class="boton" id="b-compartir">📤 Enviar la lista</button>
       <label class="boton" for="i-foto">📷 Foto del ticket a Claude</label><input id="i-foto" type="file" accept="image/*" class="sr">
     </div>`;
   activaLetreros();
@@ -700,6 +708,7 @@ function vCompra() {
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
   $('#b-ir-anadir').addEventListener('click', () => { $('#anadir-mas').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#i-anadir').focus(), 350); });
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
+  $('#b-favoritos').addEventListener('click', abrirFavoritos);
   $('#b-escanear').addEventListener('click', abrirEscaner);
   $('#b-escanear-2').addEventListener('click', abrirEscaner);
   $('#b-a-casa').addEventListener('click', () => terminarCompra(filas));
@@ -806,6 +815,56 @@ function sigueBuscando(texto) {
   buscaParaAnadir(texto, [...new Set(lineaCompra().filas.map(f => f.seccion))]);
 }
 
+// ——— Favoritos («lo de siempre»): entran solos en la lista cada semana ———
+const idFav = f => f.k || f.texto || (f.m ? 'm:' + f.m.id : '');
+function abrirFavoritos() {
+  const pinta = h => {
+    $('#favs', h).innerHTML = E.fijos.map((f, i) => {
+      const x = f.k ? D.productos[f.k] : null;
+      const nombre = x ? nombreCorto(x) : f.m ? f.m.n : f.texto, foto = x?.foto || f.m?.foto;
+      const env = x ? x.env : f.m ? f.m.env : '', precio = x ? x.precio : f.m ? f.m.precio : 0;
+      return `<div class="fav">${foto ? `<img src="${esc(foto)}" alt="" loading="lazy">` : '<span class="sinfoto">⭐</span>'}
+        <div class="fav-t"><b>${esc(nombre)}</b><span class="nota">${esc(env)}${precio ? ' · ' + euros(precio) : ''}</span></div>
+        ${f.k || f.m ? `<div class="mini-cant"><button data-fav-menos="${i}" aria-label="Uno menos">−</button><b>${f.n || 1}</b><button data-fav-mas="${i}" aria-label="Uno más">＋</button></div>` : ''}
+        <button class="icono" data-fav-quitar="${i}" aria-label="Quitar de favoritos">${I.papelera}</button></div>`;
+    }).join('') || '<div class="vacio"><span class="emo">⭐</span>Todavía no hay favoritos.</div>';
+    const cambia = () => { salva(); pinta(h); if (V.pestana === 'compra') { const y = window.scrollY; vCompra(); window.scrollTo(0, y); } };
+    $$('[data-fav-mas]', h).forEach(b => b.addEventListener('click', () => { const f = E.fijos[+b.dataset.favMas]; f.n = (f.n || 1) + 1; cambia(); }));
+    $$('[data-fav-menos]', h).forEach(b => b.addEventListener('click', () => { const f = E.fijos[+b.dataset.favMenos]; f.n = Math.max(1, (f.n || 1) - 1); cambia(); }));
+    $$('[data-fav-quitar]', h).forEach(b => b.addEventListener('click', () => {
+      const [f] = E.fijos.splice(+b.dataset.favQuitar, 1); E.fijosQuitados = [...new Set([...E.fijosQuitados, idFav(f)])]; cambia(); tostada('Quitado de favoritos');
+    }));
+  };
+  hoja(`<h2>⭐ Favoritos</h2><div class="nota">Lo que compráis siempre: entra solo en la lista cada semana.</div>
+    <div id="favs" style="margin-top:10px"></div>
+    <h3>➕ Añadir un favorito</h3>
+    <form class="anadir" id="f-fav"><div class="caja"><input id="i-fav" placeholder="Busca: anacardos, papel higiénico…" autocomplete="off" enterkeyhint="search"><button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
+    <div id="res-fav"></div>`, h => {
+    pinta(h);
+    let tB;
+    const busca = async () => {
+      const t = limpiaPeticion($('#i-fav', h).value), caja = $('#res-fav', h);
+      if (t.length < 2) { caja.innerHTML = ''; return; }
+      caja.innerHTML = '<div class="cargando"></div>';
+      let hits = [];
+      try { hits = await buscaMercadona(t, 6); } catch { caja.innerHTML = '<div class="nota">📡 Sin conexión con Mercadona.</div>'; return; }
+      const local = L.buscaProducto(t, D.productos);
+      if (local?.k && !hits.some(x => x.k === local.k)) { const x = D.productos[local.k]; hits.unshift({ id: String(x.id), n: x.n, foto: x.foto, precio: x.precio, env: x.env, cat: x.cat, k: local.k }); }
+      caja.innerHTML = hits.map((x, i) => `<button class="res" data-fav-res="${i}">${x.foto ? `<img src="${esc(x.foto)}" alt="" loading="lazy">` : `<span class="sinfoto">${emojiSeccion(x.cat)}</span>`}
+        <span class="res-t"><b>${esc(x.n)}</b><span class="nota">${esc(x.env)}</span></span><span class="res-p">${x.precio ? euros(x.precio) : ''}</span><span class="icono mas">⭐</span></button>`).join('') || '<div class="nota">No encuentro nada.</div>';
+      $$('[data-fav-res]', caja).forEach(b => b.addEventListener('click', () => {
+        const x = hits[+b.dataset.favRes], nuevo = x.k ? { k: x.k, n: 1 } : { m: x, n: 1 };
+        if (E.fijos.some(f => idFav(f) === idFav(nuevo))) { tostada('Ya está en favoritos'); return; }
+        E.fijos.push(nuevo); E.fijosQuitados = E.fijosQuitados.filter(z => z !== idFav(nuevo));
+        $('#i-fav', h).value = ''; caja.innerHTML = ''; salva(); pinta(h); tostada('⭐ ' + (x.k ? nombreCorto(D.productos[x.k]) : x.n));
+        if (V.pestana === 'compra') { const y = window.scrollY; vCompra(); window.scrollTo(0, y); }
+      }));
+    };
+    $('#i-fav', h).addEventListener('input', () => { clearTimeout(tB); tB = setTimeout(busca, 380); });
+    $('#f-fav', h).addEventListener('submit', e => { e.preventDefault(); clearTimeout(tB); busca(); });
+  });
+}
+
 // Lo que se marca con ✕: se propone otra cosa de Mercadona; se acepta, se pide otra o nada.
 async function pintaAlternativa(f, s) {
   const el = $(`[data-alt="${CSS.escape(f.clave)}"] .alt-cuerpo`); if (!el) return;
@@ -844,7 +903,8 @@ function infoProducto(clave, f) {
       ${k && !f.extra ? `<button class="boton" id="b-quitar">${I.papelera}Quitar de la lista</button>` : ''}
       ${f.extra ? `<button class="boton" id="b-borrar-extra">${I.papelera}Quitar</button>` : ''}
       ${f.otro ? `<button class="boton" id="b-borrar-otro">${I.papelera}Quitar</button>` : ''}
-      ${k ? `<button class="boton" id="b-fijo">${E.fijos.some(y => y.k === k) ? '⭐ Quitar de «lo de siempre»' : '⭐ A «lo de siempre»'}</button>` : ''}
+      ${k ? `<button class="boton" id="b-fijo">${E.fijos.some(y => y.k === k) ? '⭐ Quitar de favoritos' : '⭐ A favoritos'}</button>` : ''}
+      ${f.m && !f.fijo ? `<button class="boton" id="b-fijo-m">⭐ A favoritos</button>` : ''}
     </div>`, h => {
     $('#b-quitar', h)?.addEventListener('click', () => { s.quitados[k] = true; salva(); cierraHoja(); vCompra(); tostada('Quitado de la lista'); });
     $('#b-borrar-extra', h)?.addEventListener('click', () => { s.extra = s.extra.filter(y => y.id !== f.extra); salva(); cierraHoja(); vCompra(); });
@@ -880,10 +940,15 @@ function infoProducto(clave, f) {
     $('#b-mas', h)?.addEventListener('click', () => fija(actual + 1));
     $('#b-menos', h)?.addEventListener('click', () => fija(actual - 1));
     $('#i-cant', h)?.addEventListener('change', e => { const v = parseInt(e.target.value, 10); if (isFinite(v)) fija(v); });
+    $('#b-fijo-m', h)?.addEventListener('click', () => {
+      E.fijos.push({ m: f.m, n: f.envases || 1 }); E.fijosQuitados = E.fijosQuitados.filter(x => x !== idFav({ m: f.m }));
+      s.extra = s.extra.filter(y => y.id !== f.extra);   // esta semana ya entra como favorito
+      salva(); cierraHoja(); vCompra(); tostada('⭐ A favoritos');
+    });
     $('#b-fijo', h)?.addEventListener('click', () => {
       if (E.fijos.some(y => y.k === k)) { E.fijos = E.fijos.filter(y => y.k !== k); E.fijosQuitados = [...new Set([...(E.fijosQuitados || []), k])]; }
       else { E.fijos = [...E.fijos, { k, n: 1 }]; E.fijosQuitados = (E.fijosQuitados || []).filter(x => x !== k); }
-      salva(); cierraHoja(); vCompra(); tostada('Hecho');
+      salva(); cierraHoja(); vCompra(); tostada(E.fijos.some(y => y.k === k) ? '⭐ A favoritos' : 'Quitado de favoritos');
     });
   });
 }
@@ -1128,7 +1193,7 @@ function anadeACasa(items) {
 }
 
 // ——— Recetas ———
-const FILTROS = [['todas', '✨ Todas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min']];
+const FILTROS = [['todas', '✨ Todas'], ['favoritas', '❤️ Favoritas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min']];
 const QUESOS = [['queso_burgos', 'Para cada día: casi sin grasa'], ['cottage', 'Cremoso, para ensaladas y tostadas'], ['queso_batido', 'Base de salsas y batidos'],
   ['mozzarella_light', 'Con tomate, tomate seco y rúcula'], ['queso_cabra', 'Vuestro favorito: unos 20 g por ensalada'], ['feta', 'Poco y desmigado: sabe mucho'], ['grana_padano', 'En lascas: con 10 g basta']];
 function vRecetas() {
@@ -1139,7 +1204,7 @@ function vRecetas() {
   const lista = todas.filter(r => {
     if (t && !L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n).join(' ') + ' ' + (r.otros || []).join(' ')).includes(t)) return false;
     const f = V.filtro;
-    return f === 'todas' || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
+    return f === 'todas' || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
   });
   const esPregunta = /^(¿)?\s*(c[oó]mo|qu[eé]|puedo|se puede|receta)/i.test(pregunta) || (t && !lista.length);
   $('#vista').innerHTML = `
@@ -1148,8 +1213,9 @@ function vRecetas() {
     <button class="nueva-receta" id="b-nueva"><span class="emo">✍️</span><span><b>Nueva receta</b></span></button>
     <div class="fila-chips">${FILTROS.map(([k, n]) => `<button class="chip" data-filtro="${k}" aria-pressed="${V.filtro === k}">${n}</button>`).join('')}</div>
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
-      return `<button class="receta-tarjeta c-${r.tipo[0]}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${emojiReceta(r)}</div>
+      return `<button class="receta-tarjeta c-${r.tipo[0]}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${r.fav ? '<span class="corazon">❤️</span>' : ''}${emojiReceta(r)}</div>
         <div class="cuerpo"><div class="nombre">${esc(r.n)}</div><div class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${r0(g.kcal)} kcal</span></div></div></button>`; }).join('')}</div>
+    ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}
     <details class="tarjeta quesos"><summary>🧀 Quesos para vuestras ensaladas</summary>
       <table><thead><tr><th>Queso</th><th class="num">💪</th><th class="num">🥑</th></tr></thead><tbody>
       ${QUESOS.filter(([k]) => D.productos[k]).map(([k, tx]) => `<tr><td><b>${esc(nombreCorto(D.productos[k]).replace(/ desnatado.*| semidesnatado.*| de vaca/, ''))}</b><br><span class="nota">${esc(tx)}</span></td><td class="num">${D.productos[k].m[1]} g</td><td class="num">${D.productos[k].m[3]} g</td></tr>`).join('')}

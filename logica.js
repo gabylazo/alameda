@@ -183,6 +183,7 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
   }
   const kcal = macrosReceta(r, 'G', prod, fac).kcal;
   pen += Math.abs(kcal - objG.kcal * REPARTO[comida]) / 60;
+  if (r.fav) pen -= 2;   // vuestras favoritas salen antes
   return pen + rnd() * 2.5;
 }
 
