@@ -1,4 +1,5 @@
-// app.js — interfaz de NutriHome: Semana, Compra, En casa, Recetas y Nosotros; recetas propias, buscador de Mercadona y escáner.
+// app.js — interfaz de NutriHome: Semana, Compra, Claude (💬), En casa y Recetas; vuestros datos, en el icono de perfil de arriba.
+// Recetas propias, buscador de Mercadona, ticket digital y escáner. Todo lo que va a Claude sale de la pestaña 💬.
 // Los datos (productos de Mercadona, recetas, menú y perfiles) llegan cifrados en datos.enc; lo que cambiáis
 // (platos cambiados, lista, lo que hay en casa, vuestras recetas…) se guarda en este móvil.
 import * as L from './logica.js';
@@ -16,7 +17,7 @@ const euros = n => n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
 let D, E, fac, obj, recetas, NOM = { G: '', P: '' };
-const V = { pestana: 'semana', dia: null, filtro: 'todas', busca: '', anadidos: new Set() };
+const V = { pestana: 'semana', anterior: 'semana', dia: null, filtro: 'todas', busca: '', anadidos: new Set(), borrador: '', adjunto: null };
 
 // ——— Fechas ———
 const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -39,6 +40,8 @@ const SVG = {
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   equis: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   mas: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  claude: '<svg viewBox="0 0 24 24"><path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6.5L6 20v-4.2A3 3 0 0 1 4 13V7Z"/><path d="M8.5 8.5h7M8.5 11.5h4.5"/></svg>',
+  volver: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
 };
 const I = {
   buscar: ic('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
@@ -50,7 +53,9 @@ const I = {
   carro: ic('<path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>'),
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
-const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['casa', 'En casa'], ['recetas', 'Recetas'], ['nosotros', 'Nosotros']];
+const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', 'Claude'], ['casa', 'En casa'], ['recetas', 'Recetas']];
+// «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
+const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
 const APARATO = { airfryer: 'Air fryer', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
 const APARATO_EMO = { airfryer: '🌀', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤', olla: '♨️' };
 const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙' };
@@ -97,7 +102,7 @@ async function descifra(clave) {
 }
 
 // ——— Estado guardado en el móvil ———
-function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {} }; }
+function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {}, pendientes: [] }; }
 const salva = () => guarda(ESTADO, E);
 function est(id) {
   if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
@@ -160,7 +165,7 @@ function consumePasados() {
 // ——— Arranque ———
 async function inicio() {
   E = Object.assign(estadoNuevo(), lee(ESTADO, {}));
-  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados']) E[k] ||= [];
+  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados', 'pendientes']) E[k] ||= [];
   const m = location.hash.match(/^#clave=(.+)$/);
   if (m) { guardaTexto(CLAVE, decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
   const clave = leeTexto(CLAVE);
@@ -179,8 +184,12 @@ async function inicio() {
   recalcula();
   consumePasados();
   pintaMarco();
-  window.addEventListener('hashchange', () => { V.pestana = (location.hash.slice(1) || 'semana').split('/')[0]; pinta(); });
-  V.pestana = PESTANAS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : 'semana';
+  window.addEventListener('hashchange', () => {
+    const n = (location.hash.slice(1) || 'semana').split('/')[0];
+    if (n === 'nosotros' && V.pestana !== 'nosotros') V.anterior = V.pestana;   // para el botón de volver
+    V.pestana = VISTAS[n] ? n : 'semana'; pinta();
+  });
+  V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'semana';
   pinta();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
@@ -229,7 +238,8 @@ function pintaMarco() {
 let tEntra;
 function pinta() {
   $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === V.pestana ? 'page' : 'false'));
-  const f = { semana: vSemana, compra: vCompra, casa: vCasa, recetas: vRecetas, nosotros: vNosotros }[V.pestana] || vSemana;
+  const f = VISTAS[V.pestana] || vSemana;
+  document.body.classList.toggle('con-barra', V.pestana === 'compra');   // en Compra hay un botón fijo abajo
   const vista = $('#vista');
   vista.classList.add('entra');
   f();
@@ -238,9 +248,13 @@ function pinta() {
   window.scrollTo({ top: 0 });
 }
 function cabecera(titulo, sub = '') {
-  const d = new Date();
-  $('#cab').innerHTML = `<div class="marca"><span class="logo-mini">🥗</span>${marcaHTML}<span class="fecha-chip">${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span></div>
+  const d = new Date(), perfil = V.pestana === 'nosotros';
+  $('#cab').innerHTML = `<div class="marca">${perfil ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : '<span class="logo-mini">🥗</span>'}${marcaHTML}
+      <span class="fecha-chip">${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span>
+      <button class="perfil-btn${perfil ? ' activo' : ''}" id="b-perfil" aria-label="Vuestros datos"><span class="avatar mini g">${ini('G')}</span><span class="avatar mini p">${ini('P')}</span></button></div>
     <h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}`;
+  $('#b-perfil').addEventListener('click', () => { location.hash = perfil ? V.anterior : 'nosotros'; });
+  $('#b-volver')?.addEventListener('click', () => { location.hash = V.anterior; });
 }
 
 let tTostada, tDeshacer;
@@ -304,7 +318,19 @@ function vSemana() {
   cabecera(d.f === h ? 'Hoy' : capital(DL[fd.getDay()]), `${fd.getDate()} de ${MES[fd.getMonth()]}`);
   const banners = [];
   if (h > ultimo) banners.push(`<div class="aviso"><span class="emo">🗓️</span><div><b>Semana terminada</b><div class="botones" style="margin-top:8px"><button class="boton principal" id="b-siguiente">${I.chispas}Preparar la siguiente</button></div></div></div>`);
+  // Platos con cosas que no comprasteis (✕) o que no hay en casa: se ofrece cambiarlos por otros que sí podáis hacer.
+  V.tengo = loQueTenemos(p, s);
+  const sinCosas = platosSinCosas(pe, s);
+  if (sinCosas.platos) banners.push(letrero('falta:' + p.id + ':' + [...sinCosas.claves].sort().join(','), '🛒',
+    `<b>${sinCosas.platos} plato${sinCosas.platos > 1 ? 's' : ''} con cosas que no tenéis</b>: ${esc(enumera(sinCosas.nombres))}.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar">🔄 Ajustar el menú</button></div>`));
+  if (E.pendientes?.length) banners.push(letrero('pend:' + E.pendientes.map(x => x.id).join(','), '🏪', `<a href="#compra" style="color:inherit;text-decoration:none"><b>Pendiente de otro súper:</b> ${esc(enumera(E.pendientes.map(x => nombreFalta(x.k) || x.n), 4))} →</a>`));
   if (!s.compraHecha && h <= p.dias[1].f) banners.push(letrero('compra:' + p.id, '🛒', '<a href="#compra" style="color:inherit;text-decoration:none"><b>Toca compra</b> · ver la lista →</a>'));
+  // Jueves y viernes: recordar la próxima compra y preparar la semana que viene (su lista sale en Compra).
+  const dow = fecha(h).getDay(), sig = planes().find(x => x.dias[0].f > h);
+  if ((dow === 4 || dow === 5) && h <= ultimo) {
+    if (!sig) banners.push(letrero('proxima:' + p.id, '🛒', `<b>Próxima compra:</b> viernes o sábado. ¿Preparo la semana que viene y su lista?<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-preparar">${I.chispas}Preparar la semana</button></div>`));
+    else if (!est(sig.id).compraHecha) banners.push(letrero('proxima2:' + sig.id, '🛒', '<a href="#compra" style="color:inherit;text-decoration:none"><b>Próxima compra:</b> la lista de la semana que viene ya está en Compra →</a>'));
+  }
   const tot = q => L.totalesDia(d, q, recetas, D.productos, fac);
   const tG = tot('G'), tP = tot('P');
   const caja = (q, t) => {
@@ -313,17 +339,94 @@ function vSemana() {
       <div class="quien ${q === 'G' ? 'persona-g' : 'persona-p'}">${esc(NOM[q])}</div><div class="meta">de ${o.kcal} · 💪 ${r0(t.p)}/${o.prot} g</div></div>`;
   };
   const puntos = x => L.COMIDAS.map(c => { const v = x[c]; return `<i class="${s.hechos[x.f + '|' + c] ? 'h' : v && v.fuera ? 'f' : ''}"></i>`; }).join('');
+  const avisos = [...banners, ...consejosDia(pe, i)].filter(Boolean);   // un aviso a la vez: el que más corre
   $('#vista').innerHTML = `
-    ${banners.join('')}
+    ${avisos.slice(0, 1).join('')}
     <div class="dias" role="tablist">${pe.dias.map(x => { const dd = fecha(x.f); return `<button class="dia-btn${x.f === h ? ' hoy' : ''}" data-f="${x.f}" aria-pressed="${x.f === V.dia}"><span class="ds">${x.f === h ? 'hoy' : DS[dd.getDay()]}</span><span class="dn">${dd.getDate()}</span><span class="puntos">${puntos(x)}</span></button>`; }).join('')}</div>
     <div class="tarjeta anillos"><div class="anillos-cab"><b>Lo que coméis ${d.f === h ? 'hoy' : 'este día'}</b><span class="leyenda"><i class="l1"></i>kcal <i class="l2"></i>proteína</span></div>${caja('G', tG)}${caja('P', tP)}</div>
-    ${consejosDia(pe, i)}
     ${L.COMIDAS.map(c => tarjetaComida(p, d, i, c, s, d.f === h && c === horaComida())).join('')}`;
   $$('.dia-btn').forEach(b => b.addEventListener('click', () => { V.dia = b.dataset.f; vSemana(); }));
   $$('[data-acc]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.acc, b.dataset.q || null)));
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
+  $('#b-ajustar')?.addEventListener('click', () => { const c = adaptaMenu(p); vSemana(); hojaCambiosMenu(c); });
+  $('#b-preparar')?.addEventListener('click', () => { siguienteSemana(); location.hash = 'compra'; });
   activaLetreros();
   $('.dia-btn[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
+// ——— El menú se adapta a la compra ———
+// Lo que tenéis: lo de «En casa», lo que siempre hay (especias, despensa) y, mientras la compra no esté terminada,
+// lo que pide el menú (se va a comprar), salvo lo marcado con ✕. Si la compra está terminada pero «En casa» está casi vacío,
+// no se da nada por perdido: solo cuenta lo marcado con ✕.
+function loQueTenemos(p, s) {
+  const enCasa = Object.keys(E.casa).filter(k => E.casa[k] > 0), tengo = new Set(enCasa);
+  for (const [k, x] of Object.entries(D.productos)) if (x.en_casa || x.despensa) tengo.add(k);
+  if (!s.compraHecha || enCasa.length < 5) {
+    const h = hoy();
+    for (const d of efectivo(p).dias) if (d.f >= h) for (const c of L.COMIDAS) for (const id of L.idsDe(d[c])) for (const ing of recetas[id]?.ing || []) tengo.add(ing[0]);
+    for (const x of s.extra) if (x.k) tengo.add(x.k);
+    for (const f of E.fijos) if (f.k) tengo.add(f.k);
+  }
+  for (const k of [...Object.keys(s.noComprado), ...Object.keys(s.noHabia || {})]) if ((s.noComprado[k] || s.noHabia?.[k]) && !(E.casa[k] > 0)) tengo.delete(k);
+  return tengo;
+}
+const faltanDe = (r, tengo) => r && tengo ? [...new Set(r.ing.map(i => i[0]).filter(k => D.productos[k] && !tengo.has(k)))] : [];
+// Lo que de verdad falta: lo marcado con ✕ (en la lista o al terminar la compra) y que tampoco hay en casa.
+const noTenemos = s => new Set([...Object.keys(s.noComprado), ...Object.keys(s.noHabia || {})].filter(k => (s.noComprado[k] || s.noHabia?.[k]) && D.productos[k] && !(E.casa[k] > 0)));
+const faltaExplicita = (r, s) => { if (!r) return []; const no = noTenemos(s); return [...new Set(r.ing.map(i => i[0]).filter(k => no.has(k)))]; };
+// Nombre corto para los avisos: «Claras de huevo líquidas pasteurizadas» → «claras»; «Queso fresco batido desnatado 0% MG» → «queso fresco batido».
+const nombreFalta = k => nombreCorto(D.productos[k]).toLowerCase()
+  .replace(/\b(desnatad[oa]s?|0 ?% ?mg|\d+ ?%|l[ií]quidas?|pasteurizadas?|laminad[oa]s?|limpi[oa]s?|cocid[oa]s?|coraz[oó]n|romana|virgen extra|de canarias|de huevo|lonchas|para plancha|corte fino|deshuesad[oa]s?|y sin piel|sin piel|congelad[oa]s?|finos|redonda|dulce)\b/g, '')
+  .replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+// «a, b, c y 4 más»
+const enumera = (arr, n = 5) => arr.length <= n ? arr.join(', ') : arr.slice(0, n).join(', ') + ` y ${arr.length - n} más`;
+// Qué platos pendientes (desde hoy, sin comer) usan algo que no tenéis.
+function platosSinCosas(pe, s) {
+  const h = hoy(), claves = new Set(); let platos = 0;
+  for (const d of pe.dias) {
+    if (d.f < h) continue;
+    for (const c of L.COMIDAS) {
+      if (s.hechos[d.f + '|' + c]) continue;
+      for (const id of L.idsDe(d[c])) { const f = faltaExplicita(recetas[id], s); if (f.length) { platos++; f.forEach(k => claves.add(k)); } }
+    }
+  }
+  return { platos, claves, nombres: [...claves].map(nombreFalta) };
+}
+// Cambia cada plato pendiente que use algo que no tenéis por la mejor alternativa que sí se pueda hacer. Devuelve los cambios.
+function adaptaMenu(p) {
+  const s = est(p.id), h = hoy(), cambios = [], tengo = loQueTenemos(p, s);
+  p.dias.forEach((d0, i) => {
+    if (d0.f < h) return;
+    for (const c of L.COMIDAS) {
+      const k = d0.f + '|' + c;
+      if (s.hechos[k]) continue;
+      const v0 = efectivo(p).dias[i][c];
+      if (!v0 || v0.fuera) continue;
+      for (const q of (L.esDoble(v0) ? L.QUIEN : [null])) {
+        const pe = efectivo(p), v = pe.dias[i][c], id = q ? v[q] : L.idDe(v), r = recetas[id];
+        const falta = faltaExplicita(r, s);
+        if (!r || !falta.length) continue;
+        for (const kk of falta) apuntaPendiente({ k: kk, n: nombreCorto(D.productos[kk]) });   // para comprarlo en otro súper
+        const nueva = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 99, Date.now() + i, q).find(x => !faltanDe(x, tengo).length && gustaA(x, q ? [q] : L.QUIEN)) || null;
+        if (nueva) {
+          if (q) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[q] = nueva.id; s.cambios[k] = base; }
+          else s.cambios[k] = nueva.id;
+        }
+        cambios.push({ f: d0.f, c, q, de: r.n, a: nueva ? nueva.n : null, falta: falta.map(nombreFalta) });
+      }
+    }
+  });
+  if (cambios.length) salva();
+  return cambios;
+}
+function htmlCambiosMenu(cambios) {
+  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · sin ${esc(enumera(x.falta, 3))}</div>
+    <div><s>${esc(x.de)}</s><br>${x.a ? `<b>${esc(x.a)}</b>` : '<b class="persona-g">Sin alternativa con lo que tenéis</b>'}</div></div>`).join('');
+}
+function hojaCambiosMenu(cambios) {
+  const n = cambios.filter(x => x.a).length;
+  hoja(`<h2>🔄 Menú ajustado</h2><p class="nota">${cambios.length ? `${n} plato${n === 1 ? '' : 's'} cambiado${n === 1 ? '' : 's'} por otros que podéis hacer con lo que tenéis.${n < cambios.length ? ' Para alguno no he encontrado alternativa: cámbialo a mano o pregúntame.' : ''}` : 'Todos los platos se pueden hacer con lo que tenéis.'}</p>
+    ${htmlCambiosMenu(cambios)}`);
 }
 
 function tarjetaComida(p, d, i, c, s, ahora) {
@@ -331,10 +434,11 @@ function tarjetaComida(p, d, i, c, s, ahora) {
   const mom = `<span class="momento">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}${ahora && !hecho ? '<span class="ahora-pill">AHORA</span>' : ''}${hecho ? '<span class="hecho-pill">✓ comido</span>' : ''}</span>`;
   const cls = `tarjeta comida c-${c}${hecho ? ' hecha' : ''}${ahora && !hecho ? ' ahora' : ''}`;
   if (v && v.fuera) return `<button class="${cls} fuera" data-acc="${c}"><span class="tile">🍽️</span><span class="cuerpo">${mom}<span class="nombre">Coméis fuera</span></span><span class="flecha">›</span></button>`;
+  const pillFalta = r => { const f = hecho ? [] : faltaExplicita(r, s); return f.length ? `<span class="pill malo">⚠️ sin ${esc(enumera(f.map(nombreFalta), 2))}</span>` : ''; };
   if (L.esDoble(v)) {
     const fila = q => { const r = recetas[v[q]]; const m = r ? L.macrosReceta(r, q, D.productos, fac) : null;
       return `<button class="fila-doble" data-acc="${c}" data-q="${q}"><span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span><span class="mini-tile">${r ? emojiReceta(r) : '➕'}</span>
-        <span class="nombre-s">${r ? esc(r.n) : 'Sin plato'}</span>${m ? `<span class="pill ${q.toLowerCase()}">${r0(m.kcal)}</span>` : ''}<span class="flecha">›</span></button>`; };
+        <span class="nombre-s">${r ? esc(r.n) : 'Sin plato'}${r && pillFalta(r) ? '<br>' + pillFalta(r) : ''}</span>${m ? `<span class="pill ${q.toLowerCase()}">${r0(m.kcal)}</span>` : ''}<span class="flecha">›</span></button>`; };
     return `<div class="${cls} doble">${mom}${fila('G')}${fila('P')}</div>`;
   }
   const r = recetas[L.idDe(v)];
@@ -342,7 +446,7 @@ function tarjetaComida(p, d, i, c, s, ahora) {
   const mg = L.macrosReceta(r, 'G', D.productos, fac), mp = L.macrosReceta(r, 'P', D.productos, fac);
   return `<button class="${cls}" data-acc="${c}"><span class="tile">${emojiReceta(r)}</span>
     <span class="cuerpo">${mom}<span class="nombre">${esc(r.n)}</span>
-      <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${ini('G')} ${r0(mg.kcal)}</span><span class="pill p">${ini('P')} ${r0(mp.kcal)}</span>${r.propia ? '<span class="pill">⭐</span>' : ''}</span></span>
+      <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${ini('G')} ${r0(mg.kcal)}</span><span class="pill p">${ini('P')} ${r0(mp.kcal)}</span>${r.propia ? '<span class="pill">⭐</span>' : ''}${pillFalta(r)}</span></span>
     <span class="flecha">›</span></button>`;
 }
 
@@ -356,7 +460,11 @@ function abrirAcciones(p, i, c, q) {
   let botones = '';
   if (v && v.fuera) botones = btn('a-cambiar', '🔄', 'Poner un plato') + btn('a-fuera', '↩️', 'No comemos fuera');
   else if (!r) botones = btn('a-cambiar', '🔄', 'Poner un plato') + btn('a-fuera', '🍽️', 'Comemos fuera');
-  else botones = btn('a-ver', '📖', 'Receta', 'primaria') + btn('a-hecho', hecho ? '↩️' : '✅', hecho ? 'Desmarcar' : 'Ya comido') + btn('a-cambiar', '🔄', 'Cambiar') + btn('a-fuera', '🍽️', 'Comemos fuera');
+  else {
+    const falta = hecho ? [] : faltaExplicita(r, s);
+    botones = btn('a-ver', '📖', 'Receta', falta.length ? '' : 'primaria') + btn('a-hecho', hecho ? '↩️' : '✅', hecho ? 'Desmarcar' : 'Ya comido') + btn('a-cambiar', '🔄', 'Cambiar', falta.length ? 'primaria' : '') + btn('a-fuera', '🍽️', 'Comemos fuera');
+    if (falta.length) botones = `<div class="aviso" style="grid-column:1/-1;margin:0 0 4px"><span class="emo">⚠️</span><div><b>No tenéis ${esc(falta.map(nombreFalta).join(' ni '))}.</b> Cambia el plato por otro que podáis hacer.</div></div>` + botones;
+  }
   hoja(`<div class="acciones-cab c-${c}"><span class="emo">${r ? emojiReceta(r) : v && v.fuera ? '🍽️' : '🏠'}</span><div><div class="nota">${quien}${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]} · ${dia}</div>
       <h2>${r ? esc(r.n) : v && v.fuera ? 'Coméis fuera' : 'Sin plato'}</h2></div></div>
     <div class="acciones-grid">${botones}</div>`, h => {
@@ -390,7 +498,7 @@ function consejosDia(pe, i) {
       ((D.productos[k].cat === 'Congelados' && PESCADO_CONGELADO.test(D.productos[k].n)) || (fresca(k) && i + 1 >= 3))).map(([k]) => nombre(k));
     if (sacar.length) partes.push(letrero('noche:' + pe.dias[i].f, '🌙', `<b>Esta noche, a la nevera:</b> ${esc(sacar.join(' y '))}`, 'hielo'));
   }
-  return partes.join('');
+  return partes;
 }
 
 // Guarda cómo estaba un hueco del menú para poder deshacer el cambio.
@@ -417,6 +525,7 @@ function alternaHecho(p, f, c) {
 }
 function siguienteSemana() {
   const ult = planActivo(), inicio = masDias(ult.dias.at(-1).f, 1);
+  if (planes().some(x => x.id === inicio)) { V.dia = inicio; vSemana(); return; }   // ya estaba preparada
   const dias = Array.from({ length: 7 }, (_, n) => {
     const f = masDias(inicio, n), dow = fecha(f).getDay(), d = { f };
     for (const c of L.COMIDAS) d[c] = null;
@@ -425,24 +534,28 @@ function siguienteSemana() {
     return d;
   });
   const base = { id: inicio, titulo: `Semana del ${fecha(inicio).getDate()} de ${MES[fecha(inicio).getMonth()]}`, dias };
-  const plan = L.proponerSemana(base, recetas, D.productos, fac, obj.G);
+  const recetasOk = Object.fromEntries(Object.entries(recetas).filter(([, r]) => gustaA(r, L.QUIEN)));   // sin lo que no le gusta a alguno
+  const plan = L.proponerSemana(base, recetasOk, D.productos, fac, obj.G);
   E.planes = [...E.planes.filter(x => x.id !== plan.id), plan];
   V.dia = inicio; salva(); vSemana(); tostada('🗓️ Semana preparada');
 }
 
-function filaReceta(r, q = null) {
+function filaReceta(r, q = null, extra = '') {
   const g = L.macrosReceta(r, 'G', D.productos, fac), p = L.macrosReceta(r, 'P', D.productos, fac);
   const kc = q ? `<span class="pill ${q.toLowerCase()}">${ini(q)} ${r0((q === 'G' ? g : p).kcal)}</span>` : `<span class="pill g">${ini('G')} ${r0(g.kcal)}</span><span class="pill p">${ini('P')} ${r0(p.kcal)}</span>`;
   return `<button class="alternativa" data-id="${r.id}"><span class="emo">${emojiReceta(r)}</span><span style="min-width:0"><span class="nombre" style="display:block">${esc(r.n)}</span>
-    <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${kc}${r.propia ? '<span class="pill">⭐</span>' : ''}</span></span></button>`;
+    <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${kc}${r.propia ? '<span class="pill">⭐</span>' : ''}${extra}</span></span></button>`;
 }
 function abrirCambiar(p, i, c, q) {
   const pe = efectivo(p), d = pe.dias[i], v = d[c];
   const doble = L.DOBLES.includes(c) && !(v && v.fuera);
   const persona = q || (doble ? 'G' : null);
-  const alts = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 8, Date.now(), persona);
+  // Primero lo que se puede hacer con lo que tenéis; lo demás, avisando de lo que falta.
+  const tengo = V.tengo || loQueTenemos(p, est(p.id));
+  const alts = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 14, Date.now(), persona).filter(r => gustaA(r, persona ? [persona] : L.QUIEN)).slice(0, 10)
+    .map(r => ({ r, falta: faltanDe(r, tengo) })).sort((a, b) => a.falta.length - b.falta.length);
   hoja(`<h2>${COMIDA_EMO[c]} Cambiar ${L.NOMBRE_COMIDA[c].toLowerCase()}</h2><div class="nota">${persona ? `Para ${esc(NOM[persona])} · ` : ''}${capital(DL[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}</div>
-    ${alts.map(r => filaReceta(r, persona)).join('')}`, h => {
+    ${alts.map(({ r, falta }) => filaReceta(r, persona, falta.length ? `<span class="pill malo">falta ${esc(falta.map(nombreFalta).join(', '))}</span>` : '')).join('')}`, h => {
     $$('[data-id]', h).forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
@@ -498,7 +611,7 @@ function abrirReceta(id, ctx) {
       tostada(r.fav ? '❤️ En vuestras favoritas' : 'Quitada de favoritas'); if (V.pestana === 'recetas') vRecetas();
     });
     $('#b-editar', h)?.addEventListener('click', () => editorReceta(r));
-    $('#b-claude-receta', h)?.addEventListener('click', () => mandarAClaude(textoReceta(r)));
+    $('#b-claude-receta', h)?.addEventListener('click', () => irAClaude(textoReceta(r)));
     $('#b-borrar-receta', h)?.addEventListener('click', () => {
       if (!confirm(`¿Borro la receta «${r.n}» de este móvil?`)) return;
       E.propias = E.propias.filter(x => x.id !== r.id); reconstruyeRecetas(); salva(); cierraHoja(); tostada('Receta borrada'); pinta();
@@ -516,7 +629,7 @@ function elegirRaciones(r) {
       <button class="accion" data-quien="G"><span class="avatar mini g">${ini('G')}</span>${esc(NOM.G)}</button>
       <button class="accion" data-quien="P"><span class="avatar mini p">${ini('P')}</span>${esc(NOM.P)}</button></div>`, h => {
     $$('[data-quien]', h).forEach(b => b.addEventListener('click', () => {
-      est(planActivo().id).recetasLista.push({ id: uid(), r: r.id, quien: b.dataset.quien });
+      est(planCompra().id).recetasLista.push({ id: uid(), r: r.id, quien: b.dataset.quien });
       salva(); cierraHoja(); tostada(`🛒 ${r.n}: a la lista`);
       if (V.pestana === 'compra') vCompra(); else location.hash = 'compra';
     }));
@@ -608,8 +721,14 @@ const limpiaPeticion = t => t.trim().replace(/^[¿¡\s]+/, '').replace(/^(quiero
 // ——— Compra ———
 const BASICOS = /^(sal|agua|hielo|pimienta|pimienta negra|sal y pimienta|cilantro|perejil|albahaca|oregano|pimenton|canela|comino)$/;
 const ordenSeccion = n => { const i = SECCIONES.indexOf(n); if (i >= 0) return i; const j = (E.secciones || []).findIndex(s => s.n === n); return j >= 0 ? 60 + j : 99; };
+// La lista de la compra es para la semana que toca comprar: la que viene, si ya está preparada y faltan dos días o menos
+// (o la de ahora ya está comprada); si no, la de ahora.
+function planCompra() {
+  const h = hoy(), act = planActivo(), sig = planes().find(x => x.dias[0].f > h);
+  return sig && (masDias(h, 2) >= sig.dias[0].f || est(act.id).compraHecha) ? sig : act;
+}
 function lineaCompra() {
-  const p = planActivo(), s = est(p.id), h = hoy();
+  const p = planCompra(), s = est(p.id), h = hoy();
   const desde = h > p.dias[0].f ? h : null, pe = efectivo(p);
   const nec = L.necesidades(pe, recetas, fac, desde);
   for (const f of E.fijos) if (f.k && D.productos[f.k]) nec[f.k] = (nec[f.k] || 0) + (f.n || 1) * D.productos[f.k].util;
@@ -652,10 +771,10 @@ const fechaCorta = f => { const d = fecha(f); return `${DS[d.getDay()]} ${d.getD
 function tarjetaTicket(s, marcas) {
   const u = E.compras[0];
   if (s.ticket) return `<div class="tarjeta pregunta ticket-ok"><span class="emo">🧾</span><div class="t"><b>Ticket${s.ticket.fecha ? ' del ' + fechaCorta(s.ticket.fecha) : ''} · ${euros(s.ticket.total)}</b>
-    <span class="nota">${s.ticket.fuera.length ? `＋ ${s.ticket.fuera.length} fuera de la lista` : 'Todo era de la lista'}</span></div><button class="boton principal" id="b-terminar-ticket">Terminar</button></div>`;
+    <span class="nota">${s.ticket.fuera.length ? `＋ ${s.ticket.fuera.length} fuera de la lista · ` : ''}lista marcada: ya puedes terminar</span></div></div>`;
   if (!marcas && u && Date.now() - new Date(u.f) < 4 * 864e5) return `<div class="tarjeta pregunta"><span class="emo">🗂️</span><div class="t"><b>Compra del ${fechaCorta(iso(new Date(u.f)))}</b>
     <span class="nota">${u.no.length ? `✕ ${u.no.length} no había` : '✓ No faltó nada'}${u.ticket ? ' · 🧾 ' + euros(u.ticket.total) : ''}</span></div><button class="boton" id="b-ultima">Ver</button></div>`;
-  return `<div class="tarjeta pregunta"><span class="emo">🧾</span><div class="t"><b>Ticket digital</b><span class="nota">Súbelo y marco la lista</span></div><button class="boton principal" id="b-ticket">📄 Subir</button></div>`;
+  return `<div class="tarjeta pregunta"><span class="emo">🧾</span><div class="t"><b>Ticket digital</b><span class="nota">El PDF del correo o una foto: marco la lista</span></div><button class="boton principal" id="b-ticket">Subir</button></div>`;
 }
 
 function vCompra() {
@@ -688,35 +807,25 @@ function vCompra() {
   const vacio = { todo: '<span class="emo">🎉</span>No falta nada para el menú.', faltan: '<span class="emo">✅</span>Ya está todo mirado.',
     si: '<span class="emo">🛒</span>Todavía no hay nada con ✓.', no: '<span class="emo">🎉</span>No hay nada con ✕.' }[filtro];
   $('#vista').innerHTML = `
-    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">✓ ${si} · ✕ ${no} · faltan ${filas.length - si - no}</div></div>${anillo(filas.length ? (si + no) / filas.length : 0, '#fff', `${si}/${filas.length}`, 'comprados', 78)}</div>
+    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')}</div></div>${anillo(filas.length ? si / filas.length : 0, '#fff', `${si}/${filas.length}`, 'en el carro', 78)}</div>
     <div class="rapidas">
-      <button class="rapida" id="b-ir-anadir"><span class="emo">➕</span>Añadir</button>
+      <button class="rapida" id="b-anadir"><span class="emo">➕</span>Añadir</button>
       <button class="rapida" id="b-receta-lista"><span class="emo">🍲</span>Receta</button>
       <button class="rapida" id="b-favoritos"><span class="emo">⭐</span>Favoritos</button>
-      <button class="rapida" id="b-escanear"><span class="emo">🔎</span>¿Es bueno?</button>
+      <button class="rapida" id="b-mas"><span class="emo">⋯</span>Más</button>
     </div>
     ${tarjetaTicket(s, marcas)}
+    ${tarjetaPendientes()}
+    ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Claude:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${marcas ? `<div class="segmento" role="tablist" aria-label="Qué ver">${[['todo', 'Todo', filas.length], ['faltan', 'Faltan', filas.length - si - no], ['si', '✓', si], ['no', '✕', no]]
       .map(([k, t, n]) => `<button class="${k}" data-filtro="${k}" role="tab" aria-selected="${filtro === k}">${t}<b>${n}</b></button>`).join('')}</div>` : ''}
     ${filtro === 'no' && no ? '<button class="boton suave ancho" id="b-enviar-no" style="margin:4px 0 2px">📤 Enviar lo que no había</button>' : ''}
     ${todo && recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
     ${html || `<div class="vacio">${vacio}</div>`}
     ${(todo || filtro === 'no') && noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
-    ${todo ? `<div class="tarjeta anadir-mas" id="anadir-mas">
-      <h3 style="margin-top:0">➕ ¿Añadir algo más?</h3>
-      <form class="anadir" id="f-anadir"><div class="caja"><input id="i-anadir" placeholder="Escribe: papel higiénico, yuca…" autocomplete="off" enterkeyhint="search">
-        <button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
-      <div id="resultados"></div>
-      <button class="boton suave ancho" id="b-escanear-2" style="margin-top:8px">🔎 ¿Es bueno? Foto del código</button>
-    </div>` : ''}
     ${todo && despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
     ${todo && quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
-    <button class="boton principal ancho" id="b-a-casa" style="margin-top:20px"${si ? '' : ' disabled'}>${I.caja}Terminar: lo comprado a «En casa»</button>
-    <div class="botones" style="margin:10px 0 18px;justify-content:center">
-      <button class="boton" id="b-compartir">📤 Enviar la lista</button>
-      <label class="boton" for="i-foto">📷 Foto del ticket a Claude</label><input id="i-foto" type="file" accept="image/*" class="sr">
-      ${E.compras.length ? '<button class="boton" id="b-ultima-2">🗂️ Última compra</button>' : ''}
-    </div>`;
+    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${si || s.ticket ? '' : ' disabled'}>${si || s.ticket ? I.caja + 'Terminar la compra' : 'Marca con ✓ lo que compráis'}</button></div></div>`;
   activaLetreros();
   const marca = (k, cual) => {
     if (cual === 'si') { s.marcados[k] = !s.marcados[k]; if (s.marcados[k]) delete s.noComprado[k]; }
@@ -736,31 +845,53 @@ function vCompra() {
     vCompra(); if (window.scrollY > arriba) window.scrollTo(0, arriba);
   }));
   $('#b-ticket')?.addEventListener('click', elegirTicket);
-  $('#b-terminar-ticket')?.addEventListener('click', () => terminarCompra(filas));
-  $$('#b-ultima, #b-ultima-2').forEach(b => b.addEventListener('click', () => hojaCompra(E.compras[0])));
+  $('#b-ultima')?.addEventListener('click', () => hojaCompra(E.compras[0]));
+  $('#b-pendientes')?.addEventListener('click', abrirPendientes);
   $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(filas.filter(f => s.noComprado[f.clave]).map(nombreFila)));
-  $('#b-ir-anadir').addEventListener('click', () => { if (!$('#anadir-mas')) { V.filtroCompra = 'todo'; vCompra(); } $('#anadir-mas').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#i-anadir').focus(), 350); });
+  $('#b-anadir').addEventListener('click', () => abrirAnadir(seccionesLista));
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
   $('#b-favoritos').addEventListener('click', abrirFavoritos);
-  $('#b-escanear').addEventListener('click', abrirEscaner);
-  $('#b-escanear-2')?.addEventListener('click', abrirEscaner);
-  $('#b-a-casa').addEventListener('click', () => terminarCompra(filas));
-  $('#b-compartir').addEventListener('click', () => compartirLista(filas));
-  $('#i-foto').addEventListener('change', e => mandarFoto(e.target.files[0]));
-  // Añadir: se busca en Mercadona mientras escribes y se elige el producto.
-  let tBusca;
-  $('#i-anadir')?.addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => buscaParaAnadir(e.target.value, seccionesLista), 380); });
-  $('#f-anadir')?.addEventListener('submit', e => { e.preventDefault(); clearTimeout(tBusca); buscaParaAnadir($('#i-anadir').value, seccionesLista, true); });
+  $('#b-mas').addEventListener('click', abrirMas);
+  $('#b-terminar').addEventListener('click', () => terminarCompra(filas));
   // Alternativas para lo que no había
   for (const f of noFilas) pintaAlternativa(f, s);
 }
+
+// Lo que se usa menos, en un menú «⋯»: enviar la lista, el escáner y la última compra.
+function abrirMas() {
+  const fila = (id, emo, txt, sub = '') => `<button class="menu-fila" id="${id}"><span class="emo">${emo}</span><span><b>${txt}</b>${sub ? `<span class="nota" style="display:block">${sub}</span>` : ''}</span><span class="flecha">›</span></button>`;
+  hoja(`<h2>Más</h2><div class="menu-lista">
+    ${fila('m-enviar', '📤', 'Enviar la lista', 'Lo que falta por comprar, para WhatsApp')}
+    ${fila('m-escanear', '🔎', '¿Es buena compra?', 'Foto del código de barras')}
+    ${E.compras.length ? fila('m-ultima', '🗂️', 'Última compra', 'Lo que no había y lo de fuera de la lista') : ''}</div>`, h => {
+    $('#m-enviar', h).addEventListener('click', () => { cierraHoja(); compartirLista(lineaCompra().filas); });
+    $('#m-escanear', h).addEventListener('click', abrirEscaner);
+    $('#m-ultima', h)?.addEventListener('click', () => hojaCompra(E.compras[0]));
+  });
+}
+
+// Añadir a la lista: una hoja con el buscador de Mercadona. Se pueden añadir varios seguidos; «Listo» la cierra.
+function abrirAnadir(seccionesLista = [...new Set(lineaCompra().filas.map(f => f.seccion))], texto = '') {
+  V.anadidos.clear();
+  hoja(`<h2>➕ Añadir a la lista</h2><div class="nota">Una cosa o varias: «papel higiénico, yuca y 2 kéfir».</div>
+    <form class="anadir" id="f-anadir"><div class="caja"><input id="i-anadir" placeholder="Busca en Mercadona…" autocomplete="off" enterkeyhint="search" value="${esc(texto)}">
+      <button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
+    <div id="resultados"></div>`, h => {
+    let tBusca;
+    $('#i-anadir', h).addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => buscaParaAnadir(e.target.value, seccionesLista), 380); });
+    $('#f-anadir', h).addEventListener('submit', e => { e.preventDefault(); clearTimeout(tBusca); buscaParaAnadir($('#i-anadir', h).value, seccionesLista, true); });
+    setTimeout(() => $('#i-anadir', h)?.focus(), 350);
+    if (texto) buscaParaAnadir(texto, seccionesLista);
+  });
+}
+const refrescaCompra = () => { if (V.pestana === 'compra') { const y = window.scrollY; vCompra(); window.scrollTo(0, y); } };
 
 async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
   const caja = $('#resultados'); if (!caja) return;
   const t = limpiaPeticion(texto || '');
   if (t.length < 2) { caja.innerHTML = ''; return; }
   const o = L.interpretar(texto, D.productos);
-  if (enviado && ['quitar', 'casa', 'comprado'].includes(o.accion)) { ejecuta(texto); return; }
+  if (enviado && ['quitar', 'casa', 'comprado'].includes(o.accion)) { cierraHoja(); ejecuta(texto); return; }
   const varios = L.separa(t).filter(x => x.length > 1);
   if (varios.length > 1) {
     caja.innerHTML = `<div class="nota" style="margin:8px 2px">${varios.length} cosas: ${varios.map(esc).join(' · ')}</div><button class="boton principal ancho" id="b-anadir-varios">➕ Añadir las ${varios.length}</button>`;
@@ -771,7 +902,7 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
         if (b && b.k) { items.push({ ...b, original: v }); continue; }
         try { const h = (await buscaMercadona(limpiaPeticion(v), 1))[0]; items.push(h ? (h.k ? { k: h.k, n: b?.n } : { m: h }) : { texto: capital(v) }); } catch { items.push({ texto: capital(v) }); }
       }
-      anadeALista(items); vCompra();
+      anadeALista(items); cierraHoja(); refrescaCompra();
     });
     return;
   }
@@ -790,16 +921,16 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
     <div class="chips-despensa">${secs.map(n => `<button class="chip" data-sec="${esc(n)}">${emojiSeccion(n)} ${esc(n)}</button>`).join('')}<button class="chip" data-sec-nueva="1">＋ Nueva sección</button></div>`;
   $$('[data-res]', caja).forEach(b => b.addEventListener('click', () => {
     const h = hits[+b.dataset.res]; anadeALista([h.k ? { k: h.k } : { m: h }]);
-    V.anadidos.add(h.id); sigueBuscando(texto);
+    V.anadidos.add(h.id); refrescaCompra(); buscaParaAnadir(texto, seccionesLista);   // la hoja sigue abierta para añadir más
   }));
-  $('#b-listo-anadir', caja)?.addEventListener('click', () => { V.anadidos.clear(); vCompra(); });
-  $$('[data-sec]', caja).forEach(b => b.addEventListener('click', () => { anadeALista([{ texto: capital(t), sec: b.dataset.sec }]); vCompra(); }));
+  $('#b-listo-anadir', caja)?.addEventListener('click', () => { V.anadidos.clear(); cierraHoja(); refrescaCompra(); });
+  $$('[data-sec]', caja).forEach(b => b.addEventListener('click', () => { anadeALista([{ texto: capital(t), sec: b.dataset.sec }]); cierraHoja(); refrescaCompra(); }));
   $('[data-sec-nueva]', caja)?.addEventListener('click', () => {
     const n = (prompt('Nombre de la sección nueva (por ejemplo: Farmacia):') || '').trim();
     if (!n) return;
     const e = (prompt('Un emoji para ella (opcional):', '🏷️') || '🏷️').trim().slice(0, 4);
     if (!E.secciones.some(s => s.n === n)) E.secciones.push({ n, e });
-    anadeALista([{ texto: capital(t), sec: n }]); vCompra();
+    anadeALista([{ texto: capital(t), sec: n }]); cierraHoja(); refrescaCompra();
   });
 }
 
@@ -839,13 +970,6 @@ function quitaDeLista(f) {
   delete s.marcados[f.clave]; delete s.noComprado[f.clave];
   salva(); const y = window.scrollY; vCompra(); window.scrollTo(0, y);
   conDeshacer(`🗑️ ${nombreFila(f)}`, () => { E.semanas[p.id] = JSON.parse(antes); salva(); const y2 = window.scrollY; vCompra(); window.scrollTo(0, y2); });
-}
-
-function sigueBuscando(texto) {
-  vCompra();
-  const i = $('#i-anadir'); if (!i) return;
-  i.value = texto; $('#anadir-mas').scrollIntoView({ block: 'start' }); window.scrollBy(0, -70);
-  buscaParaAnadir(texto, [...new Set(lineaCompra().filas.map(f => f.seccion))]);
 }
 
 // ——— Favoritos («lo de siempre»): entran solos en la lista cada semana ———
@@ -1003,12 +1127,12 @@ function anadeALista(items) {
 // Terminar la compra: lo marcado con ✓ pasa a «En casa» (con lo que dice el ticket, si se subió); lo marcado con ✕ sigue en la lista;
 // lo del ticket que no estaba en la lista también pasa a «En casa». Queda un resumen, para Claude y para «Última compra».
 function terminarCompra(filas) {
-  const { s } = lineaCompra();
+  const { s, p } = lineaCompra();
   const res = { f: new Date().toISOString(), si: [], no: [], extra: [], estimado: 0 };
   for (const f of filas) {
     const n = nombreFila(f);
-    if (s.marcados[f.clave]) { res.si.push(n); res.estimado += f.precio || 0; if (f.manual) res.extra.push(n); }
-    else if (s.noComprado[f.clave]) res.no.push(n);
+    if (s.marcados[f.clave]) { res.si.push(n); res.estimado += f.precio || 0; if (f.manual) res.extra.push(n); quitaPendiente(f); }
+    else if (s.noComprado[f.clave]) { res.no.push(n); apuntaPendiente({ k: f.k || null, n }); }
   }
   let n = 0;
   for (const f of filas) {
@@ -1030,8 +1154,10 @@ function terminarCompra(filas) {
     res.ticket = { fecha: s.ticket.fecha, total: s.ticket.total, cuadra: s.ticket.cuadra, lineas: s.ticket.lineas };
   }
   res.estimado = +res.estimado.toFixed(2);
+  s.noHabia = Object.fromEntries(Object.keys(s.noComprado).filter(k => s.noComprado[k]).map(k => [k, true]));   // para avisar en Semana
   s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.ticketCant = {}; s.ticket = null; s.compraHecha = true;
   V.filtroCompra = 'todo';
+  res.menu = adaptaMenu(p);   // los platos con cosas que no había se cambian por otros que podáis hacer
   E.compras = [res, ...E.compras].slice(0, 20); salva();
   hojaCompra(res, n);
   vCompra();
@@ -1043,11 +1169,12 @@ function hojaCompra(res, nCasa = null) {
   const t = res.ticket, chips = l => `<div class="chips-despensa">${l.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>`;
   hoja(`<h2>${nCasa != null ? '🧾 Compra terminada' : '🗂️ Compra del ' + fechaCorta(iso(new Date(res.f)))}</h2>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
-    ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.no.length ? ' Lo que no había sigue en la lista.' : ''}</p>` : ''}
+    ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.menu?.filter(x => x.a).length ? ` El menú se ha ajustado: ${res.menu.filter(x => x.a).length} plato${res.menu.filter(x => x.a).length === 1 ? '' : 's'} cambiado${res.menu.filter(x => x.a).length === 1 ? '' : 's'}.` : res.no.length ? ' Lo que no había queda en «Pendiente de otro súper».' : ''}</p>` : ''}
     ${t ? `<p class="nota">🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}: <b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>` : ''}
     ${res.no.length ? `<h3>✕ No había</h3>${chips(res.no)}` : ''}
     ${res.sinTicket?.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${chips(res.sinTicket)}` : ''}
     ${res.extra.length ? `<h3>＋ Extra</h3>${chips(res.extra)}` : ''}
+    ${res.menu?.length ? `<h3>🔄 Menú ajustado a la compra</h3>${htmlCambiosMenu(res.menu)}` : ''}
     <div class="botones" style="margin-top:14px">
       ${res.no.length ? '<button class="boton" id="b-enviar-no-h">📤 Enviar lo que no había</button>' : ''}
       ${t ? '' : '<button class="boton" id="b-ticket-h">📄 Subir el ticket</button>'}
@@ -1056,7 +1183,7 @@ function hojaCompra(res, nCasa = null) {
     ${nCasa != null ? `<button class="boton ancho" id="b-ir-casa" style="margin-top:8px">${I.caja}Ver «En casa»</button>` : ''}`, h => {
     $('#b-enviar-no-h', h)?.addEventListener('click', () => compartirNoHabia(res.no));
     $('#b-ticket-h', h)?.addEventListener('click', elegirTicket);
-    $('#b-resumen-claude', h).addEventListener('click', () => mandarAClaude(textoCompra(res)));
+    $('#b-resumen-claude', h).addEventListener('click', () => irAClaude(textoCompra(res)));
     $('#b-ir-casa', h)?.addEventListener('click', () => { cierraHoja(); location.hash = 'casa'; });
   });
 }
@@ -1083,13 +1210,14 @@ async function compartirLista(filas) {
 }
 const compartirNoHabia = nombres => compartirTexto('Lo que no había', 'No había en Mercadona · NutriHome\n' + nombres.map(n => '☐ ' + n).join('\n'), 'Copiado: pégalo en WhatsApp');
 
-async function mandarFoto(fichero, texto = 'Para Claude: foto del ticket o de una lista. Compárala con la compra y métela en NutriHome.') {
-  if (!fichero) return;
+async function mandarFoto(fichero, texto = 'Para Claude, desde NutriHome: foto del ticket o de una lista. Compárala con la compra y métela en NutriHome.') {
+  if (!fichero) return false;
   try {
-    if (navigator.canShare && navigator.canShare({ files: [fichero] })) { await navigator.share({ files: [fichero], text: texto }); tostada('Elige Telegram y el chat con @' + (D.perfiles.bot || 'el bot')); return; }
-  } catch { return; }
+    if (navigator.canShare && navigator.canShare({ files: [fichero] })) { tostada('Elige Telegram y el chat con @' + (D.perfiles.bot || 'el bot')); await navigator.share({ files: [fichero], text: texto }); return true; }
+  } catch { return false; }
   hoja(`<h2>📷 Mandárselo a Claude</h2><p>Este móvil no deja compartir ficheros desde la app. Mándalo al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b>.</p>
     <a class="boton principal" href="https://t.me/${esc(D.perfiles.bot || '')}" target="_blank" rel="noopener">Abrir Telegram</a>`);
+  return false;
 }
 
 // ——— Ticket digital: el PDF que manda Mercadona por correo ———
@@ -1123,13 +1251,13 @@ async function lineasPDF(fichero) {
 }
 function elegirTicket() {
   $$('input.elige-ticket').forEach(x => x.remove());
-  const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf,.pdf'; i.className = 'sr elige-ticket';
+  const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf,.pdf,image/*'; i.className = 'sr elige-ticket';
   i.addEventListener('change', () => { const f = i.files[0]; i.remove(); abreTicket(f); });
   document.body.appendChild(i); i.click();
 }
 async function abreTicket(fichero) {
   if (!fichero) return;
-  if (/^image\//.test(fichero.type)) return mandarFoto(fichero);
+  if (/^image\//.test(fichero.type)) return irAClaude('foto del ticket. Compárala con la compra y métela en NutriHome.', fichero);   // la foto la leo yo
   hoja('<h2>🧾 Leyendo el ticket…</h2><div class="cargando"></div><div class="cargando" style="width:70%"></div>');
   let t;
   try { t = L.leeTicket(/pdf$/i.test(fichero.type) || /\.pdf$/i.test(fichero.name) ? await lineasPDF(fichero) : await fichero.text()); }
@@ -1143,7 +1271,7 @@ function ticketIlegible(fichero, motivo = '') {
     <button class="boton principal ancho" id="b-ticket-claude">${I.enviar}Mandárselo a Claude</button>
     <textarea class="campo-texto" id="t-ticket" placeholder="MERCADONA, S.A. … TOTAL (€) …" style="margin-top:12px"></textarea>
     <button class="boton ancho" id="b-leer-ticket" style="margin-top:8px">🧾 Leer el texto</button>`, h => {
-    $('#b-ticket-claude', h).addEventListener('click', () => mandarFoto(fichero, 'Para Claude: el ticket digital de Mercadona. Compáralo con la compra de NutriHome.'));
+    $('#b-ticket-claude', h).addEventListener('click', () => irAClaude('el ticket digital de Mercadona. Compáralo con la compra de NutriHome.', fichero));
     $('#b-leer-ticket', h).addEventListener('click', () => { const t = L.leeTicket($('#t-ticket', h).value); if (t.items.length) muestraTicket(t); else tostada('No encuentro productos en ese texto'); });
   });
 }
@@ -1211,7 +1339,7 @@ async function muestraTicket(t) {
   hoja('<h2>🧾 Buscando cada producto…</h2><div class="cargando"></div><div class="cargando" style="width:70%"></div>');
   let sinRed = false;
   try { await identificaTicket(items); } catch { sinRed = true; }
-  const { s, filas } = lineaCompra();
+  const { p, s, filas } = lineaCompra();
   const marcas = filas.some(f => s.marcados[f.clave] || s.noComprado[f.clave]);
   // ¿La compra ya se terminó sin ticket? Entonces se compara con lo que se marcó.
   const u = E.compras[0], fu = u && iso(new Date(u.f));
@@ -1233,10 +1361,12 @@ async function muestraTicket(t) {
       for (const [i, j] of pares) { const f = filas[j], it = items[i]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
       for (const f of noEstan) s.noComprado[f.clave] = true;
       s.ticket = resumenTicket(t, fuera); aprendePrecios(items, t.fecha || hoy());
-      V.filtroCompra = noEstan.length ? 'no' : 'todo';
       salva(); cierraHoja();
+      const cambios = noEstan.length ? adaptaMenu(p) : [];   // los platos con lo que no había se cambian ya por otros que podáis hacer
+      V.filtroCompra = 'todo';
       if (V.pestana !== 'compra') location.hash = 'compra'; else { vCompra(); window.scrollTo({ top: 0 }); }
       tostada(`🧾 ✓ ${pares.length} · ✕ ${noEstan.length} · ＋ ${fuera.length}`);
+      if (cambios.length) setTimeout(() => hojaCambiosMenu(cambios), 450);
     });
   });
 }
@@ -1331,7 +1461,7 @@ function abrirEscaner() {
         let pr = null;
         try { pr = await buscaOFF(ean); } catch { res.innerHTML = '<div class="aviso"><span class="emo">📡</span><div>Sin conexión: prueba otra vez.</div></div>'; return; }
         if (!pr) { res.innerHTML = `<div class="aviso"><span class="emo">🙈</span><div><b>No lo encuentro</b> (${esc(ean)}).</div></div><button class="boton suave" id="b-off-claude">${I.enviar}Mandárselo a Claude</button>`;
-          $('#b-off-claude', h).addEventListener('click', () => mandarAClaude(`¿Es buena compra el producto con código ${ean}? Os mando foto.`)); return; }
+          $('#b-off-claude', h).addEventListener('click', () => irAClaude(`¿Es buena compra el producto con código ${ean}? Te mando foto.`)); return; }
         nut = L.nutrientesOFF(pr); nombre = pr.product_name_es || pr.product_name || pr.generic_name_es || 'Producto ' + ean; img = pr.image_front_small_url;
         if (pr.brands) nombre += ' · ' + pr.brands.split(',')[0];
         n = { texto: nombre };
@@ -1435,8 +1565,6 @@ function anadeACasa(items) {
 
 // ——— Recetas ———
 const FILTROS = [['todas', '✨ Todas'], ['favoritas', '❤️ Favoritas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min']];
-const QUESOS = [['queso_burgos', 'Para cada día: casi sin grasa'], ['cottage', 'Cremoso, para ensaladas y tostadas'], ['queso_batido', 'Base de salsas y batidos'],
-  ['mozzarella_light', 'Con tomate, tomate seco y rúcula'], ['queso_cabra', 'Vuestro favorito: unos 20 g por ensalada'], ['feta', 'Poco y desmigado: sabe mucho'], ['grana_padano', 'En lascas: con 10 g basta']];
 function vRecetas() {
   const todas = todasRecetas();
   cabecera('Recetas', `${todas.length} recetas`);
@@ -1456,23 +1584,19 @@ function vRecetas() {
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
       return `<button class="receta-tarjeta c-${r.tipo[0]}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${r.fav ? '<span class="corazon">❤️</span>' : ''}${emojiReceta(r)}</div>
         <div class="cuerpo"><div class="nombre">${esc(r.n)}</div><div class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${r0(g.kcal)} kcal</span></div></div></button>`; }).join('')}</div>
-    ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}
-    <details class="tarjeta quesos"><summary>🧀 Quesos para vuestras ensaladas</summary>
-      <table><thead><tr><th>Queso</th><th class="num">💪</th><th class="num">🥑</th></tr></thead><tbody>
-      ${QUESOS.filter(([k]) => D.productos[k]).map(([k, tx]) => `<tr><td><b>${esc(nombreCorto(D.productos[k]).replace(/ desnatado.*| semidesnatado.*| de vaca/, ''))}</b><br><span class="nota">${esc(tx)}</span></td><td class="num">${D.productos[k].m[1]} g</td><td class="num">${D.productos[k].m[3]} g</td></tr>`).join('')}
-      </tbody></table></details>`;
+    ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}`;
   $('#b-nueva').addEventListener('click', () => editorReceta(null));
-  $('#b-preguntar')?.addEventListener('click', () => mandarAClaude(`${/^¿/.test(pregunta) ? pregunta : '¿' + capital(pregunta) + '?'} Explícamelo y, si vale, ponla en NutriHome.`));
+  $('#b-preguntar')?.addEventListener('click', () => irAClaude(`${/^¿/.test(pregunta) ? pregunta : '¿' + capital(pregunta) + '?'} Explícamelo y, si vale, ponla en NutriHome.`));
   $('#i-busca').addEventListener('input', e => { V.busca = e.target.value; const pos = e.target.selectionStart; vRecetas(); const i = $('#i-busca'); i.focus(); i.setSelectionRange(pos, pos); });
   $$('[data-filtro]').forEach(b => b.addEventListener('click', () => { V.filtro = b.dataset.filtro; vRecetas(); }));
   $$('[data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
 }
 
-// ——— Nosotros ———
-const GUSTO_EMO = [[/manzana/i, '🍎'], [/ensalada/i, '🥗'], [/pescado/i, '🐟'], [/frutos secos/i, '🥜'], [/entrecot/i, '🥩'], [/batido|fruta/i, '🍓']];
+// ——— Nosotros (icono de perfil): vuestros datos, gustos y el súper ———
+const SUPERS = [['mercadona', 'Mercadona'], ['lidl', 'Lidl'], ['dia', 'Dia'], ['carrefour', 'Carrefour']];
 function vNosotros() {
-  const p = perfiles(), h = hoy(), cr = E.creatina[h] || {};
-  cabecera('Nosotros');
+  const p = perfiles(), h = hoy(), cr = E.creatina[h] || {}, sup = E.super || 'mercadona';
+  cabecera('Nosotros', 'Vuestros datos, gustos y súper');
   const tarjeta = q => {
     const x = p[q], o = obj[q];
     return `<div class="tarjeta perfil"><h3><span class="avatar ${q.toLowerCase()}">${ini(q)}</span><span class="${q === 'G' ? 'persona-g' : 'persona-p'}">${esc(x.nombre)}</span></h3>
@@ -1480,38 +1604,120 @@ function vNosotros() {
         <label>Edad<input type="number" inputmode="numeric" data-q="${q}" data-campo="edad" value="${x.edad}"></label>
         <label>Altura (cm)<input type="number" inputmode="numeric" data-q="${q}" data-campo="altura" value="${x.altura}"></label>
         <label>Peso (kg)<input type="number" inputmode="decimal" step="0.5" data-q="${q}" data-campo="peso" value="${x.peso}"></label></div>
-      <div class="objetivos"><div class="o1"><span class="emo">🔥</span><b>${o.kcal}</b><span>kcal</span></div><div class="o2"><span class="emo">💪</span><b>${o.prot} g</b><span>proteína</span></div><div class="o3"><span class="emo">🍞</span><b>${o.hc} g</b><span>hidratos</span></div><div class="o4"><span class="emo">🥑</span><b>${o.grasa} g</b><span>grasa</span></div></div></div>`;
+      <div class="objetivos"><div class="o1"><span class="emo">🔥</span><b>${o.kcal}</b><span>kcal</span></div><div class="o2"><span class="emo">💪</span><b>${o.prot} g</b><span>proteína</span></div><div class="o3"><span class="emo">🍞</span><b>${o.hc} g</b><span>hidratos</span></div><div class="o4"><span class="emo">🥑</span><b>${o.grasa} g</b><span>grasa</span></div></div>
+      <label class="campo-largo">❤️ Me gusta<textarea data-q="${q}" data-texto="gusta" rows="2" placeholder="batidos, fruta, queso de cabra…">${esc(x.gusta || '')}</textarea></label>
+      <label class="campo-largo">🚫 No me gusta<textarea data-q="${q}" data-texto="noGusta" rows="2" placeholder="manzana, cilantro… (no entra en vuestros menús)">${esc(x.noGusta || '')}</textarea></label></div>`;
   };
   const gym = E.gimnasio ?? p.gimnasio;
   $('#vista').innerHTML = `
     ${tarjeta('G')}${tarjeta('P')}
+    <div class="tarjeta perfil"><h3>🏪 Vuestro súper</h3>
+      <div class="botones" style="margin-top:10px">${SUPERS.map(([k, n]) => `<button class="chip" data-super="${k}" aria-pressed="${sup === k}">${n}</button>`).join('')}</div>
+      <p class="nota" style="margin:10px 0 0">${sup === 'mercadona' ? 'Productos, precios y ticket digital de Mercadona.' : `Los productos y precios siguen siendo de Mercadona: ${esc(SUPERS.find(([k]) => k === sup)[1])} llegará con la versión para amigos.`}</p></div>
     <div class="tarjeta perfil"><h3>💊 Creatina de hoy</h3>
       <div class="botones" style="margin-top:10px"><button class="chip" data-crea="G" aria-pressed="${!!cr.G}">${cr.G ? '✅' : '⬜'} ${esc(NOM.G)}</button><button class="chip" data-crea="P" aria-pressed="${!!cr.P}">${cr.P ? '✅' : '⬜'} ${esc(NOM.P)}</button></div></div>
     <div class="tarjeta perfil"><button class="interruptor" id="b-gym" aria-pressed="${!!gym}"><span class="sw"></span><span>🏋️ ${gym ? 'Vamos al gimnasio' : 'Todavía sin gimnasio'}</span></button></div>
-    <div class="tarjeta perfil"><h3>❤️ Lo que os gusta</h3><div class="gustos">${D.perfiles.gustos.map(g => `<span>${(GUSTO_EMO.find(([re]) => re.test(g)) || [0, '✨'])[1]} ${esc(g)}</span>`).join('')}</div></div>
     <details class="tarjeta perfil"><summary><b>🧮 Cómo lo calculo</b></summary><p class="nota">Gasto en reposo (Mifflin-St Jeor) × actividad (×1,3; ×1,45 con gimnasio), menos un 20 %. Proteína: ${String(p.G.protKg).replace('.', ',')} g/kg ${esc(NOM.G)} y ${String(p.P.protKg).replace('.', ',')} g/kg ${esc(NOM.P)}. Grasa: 0,7 g/kg. Lo demás, hidratos.</p>
       <p class="nota">💊 ${esc(D.perfiles.suplementos.creatina)}<br>🥤 ${esc(D.perfiles.suplementos.huel)}</p></details>
-    <div class="tarjeta perfil"><h3>🔜 Próximamente</h3><div class="gustos"><span>🧴 Piel</span><span>💇‍♀️ Pelo</span><span>💅 Uñas</span><span>🌸 Ciclo</span></div></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
-      <div class="botones"><button class="boton" id="b-claude">${I.enviar}Escribir a Claude</button><button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button></div></div>`;
-  $$('[data-campo]').forEach(i => i.addEventListener('change', () => {
+      <div class="botones"><button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button></div></div>`;
+  $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(i.value.replace(',', '.'));
     if (!isFinite(v) || v <= 0) return;
     (E.perfiles[i.dataset.q] ||= {})[i.dataset.campo] = v; salva(); recalcula(); vNosotros(); tostada('Objetivos recalculados');
   }));
+  $$('textarea[data-texto]').forEach(t => t.addEventListener('change', () => { (E.perfiles[t.dataset.q] ||= {})[t.dataset.texto] = t.value.trim(); salva(); tostada('Apuntado: lo tengo en cuenta en los menús'); }));
+  $$('[data-super]').forEach(b => b.addEventListener('click', () => { E.super = b.dataset.super; salva(); vNosotros(); }));
   $('#b-gym').addEventListener('click', () => { E.gimnasio = !gym; salva(); recalcula(); vNosotros(); });
   $$('[data-crea]').forEach(b => b.addEventListener('click', () => { const x = (E.creatina[h] ||= {}); x[b.dataset.crea] = !x[b.dataset.crea]; salva(); vNosotros(); if (x[b.dataset.crea]) tostada('💊 Apuntada'); }));
-  $('#b-claude').addEventListener('click', () => mandarAClaude(''));
   $('#b-borrar').addEventListener('click', () => {
     if (!confirm('¿Borro de este móvil los cambios, la lista, lo de «En casa» y vuestras recetas? El menú y las recetas de la app no se borran.')) return;
     E = estadoNuevo(); E.casa = { ...(D.casa_inicial || {}) }; E.fijos = [...(D.fijos || [])]; reconstruyeRecetas(); salva(); recalcula(); vNosotros(); tostada('Borrado');
   });
 }
 
-async function mandarAClaude(texto) {
-  const t = texto ? 'Para Claude, desde NutriHome: ' + texto : 'Para Claude, desde NutriHome: ';
-  try { if (navigator.share) { await navigator.share({ text: t }); return; } } catch { return; }
+// ——— Gustos: lo que a alguien no le gusta no entra en sus propuestas ———
+const palabrasNo = q => L.normaliza((E.perfiles[q]?.noGusta ?? D.perfiles[q]?.noGusta) || '').split(/[,;\n]| y /).map(s => s.trim()).filter(s => s.length >= 3);
+const textoBusca = r => L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n || '').join(' ') + ' ' + (r.otros || []).join(' '));
+const gustaA = (r, qs) => qs.every(q => { const ws = palabrasNo(q); return !ws.length || !ws.some(w => textoBusca(r).includes(w)); });
+
+// ——— Pendiente de otro súper: lo que no había (✕) se apunta para comprarlo en otro sitio ———
+function apuntaPendiente({ k = null, n }) {
+  E.pendientes ||= [];
+  if (!n || E.pendientes.some(x => (k && x.k === k) || L.normaliza(x.n) === L.normaliza(n))) return;
+  E.pendientes.push({ id: uid(), k, n, f: hoy() });
+}
+function quitaPendiente(f) {
+  if (!E.pendientes?.length) return;
+  const n = L.normaliza(nombreFila(f));
+  E.pendientes = E.pendientes.filter(x => !((f.k && x.k === f.k) || L.normaliza(x.n) === n));
+}
+const tarjetaPendientes = () => !E.pendientes?.length ? '' : `<div class="tarjeta pregunta"><span class="emo">🏪</span><div class="t"><b>Pendiente de otro súper</b><span class="nota">${esc(enumera(E.pendientes.map(x => x.k && D.productos[x.k] ? nombreFalta(x.k) : x.n), 4))}</span></div><button class="boton" id="b-pendientes">Ver</button></div>`;
+function abrirPendientes() {
+  const pinta = h => {
+    $('#pendientes', h).innerHTML = E.pendientes.map(x => `<div class="pend"><span class="emo">${x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒'}</span><div class="pend-t"><b>${esc(x.n)}</b><span class="nota">desde el ${fechaCorta(x.f)}</span></div>
+      <button class="chip si" data-pend-ya="${x.id}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${x.id}" aria-label="Quitar">${I.papelera}</button></div>`).join('') || '<div class="vacio"><span class="emo">🎉</span>No queda nada pendiente.</div>';
+    $$('[data-pend-ya]', h).forEach(b => b.addEventListener('click', () => {
+      const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
+      if (x?.k && D.productos[x.k]) E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util;
+      E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); pinta(h); tostada(x?.k ? '🏠 Pasa a «En casa»' : 'Quitado'); refrescaCompra();
+    }));
+    $$('[data-pend-quitar]', h).forEach(b => b.addEventListener('click', () => { E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); pinta(h); refrescaCompra(); }));
+  };
+  hoja(`<h2>🏪 Pendiente de otro súper</h2><div class="nota">Lo que no había en Mercadona. Cuando lo compréis en otro sitio, «Ya lo tengo» lo pasa a «En casa».</div>
+    <div id="pendientes" style="margin-top:10px"></div>
+    <button class="boton ancho" id="b-enviar-pend" style="margin-top:14px">📤 Enviar la lista</button>`, h => {
+    pinta(h);
+    $('#b-enviar-pend', h).addEventListener('click', () => compartirTexto('Pendiente de otro súper', 'Pendiente de otro súper · NutriHome\n' + E.pendientes.map(x => '☐ ' + x.n).join('\n'), 'Copiado: pégalo en WhatsApp'));
+  });
+}
+
+// ——— Claude (💬): el único sitio desde el que se le escribe ———
+// Hoy el mensaje sale por Telegram (compartir); cuando esté el servidor, contestará aquí mismo.
+function irAClaude(texto = '', fichero = null) {
+  V.borrador = texto; V.adjunto = fichero; cierraHoja();
+  if (V.pestana === 'claude') pinta(); else location.hash = 'claude';
+}
+function vClaude() {
+  cabecera('Claude', 'Pregunta, pide un cambio o manda una foto');
+  const u = E.compras[0], p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
+  const enCasa = [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => nombreCorto(D.productos[k])), ...E.casaOtros];
+  const cena = d && recetas[L.idDe(d.cena)]?.n;
+  const atajos = [
+    ['🥘', '¿Qué hago con lo que hay?', `¿Qué puedo cocinar con lo que tenemos en casa? Hay: ${enCasa.join(', ') || 'nada apuntado todavía'}.`],
+    ['🔄', 'Cambiar un plato', `Cámbiame ${cena ? `la cena de hoy (${cena})` : 'un plato del menú'} por otra cosa.`],
+    ['❄️', '¿Esto se congela?', '¿Se puede congelar '],
+    ['🧾', 'Última compra', u ? textoCompra(u) : null],
+    ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
+  ].filter(a => a[2]);
+  $('#vista').innerHTML = `
+    <div class="tarjeta charla">
+      <textarea class="campo-texto" id="t-claude" placeholder="Escríbeme lo que quieras: ¿esto se congela?, cambia la cena del jueves, ¿qué hago con el brócoli?…">${esc(V.borrador || '')}</textarea>
+      ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
+      <div class="botones" style="margin-top:10px"><label class="boton" for="i-foto-claude">📷 Foto</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">
+        <button class="boton principal" id="b-enviar-claude" style="flex:1">${I.enviar}Enviar</button></div>
+    </div>
+    <button class="nueva-receta verde" id="b-escanear-claude"><span class="emo">🔎</span><span><b>¿Es buena compra?</b>Escanea el código o hazle una foto: te digo si es 🟢 🟡 🔴</span></button>
+    <div class="cat"><span class="emo">⚡</span>Atajos</div>
+    <div class="atajos">${atajos.map((a, i) => `<button class="atajo" data-atajo="${i}"><span class="emo">${a[0]}</span>${esc(a[1])}</button>`).join('')}</div>
+    <div class="aviso" style="margin-top:16px"><span class="emo">📨</span><div><b>Por ahora te contesto por Telegram.</b> Al enviar, elige Telegram y el chat con @${esc(D.perfiles.bot || 'el bot')}. Dentro de poco responderé aquí mismo.</div></div>`;
+  const ta = $('#t-claude');
+  $('#b-escanear-claude').addEventListener('click', abrirEscaner);
+  ta.addEventListener('input', () => { V.borrador = ta.value; });
+  $$('[data-atajo]').forEach(b => b.addEventListener('click', () => { V.borrador = atajos[+b.dataset.atajo][2]; ta.value = V.borrador; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }));
+  $('#i-foto-claude').addEventListener('change', e => { V.adjunto = e.target.files[0] || null; vClaude(); });
+  $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
+  $('#b-enviar-claude').addEventListener('click', async () => {
+    if (!ta.value.trim() && !V.adjunto) { ta.focus(); tostada('Escribe algo o adjunta una foto'); return; }
+    if (await mandarAClaude(ta.value, V.adjunto)) { V.borrador = ''; V.adjunto = null; vClaude(); }
+  });
+}
+async function mandarAClaude(texto, fichero = null) {
+  const t = 'Para Claude, desde NutriHome: ' + (texto || '').trim();
+  if (fichero) return mandarFoto(fichero, t);
+  try { if (navigator.share) { await navigator.share({ text: t }); return true; } } catch { return false; }
   window.open('https://t.me/share/url?url=' + encodeURIComponent(location.origin + location.pathname) + '&text=' + encodeURIComponent(t), '_blank');
+  return true;
 }
 
 // ——— Órdenes escritas («quita los huevos», «tenemos kéfir»…) ———
@@ -1533,12 +1739,12 @@ function recetaDeTexto(texto) {
   return { n: n ? capital(n) : '', ing, pasos };
 }
 function ejecuta(texto) {
-  const o = L.interpretar(texto, D.productos), p = planActivo();
+  const o = L.interpretar(texto, D.productos), p = planActivo(), pc = planCompra();
   const i = f => p.dias.findIndex(d => d.f === f);
   switch (o.accion) {
     case 'anadir': anadeALista(o.items); if (V.pestana === 'compra') vCompra(); break;
     case 'quitar': {
-      const s = est(p.id), n = [];
+      const s = est(pc.id), n = [];
       for (const it of o.items) if (it.k) { s.quitados[it.k] = true; s.extra = s.extra.filter(x => x.k !== it.k); n.push(nombreCorto(D.productos[it.k])); }
       salva(); tostada(n.length ? 'Quitado: ' + n.join(', ') : 'No lo encuentro en la lista'); if (V.pestana === 'compra') vCompra(); break;
     }
