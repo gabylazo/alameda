@@ -53,7 +53,8 @@ const I = {
   carro: ic('<path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>'),
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
-const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', 'Claude'], ['casa', 'En casa'], ['recetas', 'Recetas']];
+const NOMBRE_AGENTE = 'Claude';   // el nombre de la pestaña 💬 lo decide Gabriela
+const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', NOMBRE_AGENTE], ['casa', 'En casa'], ['recetas', 'Recetas']];
 // «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
 const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
 const APARATO = { airfryer: 'Air fryer', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
@@ -101,9 +102,78 @@ async function descifra(clave) {
   return JSON.parse(new TextDecoder().decode(claro));
 }
 
+// ——— Sincronización entre móviles (servidor de la casa, en D.perfiles.servidor) ———
+// La clave de casa da la huella de la casa (su id) y cifra todo lo que se sube: el servidor solo guarda bloques cifrados.
+// Cada móvil guarda lo último sincronizado («base») y, cuando el servidor tiene algo más nuevo, funde los dos cambios (L.fusiona).
+const SYNC = 'alameda.sync.v1';
+let sync = null, claveSync = null, casaId = null, tSync, sincronizando = false, otraVez = false;
+const servidor = () => (D?.perfiles?.servidor || '').replace(/\/$/, '');
+async function preparaSync(clave) {
+  const enc = new TextEncoder(), c = clave.trim().toLowerCase();
+  casaId = [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('nutrihome|' + c)))].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  const base = await crypto.subtle.importKey('raw', enc.encode(c), 'PBKDF2', false, ['deriveKey']);
+  claveSync = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: enc.encode('nutrihome-sync-v1'), iterations: 150000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  sync = lee(SYNC, { v: 0, base: null });
+}
+const aB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+async function cifraSync(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12)), ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, claveSync, new TextEncoder().encode(JSON.stringify(obj))));
+  const u = new Uint8Array(12 + ct.length); u.set(iv); u.set(ct, 12); return aB64(u);
+}
+async function descifraSync(blob) { const u = b64(blob); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, claveSync, u.slice(12)))); }
+// Cuánto «vale» lo guardado: la primera vez que dos móviles se encuentran, manda el que más datos tiene.
+const riqueza = x => (x.compras || []).length * 20 + Object.values(x.semanas || {}).reduce((n, s) => n + Object.keys(s.marcados || {}).length + Object.keys(s.noComprado || {}).length + Object.keys(s.hechos || {}).length + Object.keys(s.cambios || {}).length + (s.extra || []).length, 0)
+  + (x.propias || []).length * 5 + (x.pendientes || []).length + Object.keys(x.casa || {}).length + (x.escaneos || []).length + (x.favRecetas || []).length + (x.charla || []).length;
+function programaSync() { if (!servidor() || !claveSync) return; clearTimeout(tSync); tSync = setTimeout(sincroniza, 1200); }
+async function sincroniza() {
+  if (!servidor() || !claveSync) return;
+  if (sincronizando) { otraVez = true; return; }
+  sincronizando = true;
+  try {
+    const r = await fetch(`${servidor()}/casa/${casaId}`, { cache: 'no-store' });
+    if (r.status === 404) await sube(0);
+    else if (!r.ok) throw new Error('servidor ' + r.status);
+    else {
+      const rem = await r.json();
+      if (rem.v === sync.v) { if (!L.igual(E, sync.base)) await sube(sync.v); }
+      else {
+        const E2 = await descifraSync(rem.blob);
+        const fundido = sync.base == null ? (riqueza(E) > riqueza(E2) ? L.fusiona(undefined, E2, E) : L.fusiona(undefined, E, E2)) : L.fusiona(sync.base, E, E2);
+        const cambiaLocal = !L.igual(fundido, E);
+        E = Object.assign(estadoNuevo(), fundido); sync.v = rem.v; sync.base = JSON.parse(JSON.stringify(E)); guarda(ESTADO, E); guarda(SYNC, sync);
+        if (!L.igual(fundido, E2)) await sube(rem.v);
+        if (cambiaLocal) aplicaRemoto();
+      }
+    }
+    V.sync = 'ok'; V.syncHora = new Date(); V.syncError = '';
+  } catch (e) { V.sync = 'error'; V.syncError = e.message; }
+  finally { sincronizando = false; pintaSync(); if (otraVez) { otraVez = false; programaSync(); } }
+}
+async function sube(v) {
+  const r = await fetch(`${servidor()}/casa/${casaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ v, blob: await cifraSync(E) }) });
+  if (r.status === 409) { otraVez = true; return; }   // otro móvil subió antes: en la siguiente pasada se funde
+  if (!r.ok) throw new Error('subida ' + r.status);
+  sync.v = (await r.json()).v; sync.base = JSON.parse(JSON.stringify(E)); guarda(SYNC, sync);
+}
+function aplicaRemoto() {
+  reconstruyeRecetas(); recalcula();
+  const escribiendo = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+  if (escribiendo || $('.hoja')) { V.repintar = true; return; }
+  const y = window.scrollY; pinta(); window.scrollTo(0, y);
+}
+const iconoSync = () => V.sync === 'ok' ? '☁️ ' : V.sync === 'error' ? '⚠️ ' : '';
+function pintaSync() { const c = $('.fecha-chip'); if (c) c.textContent = iconoSync() + c.textContent.replace(/^(☁️|⚠️) /, ''); }
+function iniciaSync() {
+  if (!servidor()) return;
+  sincroniza();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincroniza(); });
+  setInterval(() => { if (document.visibilityState === 'visible') sincroniza(); }, 20000);
+  window.addEventListener('online', sincroniza);
+}
+
 // ——— Estado guardado en el móvil ———
-function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {}, pendientes: [] }; }
-const salva = () => guarda(ESTADO, E);
+function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {}, pendientes: [], charla: [] }; }
+const salva = () => { guarda(ESTADO, E); programaSync(); };
 function est(id) {
   if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
   const s = E.semanas[id];
@@ -165,13 +235,14 @@ function consumePasados() {
 // ——— Arranque ———
 async function inicio() {
   E = Object.assign(estadoNuevo(), lee(ESTADO, {}));
-  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados', 'pendientes']) E[k] ||= [];
+  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados', 'pendientes', 'charla']) E[k] ||= [];
   const m = location.hash.match(/^#clave=(.+)$/);
   if (m) { guardaTexto(CLAVE, decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
   const clave = leeTexto(CLAVE);
   if (!clave) return puerta();
   try { D = await descifra(clave); }
   catch (e) { if (e.message === 'clave') { guardaTexto(CLAVE, null); return puerta('Esa clave no abre los datos. Vuelve a escribirla.'); } return puerta(e.message); }
+  await preparaSync(clave);
   reconstruyeRecetas();
   if (!E.casa) E.casa = { ...(D.casa_inicial || {}) };
   if (!E.fijos) E.fijos = [...(D.fijos || [])];
@@ -193,6 +264,7 @@ async function inicio() {
   pinta();
   const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
   if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
+  iniciaSync();   // con servidor: baja lo de los otros móviles y sube lo de este
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
     let recargada = false;
@@ -252,7 +324,7 @@ function pinta() {
 function cabecera(titulo, sub = '') {
   const d = new Date(), perfil = V.pestana === 'nosotros';
   $('#cab').innerHTML = `<div class="marca">${perfil ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : '<span class="logo-mini">🥗</span>'}${marcaHTML}
-      <span class="fecha-chip">${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span>
+      <span class="fecha-chip">${iconoSync()}${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span>
       <button class="perfil-btn${perfil ? ' activo' : ''}" id="b-perfil" aria-label="Vuestros datos"><span class="avatar mini g">${ini('G')}</span><span class="avatar mini p">${ini('P')}</span></button></div>
     <h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}`;
   $('#b-perfil').addEventListener('click', () => { location.hash = perfil ? V.anterior : 'nosotros'; });
@@ -307,6 +379,7 @@ function hoja(html, alAbrir) {
 }
 function cierraHoja(rapido) {
   $$('.hoja, .fondo-hoja').forEach(el => { el.classList.remove('abierta', 'abierto'); setTimeout(() => el.remove(), rapido ? 0 : 300); });
+  if (V.repintar && !rapido) { V.repintar = false; setTimeout(pinta, 350); }   // llegó algo de otro móvil mientras la hoja estaba abierta
 }
 
 // ——— Semana ———
@@ -377,8 +450,8 @@ const faltanDe = (r, tengo) => r && tengo ? [...new Set(r.ing.map(i => i[0]).fil
 const noTenemos = s => new Set([...Object.keys(s.noComprado), ...Object.keys(s.noHabia || {})].filter(k => (s.noComprado[k] || s.noHabia?.[k]) && D.productos[k] && !(E.casa[k] > 0)));
 const faltaExplicita = (r, s) => { if (!r) return []; const no = noTenemos(s); return [...new Set(r.ing.map(i => i[0]).filter(k => no.has(k)))]; };
 // Nombre corto para los avisos: «Claras de huevo líquidas pasteurizadas» → «claras»; «Queso fresco batido desnatado 0% MG» → «queso fresco batido».
-const nombreFalta = k => nombreCorto(D.productos[k]).toLowerCase()
-  .replace(/\b(desnatad[oa]s?|0 ?% ?mg|\d+ ?%|l[ií]quidas?|pasteurizadas?|laminad[oa]s?|limpi[oa]s?|cocid[oa]s?|coraz[oó]n|romana|virgen extra|de canarias|de huevo|lonchas|para plancha|corte fino|deshuesad[oa]s?|y sin piel|sin piel|congelad[oa]s?|finos|redonda|dulce)\b/g, '')
+const nombreFalta = k => nombreCorto(D.productos[k]).toLowerCase().replace(/\d+\s?%\s?(mg)?/g, ' ')
+  .replace(/\b(desnatad[oa]s?|l[ií]quidas?|pasteurizadas?|laminad[oa]s?|limpi[oa]s?|cocid[oa]s?|coraz[oó]n|romana|virgen extra|de canarias|de huevo|lonchas|para plancha|corte fino|deshuesad[oa]s?|y sin piel|sin piel|congelad[oa]s?|finos|redonda|dulce)\b/g, '')
   .replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
 // «a, b, c y 4 más»
 const enumera = (arr, n = 5) => arr.length <= n ? arr.join(', ') : arr.slice(0, n).join(', ') + ` y ${arr.length - n} más`;
@@ -791,7 +864,7 @@ const fechaCorta = f => { const d = fecha(f); return `${DS[d.getDay()]} ${d.getD
 function tarjetaTicket(s, marcas) {
   const u = E.compras[0];
   if (s.ticket) return `<div class="tarjeta pregunta ticket-ok"><span class="emo">🧾</span><div class="t"><b>Ticket${s.ticket.fecha ? ' del ' + fechaCorta(s.ticket.fecha) : ''} · ${euros(s.ticket.total)}</b>
-    <span class="nota">${s.ticket.fuera.length ? `＋ ${s.ticket.fuera.length} fuera de la lista · ` : ''}lista marcada: ya puedes terminar</span></div></div>`;
+    <span class="nota">${s.ticket.fuera.length ? `＋ ${s.ticket.fuera.length} fuera de la lista · ` : ''}ya puedes terminar</span></div><button class="boton" id="b-ver-ticket">Ver</button></div>`;
   if (!marcas && u && Date.now() - new Date(u.f) < 4 * 864e5) return `<div class="tarjeta pregunta"><span class="emo">🗂️</span><div class="t"><b>Compra del ${fechaCorta(iso(new Date(u.f)))}</b>
     <span class="nota">${u.no.length ? `✕ ${u.no.length} no había` : '✓ No faltó nada'}${u.ticket ? ' · 🧾 ' + euros(u.ticket.total) : ''}</span></div><button class="boton" id="b-ultima">Ver</button></div>`;
   return `<div class="tarjeta pregunta"><span class="emo">🧾</span><div class="t"><b>Ticket digital</b><span class="nota">El PDF del correo o una foto: marco la lista</span></div><button class="boton principal" id="b-ticket">Subir</button></div>`;
@@ -799,82 +872,88 @@ function tarjetaTicket(s, marcas) {
 
 function vCompra() {
   const { p, s, filas, despensa, total, quitados } = lineaCompra();
-  const si = filas.filter(f => s.marcados[f.clave]).length, no = filas.filter(f => s.noComprado[f.clave]).length, marcas = si + no > 0;
-  // Pestañitas para ver solo lo que falta por mirar, lo comprado (✓) o lo que no había (✕).
-  const filtro = marcas ? V.filtroCompra || 'todo' : 'todo', todo = filtro === 'todo';
-  const visibles = filas.filter(f => todo || (filtro === 'si' ? s.marcados[f.clave] : filtro === 'no' ? s.noComprado[f.clave] : !s.marcados[f.clave] && !s.noComprado[f.clave]));
+  const comprados = filas.filter(f => s.marcados[f.clave]), noHabia = filas.filter(f => s.noComprado[f.clave]), porComprar = filas.filter(f => !s.marcados[f.clave] && !s.noComprado[f.clave]);
+  const conTicket = !!s.ticket;
   cabecera('Compra', `Mercadona · ${filas.length} productos`);
-  let sec = '', html = '';
-  const cuenta = {};
-  for (const f of visibles) cuenta[f.seccion] = (cuenta[f.seccion] || 0) + 1;
-  for (const f of visibles) {
-    const x = f.k ? D.productos[f.k] : null;
-    if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; }
-    const estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
+  const filaHTML = f => {
+    const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
-    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : ''].join('');
+    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '',
+      estado === 'no' ? '<span class="pill malo">no había</span>' : estado === 'si' ? '<span class="pill bueno">comprado</span>' : ''].join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
-    html += `<div class="fila-desliza" data-fila="${esc(f.clave)}"><div class="producto ${estado}" data-clave="${esc(f.clave)}">
+    return `<div class="fila-desliza" data-fila="${esc(f.clave)}"><button class="producto ${estado}" data-info="${esc(f.clave)}">
       ${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" width="50" height="50"${f.img ? ' style="object-fit:contain"' : ''}>` : `<div class="sinfoto">${f.otro ? '📝' : emojiSeccion(f.seccion)}</div>`}
-      <button class="info" data-info="${esc(f.clave)}"><div class="pn">${esc(nombreFila(f))}</div><div class="pc">${esc(cant)}${etiquetas}</div></button>
-      <div class="pp">${f.precio ? euros(f.precio) : ''}</div>
-      <div class="sino"><button class="b-si" data-si="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="Comprado">${SVG.check}</button><button class="b-no" data-no="${esc(f.clave)}" aria-pressed="${estado === 'no'}" aria-label="No lo hemos comprado">${SVG.equis}</button></div></div></div>`;
-  }
-  if (sec) html += '</div>';
-  const noFilas = filas.filter(f => s.noComprado[f.clave] && s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
+      <span class="info"><span class="pn">${esc(nombreFila(f))}</span><span class="pc">${esc(cant)}${etiquetas}</span></span>
+      <span class="pp">${f.precio ? euros(f.precio) : ''}</span><span class="flecha">›</span></button></div>`;
+  };
+  const porSecciones = lista => {
+    let sec = '', html = ''; const cuenta = {};
+    for (const f of lista) cuenta[f.seccion] = (cuenta[f.seccion] || 0) + 1;
+    for (const f of lista) { if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; } html += filaHTML(f); }
+    return html + (sec ? '</div>' : '');
+  };
+  const noFilas = noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<button class="chip" data-quitar-receta="${x.id}">${emojiReceta(recetas[x.r])} ${esc(recetas[x.r].n)} ✕</button>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
-  const vacio = { todo: '<span class="emo">🎉</span>No falta nada para el menú.', faltan: '<span class="emo">✅</span>Ya está todo mirado.',
-    si: '<span class="emo">🛒</span>Todavía no hay nada con ✓.', no: '<span class="emo">🎉</span>No hay nada con ✕.' }[filtro];
   $('#vista').innerHTML = `
-    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')}</div></div>${anillo(filas.length ? si / filas.length : 0, '#fff', `${si}/${filas.length}`, 'en el carro', 78)}</div>
+    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')} · ${filas.length} productos</div></div><span class="hero-emo">🛒</span></div>
     <div class="rapidas">
       <button class="rapida" id="b-anadir"><span class="emo">➕</span>Añadir</button>
       <button class="rapida" id="b-receta-lista"><span class="emo">🍲</span>Receta</button>
       <button class="rapida" id="b-favoritos"><span class="emo">⭐</span>Favoritos</button>
       <button class="rapida" id="b-mas"><span class="emo">⋯</span>Más</button>
     </div>
-    ${tarjetaTicket(s, marcas)}
+    ${tarjetaTicket(s, comprados.length + noHabia.length > 0)}
     ${tarjetaPendientes()}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Claude:</b> ${esc(D.semana.avisoCompra)}`) : ''}
-    ${marcas ? `<div class="segmento" role="tablist" aria-label="Qué ver">${[['todo', 'Todo', filas.length], ['faltan', 'Faltan', filas.length - si - no], ['si', '✓', si], ['no', '✕', no]]
-      .map(([k, t, n]) => `<button class="${k}" data-filtro="${k}" role="tab" aria-selected="${filtro === k}">${t}<b>${n}</b></button>`).join('')}</div>` : ''}
-    ${filtro === 'no' && no ? '<button class="boton suave ancho" id="b-enviar-no" style="margin:4px 0 2px">📤 Enviar lo que no había</button>' : ''}
-    ${todo && recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
-    ${html || `<div class="vacio">${vacio}</div>`}
-    ${(todo || filtro === 'no') && noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
-    ${todo && despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
-    ${todo && quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
-    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${si || s.ticket ? '' : ' disabled'}>${si || s.ticket ? I.caja + 'Terminar la compra' : 'Marca con ✓ lo que compráis'}</button></div></div>`;
+    ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
+    ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
+      <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
+    ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
+    ${porComprar.length ? porSecciones(porComprar) : !comprados.length && !noHabia.length ? '<div class="vacio"><span class="emo">🎉</span>No falta nada para el menú.</div>' : ''}
+    ${comprados.length ? `<details class="tarjeta comprados"><summary>✓ Comprado · ${comprados.length}</summary><div class="lista" style="margin-top:8px">${comprados.map(filaHTML).join('')}</div></details>` : ''}
+    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
+    ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
+    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
   activaLetreros();
-  const marca = (k, cual) => {
-    if (cual === 'si') { s.marcados[k] = !s.marcados[k]; if (s.marcados[k]) delete s.noComprado[k]; }
-    else { s.noComprado[k] = !s.noComprado[k]; if (s.noComprado[k]) delete s.marcados[k]; else delete s.alternativas[k]; }
-    salva(); const y = window.scrollY; vCompra(); window.scrollTo(0, y);
-    $(`[data-${cual}="${CSS.escape(k)}"]`)?.classList.add('pop');
-  };
-  $$('[data-si]').forEach(b => b.addEventListener('click', () => marca(b.dataset.si, 'si')));
-  $$('[data-no]').forEach(b => b.addEventListener('click', () => marca(b.dataset.no, 'no')));
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
   $$('[data-fila]').forEach(fila => deslizaParaQuitar(fila, () => quitaDeLista(filas.find(f => f.clave === fila.dataset.fila))));
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
   $$('[data-volver]').forEach(b => b.addEventListener('click', () => { delete s.quitados[b.dataset.volver]; salva(); vCompra(); }));
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
-  $$('[data-filtro]').forEach(b => b.addEventListener('click', () => {
-    V.filtroCompra = b.dataset.filtro; const arriba = $('.segmento').getBoundingClientRect().top + window.scrollY - 70;
-    vCompra(); if (window.scrollY > arriba) window.scrollTo(0, arriba);
-  }));
   $('#b-ticket')?.addEventListener('click', elegirTicket);
+  $('#b-ver-ticket')?.addEventListener('click', () => hojaTicketLeido(s, filas));
   $('#b-ultima')?.addEventListener('click', () => hojaCompra(E.compras[0]));
   $('#b-pendientes')?.addEventListener('click', abrirPendientes);
-  $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(filas.filter(f => s.noComprado[f.clave]).map(nombreFila)));
+  $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(noHabia.map(nombreFila)));
   $('#b-anadir').addEventListener('click', () => abrirAnadir(seccionesLista));
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
   $('#b-favoritos').addEventListener('click', abrirFavoritos);
   $('#b-mas').addEventListener('click', abrirMas);
-  $('#b-terminar').addEventListener('click', () => terminarCompra(filas));
-  // Alternativas para lo que no había
+  $('#b-terminar').addEventListener('click', () => conTicket ? terminarCompra(filas) : hojaTerminar(filas));
   for (const f of noFilas) pintaAlternativa(f, s);
+}
+// Terminar sin ticket leído: subirlo ahora o dar por comprado todo lo de la lista.
+function hojaTerminar(filas) {
+  hoja(`<h2>📦 Terminar la compra</h2><div class="nota">Con el ticket digital marco yo lo comprado y lo que no había. Sin ticket, doy por comprado todo lo que queda en la lista.</div>
+    <div class="acciones-grid" style="margin-top:12px"><button class="accion primaria" id="t-ticket"><span class="emo">🧾</span>Subir el ticket</button><button class="accion" id="t-sin"><span class="emo">✓</span>Sin ticket: todo comprado</button></div>`, h => {
+    $('#t-ticket', h).addEventListener('click', () => { cierraHoja(); elegirTicket(); });
+    $('#t-sin', h).addEventListener('click', () => { const { s } = lineaCompra(); for (const f of filas) if (!s.noComprado[f.clave]) s.marcados[f.clave] = true; salva(); cierraHoja(); terminarCompra(filas); });
+  });
+}
+// El ticket ya leído: qué se compró, qué no había y qué vino fuera de la lista.
+function hojaTicketLeido(s, filas) {
+  const t = s.ticket, no = filas.filter(f => s.noComprado[f.clave]).map(nombreFila), si = filas.filter(f => s.marcados[f.clave]).map(nombreFila);
+  const chips = l => `<div class="chips-despensa">${l.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>`;
+  hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
+    <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${si.length}</b><span>comprados</span></div><div><b>✕ ${no.length}</b><span>no había</span></div><div><b>＋ ${t.fuera.length}</b><span>fuera de lista</span></div></div>
+    <p class="nota"><b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>
+    ${no.length ? `<h3>✕ No había</h3>${chips(no)}` : ''}
+    ${t.fuera.length ? `<h3>＋ Fuera de la lista</h3>${chips(t.fuera.map(nombreFuera))}` : ''}
+    <div class="botones" style="margin-top:14px">${no.length ? '<button class="boton" id="b-enviar-no-t">📤 Enviar lo que no había</button>' : ''}<button class="boton" id="b-otro-ticket">📄 Subir otro ticket</button></div>`, h => {
+    $('#b-enviar-no-t', h)?.addEventListener('click', () => compartirNoHabia(no));
+    $('#b-otro-ticket', h).addEventListener('click', () => { cierraHoja(); elegirTicket(); });
+  });
 }
 
 // Lo que se usa menos, en un menú «⋯»: enviar la lista, el escáner y la última compra.
@@ -1080,10 +1159,16 @@ function infoProducto(clave, f) {
       ${k && !f.extra ? `<button class="boton" id="b-quitar">${I.papelera}Quitar de la lista</button>` : ''}
       ${f.extra ? `<button class="boton" id="b-borrar-extra">${I.papelera}Quitar</button>` : ''}
       ${f.otro ? `<button class="boton" id="b-borrar-otro">${I.papelera}Quitar</button>` : ''}
+      <button class="boton" id="b-nohabia">${s.noComprado[clave] ? '↩️ Sí lo había' : '✕ No lo había'}</button>
       ${k ? `<button class="boton" id="b-fijo">${E.fijos.some(y => y.k === k) ? '⭐ Quitar de favoritos' : '⭐ A favoritos'}</button>` : ''}
       ${f.m && !f.fijo ? `<button class="boton" id="b-fijo-m">⭐ A favoritos</button>` : ''}
     </div>`, h => {
     $('#b-quitar', h)?.addEventListener('click', () => { s.quitados[k] = true; salva(); cierraHoja(); vCompra(); tostada('Quitado de la lista'); });
+    $('#b-nohabia', h)?.addEventListener('click', () => {
+      if (s.noComprado[clave]) { delete s.noComprado[clave]; quitaPendiente(f); tostada('Vale, sí lo había'); }
+      else { s.noComprado[clave] = true; delete s.marcados[clave]; apuntaPendiente({ k: f.k || null, n: nombreFila(f) }); tostada('✕ No había: apuntado para otro súper'); }
+      salva(); cierraHoja(); vCompra();
+    });
     $('#b-borrar-extra', h)?.addEventListener('click', () => { s.extra = s.extra.filter(y => y.id !== f.extra); salva(); cierraHoja(); vCompra(); });
     $('#b-borrar-otro', h)?.addEventListener('click', () => { s.otrosHechos[f.clave] = true; salva(); cierraHoja(); vCompra(); });
     $('#b-escanear-info', h)?.addEventListener('click', abrirEscaner);
@@ -1376,7 +1461,7 @@ async function muestraTicket(t) {
     ${raros.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${chips(raros)}` : ''}
     ${fuera.length ? `<h3>＋ Fuera de la lista</h3>${fuera.map(filaTicket).join('')}` : ''}
     ${pares.length ? `<details class="emparejados"><summary>✓ Ver los ${pares.length} de la lista</summary>${pares.map(([i, j]) => `<div class="par"><span>${esc(nombreFila(filas[j]))}</span><span class="nota">${esc(items[i].d)}</span></div>`).join('')}</details>` : ''}
-    <button class="boton principal ancho" id="b-aplicar-ticket" style="margin-top:14px">✅ Marcar la lista</button>`, h => {
+    <button class="boton principal ancho" id="b-aplicar-ticket" style="margin-top:14px">✅ Aplicar el ticket</button>`, h => {
     $('#b-aplicar-ticket', h).addEventListener('click', () => {
       for (const [i, j] of pares) { const f = filas[j], it = items[i]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
       for (const f of noEstan) s.noComprado[f.clave] = true;
@@ -1639,6 +1724,7 @@ function vNosotros() {
     <div class="tarjeta perfil"><button class="interruptor" id="b-gym" aria-pressed="${!!gym}"><span class="sw"></span><span>🏋️ ${gym ? 'Vamos al gimnasio' : 'Todavía sin gimnasio'}</span></button></div>
     <details class="tarjeta perfil"><summary><b>🧮 Cómo lo calculo</b></summary><p class="nota">Gasto en reposo (Mifflin-St Jeor) × actividad (×1,3; ×1,45 con gimnasio), menos un 20 %. Proteína: ${String(p.G.protKg).replace('.', ',')} g/kg ${esc(NOM.G)} y ${String(p.P.protKg).replace('.', ',')} g/kg ${esc(NOM.P)}. Grasa: 0,7 g/kg. Lo demás, hidratos.</p>
       <p class="nota">💊 ${esc(D.perfiles.suplementos.creatina)}<br>🥤 ${esc(D.perfiles.suplementos.huel)}</p></details>
+    <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Este móvil y los demás comparten todo a través del servidor de casa. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
       <div class="botones"><button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button></div></div>`;
   $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
@@ -1699,7 +1785,7 @@ function irAClaude(texto = '', fichero = null) {
   if (V.pestana === 'claude') pinta(); else location.hash = 'claude';
 }
 function vClaude() {
-  cabecera('Claude', 'Pregunta, pide un cambio o manda una foto');
+  cabecera(NOMBRE_AGENTE, 'Pregunta, pide un cambio o manda una foto');
   const u = E.compras[0], p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
   const enCasa = [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => nombreCorto(D.productos[k])), ...E.casaOtros];
   const cena = d && recetas[L.idDe(d.cena)]?.n;
@@ -1710,7 +1796,10 @@ function vClaude() {
     ['🧾', 'Última compra', u ? textoCompra(u) : null],
     ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
   ].filter(a => a[2]);
+  const conServidor = !!servidor(), charla = (E.charla || []).slice(-12);
+  const burbujas = charla.map(c => `<div class="burbuja yo">${esc(c.q)}</div>${c.r ? `<div class="burbuja el">${esc(c.r).replace(/\n/g, '<br>')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`).join('');
   $('#vista').innerHTML = `
+    ${conServidor && charla.length ? `<div class="charla-hilo" id="hilo">${burbujas}</div>` : ''}
     <div class="tarjeta charla">
       <textarea class="campo-texto" id="t-claude" placeholder="Escríbeme lo que quieras: ¿esto se congela?, cambia la cena del jueves, ¿qué hago con el brócoli?…">${esc(V.borrador || '')}</textarea>
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
@@ -1720,7 +1809,8 @@ function vClaude() {
     <button class="nueva-receta verde" id="b-escanear-claude"><span class="emo">🔎</span><span><b>¿Es buena compra?</b>Escanea el código o hazle una foto: te digo si es 🟢 🟡 🔴</span></button>
     <div class="cat"><span class="emo">⚡</span>Atajos</div>
     <div class="atajos">${atajos.map((a, i) => `<button class="atajo" data-atajo="${i}"><span class="emo">${a[0]}</span>${esc(a[1])}</button>`).join('')}</div>
-    <div class="aviso" style="margin-top:16px"><span class="emo">📨</span><div><b>Por ahora te contesto por Telegram.</b> Al enviar, elige Telegram y el chat con @${esc(D.perfiles.bot || 'el bot')}. Dentro de poco responderé aquí mismo.</div></div>`;
+    ${conServidor ? '<div class="aviso" style="margin-top:16px"><span class="emo">☁️</span><div><b>Contesto desde el Mac de casa</b>, normalmente en menos de un minuto. Las fotos, de momento, van por Telegram.</div></div>'
+      : `<div class="aviso" style="margin-top:16px"><span class="emo">📨</span><div><b>Por ahora te contesto por Telegram.</b> Al enviar, elige Telegram y el chat con @${esc(D.perfiles.bot || 'el bot')}. Dentro de poco responderé aquí mismo.</div></div>`}`;
   const ta = $('#t-claude');
   $('#b-escanear-claude').addEventListener('click', abrirEscaner);
   ta.addEventListener('input', () => { V.borrador = ta.value; });
@@ -1729,9 +1819,55 @@ function vClaude() {
   $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
   $('#b-enviar-claude').addEventListener('click', async () => {
     if (!ta.value.trim() && !V.adjunto) { ta.focus(); tostada('Escribe algo o adjunta una foto'); return; }
+    if (conServidor && !V.adjunto) {
+      const texto = ta.value.trim(); V.borrador = ''; ta.value = '';
+      try { await preguntaServidor(texto); vClaude(); $('#hilo')?.scrollIntoView({ block: 'end' }); }
+      catch (e) { V.borrador = texto; tostada('No llego al servidor: ' + e.message); vClaude(); }
+      return;
+    }
     if (await mandarAClaude(ta.value, V.adjunto)) { V.borrador = ''; V.adjunto = null; vClaude(); }
   });
+  $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
+  if (charla.length) setTimeout(() => $('#hilo')?.lastElementChild?.scrollIntoView({ block: 'nearest' }), 100);
 }
+// Lo que el cerebro necesita saber para contestar: menú próximo, lo que hay, la lista, pendientes, personas.
+function contextoParaClaude() {
+  const p = planActivo(), pe = efectivo(p), h = hoy(), s = est(p.id), per = perfiles();
+  const plato = v => L.esDoble(v) ? L.QUIEN.map(q => `${NOM[q]}: ${recetas[v[q]]?.n || '—'}`).join(' / ') : v && v.fuera ? 'fuera' : recetas[L.idDe(v)]?.n || (v && v.libre) || '—';
+  const { filas } = lineaCompra();
+  return {
+    hoy: h, semana: p.titulo || p.id,
+    menu: pe.dias.filter(d => d.f >= h).slice(0, 3).map(d => ({ dia: d.f, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
+    enCasa: [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => `${nombreCorto(D.productos[k])} (${cantidadCasa(k, E.casa[k])})`), ...E.casaOtros],
+    lista: filas.filter(f => !s.marcados[f.clave]).slice(0, 40).map(nombreFila),
+    pendientesOtroSuper: (E.pendientes || []).map(x => x.n),
+    personas: L.QUIEN.map(q => ({ nombre: per[q].nombre, objetivo: obj[q], gusta: per[q].gusta || '', noGusta: per[q].noGusta || '' })),
+    recetasPropias: (E.propias || []).map(r => r.n),
+  };
+}
+const esperando = new Set();
+async function preguntaServidor(texto) {
+  const id = uid();
+  E.charla = [...(E.charla || []), { id, q: texto, r: null, t: new Date().toISOString() }].slice(-40); salva();
+  const r = await fetch(`${servidor()}/casa/${casaId}/pregunta`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: id, blob: await cifraSync({ texto, contexto: contextoParaClaude(), cuando: new Date().toISOString() }) }) });
+  if (!r.ok) { E.charla = E.charla.filter(c => c.id !== id); salva(); throw new Error('servidor ' + r.status); }
+  esperaRespuesta(id);
+}
+async function esperaRespuesta(id, intentos = 50) {
+  if (esperando.has(id)) return; esperando.add(id);
+  try {
+    for (let i = 0; i < intentos; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const x = (E.charla || []).find(c => c.id === id); if (!x || x.r) return;
+      try {
+        const r = await fetch(`${servidor()}/casa/${casaId}/respuesta/${id}`, { cache: 'no-store' });
+        if (r.status === 200) { const resp = await descifraSync((await r.json()).blob); x.r = resp.texto; x.tr = new Date().toISOString(); salva(); if (V.pestana === 'claude' && !$('.hoja')) vClaude(); return; }
+      } catch { /* siguiente intento */ }
+    }
+  } finally { esperando.delete(id); }
+}
+
 async function mandarAClaude(texto, fichero = null) {
   const t = 'Para Claude, desde NutriHome: ' + (texto || '').trim();
   if (fichero) return mandarFoto(fichero, t);

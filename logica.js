@@ -517,3 +517,43 @@ export function cruzaTicket(renglones, filas, puntua, minimo = 0.59) {
   for (let i = 0; i < renglones.length; i++) { const j = a[i]; if (j >= 0 && j < filas.length && pts[i][j] >= minimo) pares.push([i, j, pts[i][j]]); }
   return pares;
 }
+
+// ——— Sincronización: fusión a tres bandas (base = lo último sincronizado, loc = este móvil, rem = el servidor) ———
+// Si solo cambió un lado, gana ese lado. Si cambiaron los dos: objetos por claves; listas de objetos con «id» o de valores
+// simples, por unión (respetando lo que uno de los dos borró); lo demás, manda el servidor (lo último que se subió).
+const esObj = x => x && typeof x === 'object' && !Array.isArray(x);
+export const igual = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+export function fusiona(base, loc, rem) {
+  if (igual(loc, rem)) return loc;
+  if (rem === undefined) return base === undefined || !igual(loc, base) ? loc : undefined;   // añadido aquí, o borrado allí sin tocarlo aquí
+  if (loc === undefined) return base === undefined || !igual(rem, base) ? rem : undefined;
+  if (base !== undefined && igual(loc, base)) return rem;   // solo cambió el servidor
+  if (base !== undefined && igual(rem, base)) return loc;   // solo cambió este móvil
+  if (esObj(loc) && esObj(rem)) {
+    const b = esObj(base) ? base : {}, out = {};
+    for (const k of new Set([...Object.keys(loc), ...Object.keys(rem), ...Object.keys(b)])) {
+      const v = fusiona(k in b ? b[k] : undefined, loc[k], rem[k]);
+      if (v !== undefined) out[k] = v;
+    }
+    return out;
+  }
+  if (Array.isArray(loc) && Array.isArray(rem)) {
+    const b = Array.isArray(base) ? base : [], conId = x => esObj(x) && x.id != null;
+    if ((loc.length || rem.length) && [...loc, ...rem].every(conId)) {
+      const borrados = new Set(b.filter(conId).map(x => x.id).filter(id => !loc.some(x => x.id === id) || !rem.some(x => x.id === id)));
+      const out = [], vistos = new Set();
+      for (const x of [...rem, ...loc]) {
+        if (vistos.has(x.id) || borrados.has(x.id)) continue;
+        vistos.add(x.id);
+        const o = loc.find(y => y.id === x.id), r = rem.find(y => y.id === x.id);
+        out.push(o && r ? fusiona(b.find(y => y.id === x.id), o, r) : x);
+      }
+      return out;
+    }
+    if ([...loc, ...rem].every(x => typeof x !== 'object')) {
+      const borrados = new Set(b.filter(x => !loc.includes(x) || !rem.includes(x)));
+      return [...new Set([...rem, ...loc])].filter(x => !borrados.has(x));
+    }
+  }
+  return rem;
+}

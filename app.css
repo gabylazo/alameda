@@ -516,3 +516,84 @@ body.con-barra .deshacer { bottom: calc(var(--barra) + env(safe-area-inset-botto
 .pend .pend-t .nota { font-size: 12.5px; }
 .pend .chip { padding: 6px 10px; font-size: 13px; }
 .nueva-receta.verde { background: linear-gradient(135deg, #10b981, #0b7f57); box-shadow: 0 12px 26px rgba(11, 127, 87, .28); }
+.charla-hilo { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.burbuja { max-width: 88%; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.35; white-space: pre-wrap; }
+.burbuja.yo { align-self: flex-end; background: linear-gradient(135deg, #10b981, #0b7f57); color: #fff; border-bottom-right-radius: 6px; }
+.burbuja.el { align-self: flex-start; background: var(--tarjeta); border: 1px solid var(--linea); border-bottom-left-radius: 6px; box-shadow: var(--sombra); }
+.burbuja.pensando { color: var(--tenue); letter-spacing: 3px; animation: latido 1.2s ease-in-out infinite; }
+
+/* ——— Tema «Vivo pastel» (18/10/2026: Gabriela eligió el diseño C «con un color más claro, más pastel») ——— */
+:root { --fondo: #fffdf7; --acento: #12805c; --acento-vivo: #34d399; --acento-suave: #d1fae5; --radio: 24px; --aviso: #78350f; --aviso-suave: #fef3c7; --sombra: 0 1px 2px rgba(15, 23, 42, .03), 0 6px 18px rgba(15, 23, 42, .06); }
+html, body { background: var(--fondo); }
+body { background-image: none; padding-top: 0; }
+.cabecera { background: #dcfce7; color: #14532d; border-radius: 0 0 30px 30px; padding: calc(14px + env(safe-area-inset-top)) 16px 18px; margin: 0 auto 14px; }
+.cabecera h1 { color: #14532d; font-size: 34px; font-weight: 900; }
+.cabecera .sub { color: #166534; }
+.marca .logo-mini { background: #fde68a; box-shadow: none; }
+.marca .nutri { color: #14532d; } .marca .home { color: #be185d; }
+.marca .fecha-chip { background: rgba(255, 255, 255, .75); border: 0; color: #166534; }
+.marca .perfil-btn .avatar.mini { box-shadow: 0 0 0 2px #dcfce7; }
+.marca .volver { background: rgba(255, 255, 255, .8); box-shadow: none; color: #14532d; }
+.aviso { background: #fef3c7; border: 0; border-radius: 20px; } .aviso b { color: #78350f; }
+.aviso.hielo { background: #dbeafe; } .aviso.hielo b { color: #1d4ed8; }
+.dia-btn { border: 0; border-radius: 18px; box-shadow: 0 4px 12px rgba(15, 23, 42, .05); }
+.dia-btn[aria-pressed="true"] { background: #fcd34d; box-shadow: 0 8px 18px rgba(252, 211, 77, .45); }
+.dia-btn[aria-pressed="true"] .ds, .dia-btn[aria-pressed="true"] .dn { color: #78350f; }
+.dia-btn[aria-pressed="true"] .puntos i { background: rgba(120, 53, 15, .22); } .dia-btn[aria-pressed="true"] .puntos i.h { background: #78350f; }
+.tarjeta, .lista { border: 0; border-radius: 24px; box-shadow: var(--sombra); }
+.comida { border: 0; border-radius: 24px; background: var(--color-comida-suave, #ecfdf5); box-shadow: var(--sombra); }
+.comida::before { display: none; }
+.comida .tile { background: #fff; border-radius: 20px; }
+.comida .nombre { font-size: 17px; font-weight: 850; }
+.comida .pill { background: rgba(255, 255, 255, .78); }
+.comida.hecha { background: #f0fdf4; } .comida.hecha .tile { background: #fff; }
+.comida.ahora { box-shadow: 0 0 0 2.5px #fb7185, var(--sombra); }
+.comida.fuera { background: #f3f4f6; } .comida.fuera .tile { background: #fff; }
+.comida.doble { background: var(--color-comida-suave, #ecfdf5); }
+.fila-doble { background: rgba(255, 255, 255, .8); }
+.c-comida { --color-comida: #c2410c; --color-comida-suave: #ffe4d6; }
+.boton { border: 0; background: #fff; box-shadow: var(--sombra); }
+.boton.principal { background: linear-gradient(135deg, #6ee7b7, #34d399); color: #053b2a; box-shadow: 0 6px 16px rgba(52, 211, 153, .35); }
+.boton.suave { background: #d1fae5; color: #065f46; box-shadow: none; }
+.boton.peligro { color: var(--peligro); }
+.boton:disabled { box-shadow: none; }
+.accion.primaria { background: linear-gradient(135deg, #6ee7b7, #34d399); color: #053b2a; }
+.accion { border: 0; }
+.hero { background: #bbf7d0; color: #064e3b; border-radius: 28px; box-shadow: 0 10px 24px rgba(52, 211, 153, .22); }
+.hero .sub { color: #166534; opacity: 1; }
+.hero::after { background: rgba(255, 255, 255, .35); }
+.hero-emo { margin-left: auto; font-size: 46px; line-height: 1; filter: drop-shadow(0 6px 10px rgba(6, 78, 59, .15)); }
+.rapida { border: 0; border-radius: 20px; background: #ecfdf5; box-shadow: none; font-weight: 800; }
+.cat .emo { background: #fde68a; box-shadow: none; } .cat .num { background: #fff; border: 0; box-shadow: var(--sombra); }
+.producto { border-bottom-color: #f1f5f9; }
+.producto .sinfoto { background: #fef3c7; }
+button.producto { width: 100%; text-align: left; border: 0; border-bottom: 1px solid #f1f5f9; font: inherit; color: inherit; cursor: pointer; padding: 10px 12px; }
+.producto .info { flex: 1; min-width: 0; display: block; padding: 0; }
+.producto .pn { display: block; } .producto .pc { display: flex; }
+.producto .flecha { color: var(--tenue); font-size: 22px; font-weight: 300; }
+.producto.si { background: #f0fdf4; } .producto.no { background: #fff1f2; }
+details.comprados { padding: 4px 12px 10px; }
+details.comprados summary { font-weight: 800; color: var(--suave); cursor: pointer; padding: 8px 0; list-style: none; }
+details.comprados summary::-webkit-details-marker { display: none; }
+details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
+.pestanas { background: rgba(255, 253, 247, .96); border-top-color: #f1f5f9; }
+.pestanas button[aria-current="page"] { color: #047857; } .pestanas button[aria-current="page"] .ic { background: #a7f3d0; }
+.nueva-receta { background: linear-gradient(135deg, #fecdd3, #fda4af); color: #881337; box-shadow: 0 10px 24px rgba(253, 164, 175, .35); }
+.nueva-receta.verde { background: linear-gradient(135deg, #bbf7d0, #86efac); color: #064e3b; box-shadow: 0 10px 24px rgba(134, 239, 172, .35); }
+.chip[aria-pressed="true"] { background: #fde68a; color: #78350f; border-color: #fde68a; }
+.chip.si { background: #34d399; color: #053b2a; border-color: #34d399; }
+.barra-accion { background: linear-gradient(to top, var(--fondo) 55%, rgba(255, 253, 247, 0)); }
+.barra-accion .boton { box-shadow: 0 10px 24px rgba(52, 211, 153, .35); }
+.barra-accion .boton:disabled { background: #f3f4f6; color: var(--suave); box-shadow: none; }
+.hoja { border-radius: 30px 30px 0 0; }
+.burbuja.yo { background: #bbf7d0; color: #064e3b; }
+.deshacer button { background: #34d399; color: #053b2a; }
+.menu-fila { border: 0; }
+.atajo { background: #fff; }
+.perfil h3 .avatar { box-shadow: none; }
+.objetivos .o1 { background: #ffe4e6; } .objetivos .o2 { background: #d1fae5; } .objetivos .o3 { background: #fef3c7; } .objetivos .o4 { background: #dbeafe; }
+.escanear-grande { background: #ecfdf5; border-color: #86efac; }
+.puerta .logo { box-shadow: 0 14px 30px rgba(52, 211, 153, .3); }
+.pregunta .boton { box-shadow: none; background: #f6f7f9; }
+.pregunta .boton.principal { background: linear-gradient(135deg, #6ee7b7, #34d399); }
+.ticket-ok { background: #ecfdf5; }
