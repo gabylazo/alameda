@@ -82,6 +82,38 @@ function fijaAparatos(l) { if (D.amiga && E.hogar) E.hogar.aparatos = l; else E.
 const conHorno = r => r.ap === 'airfryer' && !aparatosCasa().includes('airfryer') && aparatosCasa().includes('horno');
 const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includes(r.ap) || conHorno(r);
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
+// ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
+const NOVEDADES = [   // la más nueva, arriba
+  { id: 'cocina', fecha: '2026-10-18', emo: '🍳', titulo: 'Lo que tenéis en la cocina', texto: 'En Recetas, marca los aparatos que tienes: solo verás lo que puedes hacer y el menú se adapta.', ir: 'recetas', foco: '.cocina' },
+  { id: 'se-acabo', fecha: '2026-10-18', emo: '🛒', titulo: '«Se acabó»', texto: 'En «En casa», toca el carrito cuando algo se termine: pasa solo a la próxima compra.', ir: 'casa', foco: '.casa-fila .icono' },
+  { id: 'amigos', fecha: '2026-10-18', emo: '👥', titulo: 'Invita a tus amigos', texto: 'Desde el perfil, arriba a la derecha: cada casa tiene su menú, su compra y su Chef.', ir: 'nosotros', foco: '#f-invitar', origen: true },
+  { id: 'chef', fecha: '2026-10-18', emo: '💬', titulo: 'El Chef contesta aquí', texto: 'Pregúntale en la pestaña Chef: responde dentro de la app en un minuto.', ir: 'claude', foco: '.charla' },
+  { id: 'sincro', fecha: '2026-10-18', emo: '☁️', titulo: 'Todos los móviles a la vez', texto: 'Lo que marca uno lo ven los demás de la casa al momento.' },
+];
+const VISTAS_NOV = 'nutrihome.novedades';   // en cada móvil, no se sincroniza: cada uno las ve una vez
+const novedadesVistas = () => { try { return JSON.parse(leeTexto(VISTAS_NOV) || '[]'); } catch { return []; } };
+// Las casas amigas no ven lo que ya estaba cuando entraron.
+const novedadesCasa = () => NOVEDADES.filter(n => !(n.origen && D.amiga) && !(D.amiga && E.hogar?.creada && n.fecha <= E.hogar.creada));
+const novedadesNuevas = () => { const v = new Set(novedadesVistas()); return novedadesCasa().filter(n => !v.has(n.id)); };
+const marcaNovedadesVistas = () => guardaTexto(VISTAS_NOV, JSON.stringify([...new Set([...novedadesVistas(), ...novedadesCasa().map(n => n.id)])]));
+const etiquetaNuevo = id => { const n = novedadesCasa().find(x => x.id === id); return n && (fecha(hoy()) - fecha(n.fecha)) / 864e5 <= 7 ? '<span class="nuevo">Nuevo</span>' : ''; };
+function hojaNovedades(todas = false) {
+  const lista = todas ? novedadesCasa() : novedadesNuevas();
+  if (!lista.length) { if (todas) tostada('No hay novedades'); return; }
+  hoja(`<h2>✨ Novedades</h2><div class="nota">${todas ? 'Lo último que ha llegado a NutriHome.' : 'Lo nuevo desde la última vez:'}</div>
+    <div class="menu-lista">${lista.map(n => `<div class="novedad"><span class="emo">${n.emo}</span><div class="t"><b>${esc(n.titulo)}</b><span class="nota">${esc(n.texto)}</span></div>${n.ir ? `<button class="chip" data-nov="${n.id}">Ver</button>` : ''}</div>`).join('')}</div>
+    <button class="boton principal ancho" id="b-nov-ok" style="margin-top:14px">Entendido</button>`, h => {
+    marcaNovedadesVistas();
+    $('#b-nov-ok', h).addEventListener('click', () => cierraHoja());
+    $$('[data-nov]', h).forEach(b => b.addEventListener('click', () => { const n = NOVEDADES.find(x => x.id === b.dataset.nov); cierraHoja(); llevaA(n); }));
+  });
+}
+// Lleva a la novedad: abre su pestaña y hace brillar lo nuevo unos segundos.
+function llevaA(n) {
+  if (!n?.ir) return;
+  const brilla = () => { const el = $(n.foco); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('destaca'); setTimeout(() => el.classList.remove('destaca'), 3500); };
+  if (V.pestana === n.ir) brilla(); else { location.hash = n.ir; setTimeout(brilla, 700); }
+}
 const pillAparato = r => !r ? '' : !sePuedeHacer(r) ? `<span class="pill malo">⚠️ necesita ${esc(nombreAparato(r.ap))}</span>` : conHorno(r) ? '<span class="pill">🔥 en horno</span>' : '';
 const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙' };
 // Secciones de la tienda, en el orden en que se recorre Mercadona.
@@ -314,6 +346,7 @@ async function inicio() {
   if (limpiaDuplicados()) salva();
   const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
   if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
+  else if (novedadesNuevas().length) setTimeout(() => { if (!$('.hoja')) hojaNovedades(); }, 1200);   // lo nuevo de esta versión, una vez
   iniciaSync();   // con servidor: baja lo de los otros móviles y sube lo de este
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
@@ -1821,7 +1854,7 @@ function vRecetas() {
     <div class="buscador">${I.buscar}<input id="i-busca" type="search" placeholder="Busca o pregunta: ¿cómo se hace…?" value="${esc(V.busca)}" enterkeyhint="search"></div>
     ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
     <button class="nueva-receta" id="b-nueva"><span class="emo">✍️</span><span><b>Nueva receta</b></span></button>
-    <div class="tarjeta cocina"><div class="cocina-cab"><b>🍳 Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina</b><span class="nota">toca para quitar o poner</span></div>
+    <div class="tarjeta cocina"><div class="cocina-cab"><b>🍳 Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina${etiquetaNuevo('cocina')}</b><span class="nota">toca para quitar o poner</span></div>
       <div class="botones">${APARATOS_CASA.map(([k, n]) => `<button class="chip" data-aparato="${k}" aria-pressed="${aparatosCasa().includes(k)}">${n}</button>`).join('')}</div>
       ${ocultas ? `<p class="nota" style="margin:10px 0 0">${ocultas} receta${ocultas > 1 ? 's necesitan' : ' necesita'} algo que no ${vos ? 'tenéis' : 'tienes'}. <button class="ver-todo" id="b-ver-ocultas">${V.verOcultas ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
       ${sinAp ? `<p class="nota" style="margin:8px 0 0">⚠️ ${sinAp} plato${sinAp > 1 ? 's' : ''} de esta semana no se ${sinAp > 1 ? 'pueden' : 'puede'} hacer. <button class="ver-todo" id="b-cambiar-sinap">Cambiar${sinAp > 1 ? 'los' : 'lo'}</button></p>` : ''}</div>
@@ -1880,10 +1913,11 @@ function vNosotros() {
     ${amiga ? `<div class="tarjeta perfil"><h3>🔑 ${varios ? 'Vuestra' : 'Tu'} clave de casa</h3>
       <p class="nota" style="margin:6px 0 10px">Te la pedirá si instalas la app en la pantalla de inicio o la abres en otro móvil.</p>
       <div class="clave-casa"><b>${esc(leeTexto(CLAVE))}</b><button class="chip" id="b-copiar-clave">Copiar</button><button class="chip" id="b-enviar-clave">📤 Enviar</button></div></div>`
-    : `<div class="tarjeta perfil"><h3>👥 Invitar a amigos</h3>
+    : `<div class="tarjeta perfil"><h3>👥 Invitar a amigos${etiquetaNuevo('amigos')}</h3>
       <p class="nota" style="margin:6px 0 10px">Cada casa invitada tiene su menú, su compra y su Chef. Sus datos van aparte, cifrados con su propia clave.</p>
       ${E.invitaciones.length ? `<div class="lista">${E.invitaciones.map(x => `<div class="producto fila-simple"><div class="sinfoto">🏠</div><div class="info"><div class="pn">${esc(x.nombre)}</div><div class="pc" data-estado-inv="${esc(x.id)}">invitada el ${fechaCorta(x.creada)}</div></div><button class="chip" data-inv-enviar="${esc(x.id)}">📤 Enviar</button><button class="icono" data-inv-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
       <form class="anadir" id="f-invitar" style="margin-top:10px"><div class="caja"><input id="i-invitar" placeholder="¿A quién invitas? Laura y Dani" autocomplete="off" enterkeyhint="send"><button class="icono mas" aria-label="Crear invitación">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form></div>`}
+    <div class="tarjeta perfil"><h3>✨ Novedades</h3><p class="nota" style="margin:6px 0 10px">Lo último que ha llegado a la app, por si te lo perdiste.</p><button class="boton" id="b-novedades">Ver las novedades</button></div>
     <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Todos los móviles de casa comparten lo mismo a través del servidor. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
       <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div>`;
@@ -1898,6 +1932,7 @@ function vNosotros() {
   $('#b-gym')?.addEventListener('click', () => { E.gimnasio = !gym; salva(); recalcula(); vNosotros(); });
   $$('[data-crea]').forEach(b => b.addEventListener('click', () => { const x = (E.creatina[h] ||= {}); x[b.dataset.crea] = !x[b.dataset.crea]; salva(); vNosotros(); if (x[b.dataset.crea]) tostada('💊 Apuntada'); }));
   $('#b-cambiar-datos')?.addEventListener('click', () => bienvenida(true));
+  $('#b-novedades')?.addEventListener('click', () => hojaNovedades(true));
   $('#b-copiar-clave')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(leeTexto(CLAVE)); tostada('Clave copiada'); } catch { tostada('No he podido copiarla'); } });
   $('#b-enviar-clave')?.addEventListener('click', () => compartirTexto('NutriHome', `Nuestra casa en NutriHome: ${enlaceCasa(leeTexto(CLAVE))}\nClave de casa: ${leeTexto(CLAVE)}`, 'Copiado: pégalo en WhatsApp'));
   $('#f-invitar')?.addEventListener('submit', e => {
