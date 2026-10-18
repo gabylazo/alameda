@@ -72,8 +72,17 @@ const NOMBRE_AGENTE = 'Chef';   // el nombre de la pestaña 💬 lo elige la cas
 const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', NOMBRE_AGENTE], ['casa', 'En casa'], ['recetas', 'Recetas']];
 // «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
 const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
-const APARATO = { airfryer: 'Air fryer', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
-const APARATO_EMO = { airfryer: '🌀', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤', olla: '♨️' };
+const APARATO = { airfryer: 'Air fryer', horno: 'Horno', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
+const APARATO_EMO = { airfryer: '🌀', horno: '🔥', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤', olla: '♨️' };
+// Lo que hay en la cocina de cada casa (sin elegir: todo). Las recetas de air fryer también se pueden hacer en el horno, unos minutos más.
+const TODOS_APARATOS = ['airfryer', 'horno', 'plancha', 'micro', 'batidora', 'olla'];
+const APARATOS_CASA = [['airfryer', '🌀 Air fryer'], ['horno', '🔥 Horno'], ['plancha', '🍳 Sartén o plancha'], ['micro', '⚡ Microondas'], ['batidora', '🥤 Batidora'], ['olla', '♨️ Olla o cazo']];
+const aparatosCasa = () => (D.amiga ? E.hogar?.aparatos : E.aparatos) || TODOS_APARATOS;
+function fijaAparatos(l) { if (D.amiga && E.hogar) E.hogar.aparatos = l; else E.aparatos = l; }
+const conHorno = r => r.ap === 'airfryer' && !aparatosCasa().includes('airfryer') && aparatosCasa().includes('horno');
+const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includes(r.ap) || conHorno(r);
+const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
+const pillAparato = r => !r ? '' : !sePuedeHacer(r) ? `<span class="pill malo">⚠️ necesita ${esc(nombreAparato(r.ap))}</span>` : conHorno(r) ? '<span class="pill">🔥 en horno</span>' : '';
 const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙' };
 // Secciones de la tienda, en el orden en que se recorre Mercadona.
 const SECCIONES = ['Fruta y verdura', 'Panadería y pastelería', 'Carne', 'Marisco y pescado', 'Charcutería y quesos', 'Huevos, leche y mantequilla',
@@ -438,6 +447,8 @@ function vSemana() {
   // Platos con cosas que no comprasteis (✕) o que no hay en casa: se ofrece cambiarlos por otros que sí podáis hacer.
   V.tengo = loQueTenemos(p, s);
   const sinCosas = platosSinCosas(pe, s);
+  const sinAparato = platosSinAparato(p);
+  if (sinAparato.length) banners.push(letrero('aparatos:' + p.id + ':' + aparatosCasa().join(','), '🍳', `<b>${sinAparato.length} plato${sinAparato.length > 1 ? 's necesitan' : ' necesita'} ${esc(enumera([...new Set(sinAparato.map(x => nombreAparato(x.r.ap)))], 3))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar-aparatos">🔄 Cambiarlos</button></div>`));
   if (sinCosas.platos) banners.push(letrero('falta:' + p.id + ':' + [...sinCosas.claves].sort().join(','), '🛒',
     `<b>${sinCosas.platos} plato${sinCosas.platos > 1 ? 's' : ''} con cosas que no tenéis</b>: ${esc(enumera(sinCosas.nombres))}.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar">🔄 Ajustar el menú</button></div>`));
   if (E.pendientes?.length) banners.push(letrero('pend:' + E.pendientes.map(x => x.id).join(','), '🏪', `<a href="#compra" style="color:inherit;text-decoration:none"><b>Pendiente de otro súper:</b> ${esc(enumera(E.pendientes.map(x => nombreFalta(x.k) || x.n), 4))} →</a>`));
@@ -467,6 +478,7 @@ function vSemana() {
   $$('[data-acc]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.acc, b.dataset.q || null)));
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
   $('#b-ajustar')?.addEventListener('click', () => { const c = adaptaMenu(p); vSemana(); hojaCambiosMenu(c); });
+  $('#b-ajustar-aparatos')?.addEventListener('click', () => { const c = ajustaPorAparatos(p); vSemana(); hojaCambiosMenu(c); });
   $('#b-preparar')?.addEventListener('click', () => { siguienteSemana(); location.hash = 'compra'; });
   activaLetreros();
   $('.dia-btn[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -580,6 +592,35 @@ function htmlCambiosMenu(cambios) {
   return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · sin ${esc(enumera(x.falta, 3))}</div>
     <div><s>${esc(x.de)}</s><br>${x.a ? `<b>${esc(x.a)}</b>` : '<b class="persona-g">Sin alternativa con lo que tenéis</b>'}</div></div>`).join('');
 }
+// Platos pendientes (desde hoy, sin comer) que necesitan un aparato que la casa no tiene.
+function platosSinAparato(p) {
+  const s = est(p.id), h = hoy(), out = [];
+  for (const d of efectivo(p).dias) {
+    if (d.f < h) continue;
+    for (const c of L.COMIDAS) {
+      if (s.hechos[d.f + '|' + c]) continue;
+      const v = d[c]; if (!v || v.fuera) continue;
+      for (const q of (L.esDoble(v) ? L.QUIEN : [null])) { const r = recetas[q ? v[q] : L.idDe(v)]; if (r && !sePuedeHacer(r)) out.push({ f: d.f, c, q, r }); }
+    }
+  }
+  return out;
+}
+// Los cambia por la mejor alternativa que se pueda hacer en esta cocina (y, si puede ser, con lo que hay en casa).
+function ajustaPorAparatos(p) {
+  const s = est(p.id), cambios = [], tengo = loQueTenemos(p, s);
+  for (const x of platosSinAparato(p)) {
+    const i = p.dias.findIndex(d => d.f === x.f), k = x.f + '|' + x.c, pe = efectivo(p), v = pe.dias[i][x.c], qs = x.q ? [x.q] : L.QUIEN;
+    const alts = L.alternativas(pe, i, x.c, recetas, D.productos, fac, obj.G, 99, Date.now() + i, x.q).filter(r => aptaCasa(r, qs));
+    const nueva = alts.find(r => !faltanDe(r, tengo).length) || alts[0] || null;
+    if (nueva) {
+      if (x.q) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[x.q] = nueva.id; s.cambios[k] = base; }
+      else s.cambios[k] = nueva.id;
+    }
+    cambios.push({ f: x.f, c: x.c, q: x.q, de: x.r.n, a: nueva ? nueva.n : null, falta: [nombreAparato(x.r.ap)] });
+  }
+  if (cambios.length) salva();
+  return cambios;
+}
 function hojaCambiosMenu(cambios) {
   const n = cambios.filter(x => x.a).length;
   hoja(`<h2>🔄 Menú ajustado</h2><p class="nota">${cambios.length ? `${n} plato${n === 1 ? '' : 's'} cambiado${n === 1 ? '' : 's'} por otros que podéis hacer con lo que tenéis.${n < cambios.length ? ' Para alguno no he encontrado alternativa: cámbialo a mano o pregúntame.' : ''}` : 'Todos los platos se pueden hacer con lo que tenéis.'}</p>
@@ -595,14 +636,14 @@ function tarjetaComida(p, d, i, c, s, ahora) {
   if (L.esDoble(v)) {
     const fila = q => { const r = recetas[v[q]]; const m = r ? L.macrosReceta(r, q, D.productos, fac) : null;
       return `<button class="fila-doble" data-acc="${c}" data-q="${q}"><span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span><span class="mini-tile">${r ? emojiReceta(r) : '➕'}</span>
-        <span class="nombre-s">${r ? esc(r.n) : 'Sin plato'}${r && pillFalta(r) ? '<br>' + pillFalta(r) : ''}</span>${m ? `<span class="pill ${q.toLowerCase()}">${r0(m.kcal)}</span>` : ''}<span class="flecha">›</span></button>`; };
+        <span class="nombre-s">${r ? esc(r.n) : 'Sin plato'}${r && (pillFalta(r) || pillAparato(r)) ? '<br>' + pillFalta(r) + pillAparato(r) : ''}</span>${m ? `<span class="pill ${q.toLowerCase()}">${r0(m.kcal)}</span>` : ''}<span class="flecha">›</span></button>`; };
     return `<div class="${cls} doble">${mom}${L.QUIEN.map(fila).join('')}</div>`;
   }
   const r = recetas[L.idDe(v)];
   if (!r) return `<button class="${cls} fuera" data-acc="${c}"><span class="tile">🏠</span><span class="cuerpo">${mom}<span class="nombre">${esc(v && v.libre ? v.libre : 'Sin plato')}</span></span><span class="flecha">›</span></button>`;
   return `<button class="${cls}" data-acc="${c}"><span class="tile">${emojiReceta(r)}</span>
     <span class="cuerpo">${mom}<span class="nombre">${esc(r.n)}</span>
-      <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${pillsKcal(r)}${r.propia ? '<span class="pill">⭐</span>' : ''}${pillFalta(r)}</span></span>
+      <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${pillsKcal(r)}${r.propia ? '<span class="pill">⭐</span>' : ''}${pillFalta(r)}${pillAparato(r)}</span></span>
     <span class="flecha">›</span></button>`;
 }
 
@@ -734,6 +775,7 @@ function abrirReceta(id, ctx) {
   const tipoPrincipal = r.tipo?.[0] || 'comida';
   hoja(`<div class="portada-hoja c-${tipoPrincipal}"><span class="emo">${emojiReceta(r)}</span><div><h2>${esc(r.n)}</h2>
       <div class="botones" style="margin-top:8px"><span class="pill verde">${APARATO_EMO[r.ap] || '🍴'} ${APARATO[r.ap] || 'Cocina'}</span><span class="pill">⏱ ${r.min}′</span>${r.propia ? '<span class="pill">⭐ vuestra</span>' : ''}</div></div></div>
+    ${!sePuedeHacer(r) ? `<div class="aviso"><span class="emo">🍳</span><div><b>Necesita ${esc(nombreAparato(r.ap))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.</div></div>` : conHorno(r) ? '<div class="aviso"><span class="emo">🔥</span><div><b>Sin air fryer, en el horno:</b> a 200 °C con ventilador, unos 5 o 10 minutos más que en la receta y dándole la vuelta a mitad.</div></div>' : ''}
     <div class="macros${una ? ' una' : ''}">${quienes.map(q => m(q, mac[q])).join('')}</div>
     <h3>🥕 Ingredientes</h3>
     <div class="ing-lista"><div class="ing-fila cab${una ? ' una' : ''}"><span>Ingrediente</span>${quienes.map(q => `<span class="c persona-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</div>${filas}</div>
@@ -811,7 +853,7 @@ function editorReceta(r, aLaLista = false, inicial = {}) {
     <div class="reconocidos" id="r-reco"></div>
     <h3>👩‍🍳 Cómo se hace</h3><textarea class="campo-texto" id="r-pasos" placeholder="Pollo en dados con sal. Air fryer 180 °C, 12 minutos…">${esc(v.pasos)}</textarea>
     <h3>🕐 ¿Cuándo?</h3><div class="botones" id="r-tipo">${L.COMIDAS.map(c => `<button type="button" class="chip" data-tipo="${c}" aria-pressed="${v.tipo.includes(c)}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</button>`).join('')}</div>
-    <h3>🍳 ¿Con qué?</h3><div class="botones" id="r-ap">${['airfryer', 'plancha', 'micro', 'sin'].map(a => `<button type="button" class="chip" data-ap="${a}" aria-pressed="${v.ap === a}">${APARATO_EMO[a]} ${APARATO[a]}</button>`).join('')}
+    <h3>🍳 ¿Con qué?</h3><div class="botones" id="r-ap">${['airfryer', 'horno', 'plancha', 'micro', 'olla', 'batidora', 'sin'].map(a => `<button type="button" class="chip" data-ap="${a}" aria-pressed="${v.ap === a}">${APARATO_EMO[a]} ${APARATO[a]}</button>`).join('')}
       <label class="chip">⏱ <input id="r-min" type="number" inputmode="numeric" value="${v.min}" style="width:42px;border:0;background:none;font-weight:800;padding:0"> min</label></div>
     <button class="boton principal ancho" id="r-guardar" style="margin-top:18px">💾 Guardar receta</button>`, h => {
     const reco = () => {
@@ -1766,8 +1808,10 @@ function vRecetas() {
   cabecera('Recetas', `${todas.length} recetas`);
   const pregunta = V.busca.trim();
   const t = L.normaliza(pregunta).replace(/^(como se hace|como hago|como preparo|como se prepara|receta de|receta)\s+/, '').replace(/^(un|una|el|la|los|las)\s+/, '');
+  const ocultas = todas.filter(r => !sePuedeHacer(r)).length, sinAp = platosSinAparato(planActivo()).length, vos = L.QUIEN.length > 1;
   const lista = todas.filter(r => {
     if (D.amiga && L.QUIEN.some(q => alergiaDe(r, perfiles()[q]).length)) return false;   // alergias: nunca
+    if (!V.verOcultas && !sePuedeHacer(r)) return false;   // lo que no se puede hacer con esta cocina, solo si se pide
     if (t && !L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n).join(' ') + ' ' + (r.otros || []).join(' ')).includes(t)) return false;
     const f = V.filtro;
     return f === 'todas' || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
@@ -1777,16 +1821,27 @@ function vRecetas() {
     <div class="buscador">${I.buscar}<input id="i-busca" type="search" placeholder="Busca o pregunta: ¿cómo se hace…?" value="${esc(V.busca)}" enterkeyhint="search"></div>
     ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
     <button class="nueva-receta" id="b-nueva"><span class="emo">✍️</span><span><b>Nueva receta</b></span></button>
+    <div class="tarjeta cocina"><div class="cocina-cab"><b>🍳 Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina</b><span class="nota">toca para quitar o poner</span></div>
+      <div class="botones">${APARATOS_CASA.map(([k, n]) => `<button class="chip" data-aparato="${k}" aria-pressed="${aparatosCasa().includes(k)}">${n}</button>`).join('')}</div>
+      ${ocultas ? `<p class="nota" style="margin:10px 0 0">${ocultas} receta${ocultas > 1 ? 's necesitan' : ' necesita'} algo que no ${vos ? 'tenéis' : 'tienes'}. <button class="ver-todo" id="b-ver-ocultas">${V.verOcultas ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
+      ${sinAp ? `<p class="nota" style="margin:8px 0 0">⚠️ ${sinAp} plato${sinAp > 1 ? 's' : ''} de esta semana no se ${sinAp > 1 ? 'pueden' : 'puede'} hacer. <button class="ver-todo" id="b-cambiar-sinap">Cambiar${sinAp > 1 ? 'los' : 'lo'}</button></p>` : ''}</div>
     <div class="fila-chips">${FILTROS.map(([k, n]) => `<button class="chip" data-filtro="${k}" aria-pressed="${V.filtro === k}">${n}</button>`).join('')}</div>
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
-      return `<button class="receta-tarjeta c-${r.tipo[0]}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${r.fav ? '<span class="corazon">❤️</span>' : ''}${emojiReceta(r)}</div>
-        <div class="cuerpo"><div class="nombre">${esc(r.n)}</div><div class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${r0(g.kcal)} kcal</span></div></div></button>`; }).join('')}</div>
+      return `<button class="receta-tarjeta c-${r.tipo[0]}${sePuedeHacer(r) ? '' : ' no-puedo'}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${r.fav ? '<span class="corazon">❤️</span>' : ''}${emojiReceta(r)}</div>
+        <div class="cuerpo"><div class="nombre">${esc(r.n)}</div><div class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${r0(g.kcal)} kcal</span>${pillAparato(r)}</div></div></button>`; }).join('')}</div>
     ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}`;
   $('#b-nueva').addEventListener('click', () => editorReceta(null));
   $('#b-preguntar')?.addEventListener('click', () => irAClaude(`${/^¿/.test(pregunta) ? pregunta : '¿' + capital(pregunta) + '?'} Explícamelo y, si vale, ponla en NutriHome.`));
   $('#i-busca').addEventListener('input', e => { V.busca = e.target.value; const pos = e.target.selectionStart; vRecetas(); const i = $('#i-busca'); i.focus(); i.setSelectionRange(pos, pos); });
   $$('[data-filtro]').forEach(b => b.addEventListener('click', () => { V.filtro = b.dataset.filtro; vRecetas(); }));
   $$('[data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
+  $$('[data-aparato]').forEach(b => b.addEventListener('click', () => {
+    const a = b.dataset.aparato, ahora = aparatosCasa();
+    fijaAparatos(ahora.includes(a) ? ahora.filter(x => x !== a) : [...ahora, a]);
+    salva(); vRecetas();
+  }));
+  $('#b-ver-ocultas')?.addEventListener('click', () => { V.verOcultas = !V.verOcultas; vRecetas(); });
+  $('#b-cambiar-sinap')?.addEventListener('click', () => { const c = ajustaPorAparatos(planActivo()); vRecetas(); hojaCambiosMenu(c); });
 }
 
 // ——— Nosotros (icono de perfil): vuestros datos, gustos y el súper ———
@@ -1939,12 +1994,11 @@ function creaPlan(inicio, n) {
 // Recetas que puede comer toda la casa: sin alergias (regla fija), con su forma de comer, sin lo que no le gusta a nadie,
 // con los aparatos que tienen y en el tiempo que tienen.
 function aptaCasa(r, qs = L.QUIEN) {
-  if (!gustaA(r, qs)) return false;
+  if (!gustaA(r, qs) || !sePuedeHacer(r)) return false;   // lo que no gusta y lo que no se puede hacer con la cocina de casa
   if (!D.amiga) return true;
   const per = perfiles();
   for (const q of qs) { const x = per[q]; if (x && (alergiaDe(r, x).length || !dietaOk(r, x.dieta))) return false; }
   const h = E.hogar || {};
-  if (h.aparatos?.length && r.ap !== 'sin' && !h.aparatos.includes(r.ap)) return false;
   if (h.tiempo && r.min > h.tiempo) return false;
   return true;
 }
@@ -1973,7 +2027,6 @@ const ACTIVIDAD = [['1.2', 'Poca', 'sentado casi todo el día'], ['1.375', 'Algo
 const OBJETIVOS = [['perder', 'Perder grasa'], ['mantener', 'Mantenerme'], ['ganar', 'Ganar músculo']];
 const ALERGIAS = [['gluten', 'Gluten'], ['leche', 'Lactosa o leche'], ['huevo', 'Huevo'], ['pescado', 'Pescado'], ['crustaceos,moluscos', 'Marisco'], ['frutos_cascara', 'Frutos secos'], ['cacahuete', 'Cacahuete'], ['soja', 'Soja'], ['sesamo', 'Sésamo'], ['mostaza', 'Mostaza'], ['apio', 'Apio'], ['sulfitos', 'Sulfitos']];
 const DIETAS = [['todo', 'De todo'], ['vegetariana', 'Vegetariana'], ['sinpescado', 'Sin pescado'], ['sincerdo', 'Sin cerdo']];
-const APARATOS_CASA = [['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Sartén o plancha'], ['micro', '⚡ Microondas'], ['batidora', '🥤 Batidora'], ['olla', '♨️ Olla o cazo']];
 const DIAS_L = [[1, 'L'], [2, 'M'], [3, 'X'], [4, 'J'], [5, 'V'], [6, 'S'], [0, 'D']];
 const METAS = { perder: { deficit: 0.2, protKg: 1.8, grasaKg: 0.7 }, mantener: { deficit: 0, protKg: 1.4, grasaKg: 0.8 }, ganar: { deficit: -0.1, protKg: 1.8, grasaKg: 0.8 } };
 const chips = (attr, grupo, opciones, activos) => opciones.map(([v, t, s]) => `<button type="button" class="chip" ${attr}="${grupo}" data-v="${v}" aria-pressed="${activos.includes(String(v))}">${t}${s ? ` <small>${s}</small>` : ''}</button>`).join('');
@@ -2178,7 +2231,7 @@ function contextoParaClaude() {
     lista: filas.filter(f => !s.marcados[f.clave]).slice(0, 40).map(nombreFila),
     pendientesOtroSuper: (E.pendientes || []).map(x => x.n),
     personas: L.QUIEN.map(q => ({ nombre: per[q].nombre, objetivo: obj[q], gusta: per[q].gusta || '', noGusta: per[q].noGusta || '', alergias: [...(per[q].alergias || []), per[q].otrasAlergias || ''].filter(Boolean), dieta: per[q].dieta || 'todo', tca: !!per[q].tca })),
-    casa: { super: nombreSuper(), presupuestoSemanal: E.hogar?.presupuesto || null },
+    casa: { super: nombreSuper(), presupuestoSemanal: E.hogar?.presupuesto || null, cocina: aparatosCasa().map(nombreAparato) },
     recetasPropias: (E.propias || []).map(r => r.n),
   };
 }
