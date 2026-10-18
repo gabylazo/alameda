@@ -170,7 +170,17 @@ async function sube(v) {
   if (!r.ok) throw new Error('subida ' + r.status);
   sync.v = (await r.json()).v; sync.base = JSON.parse(JSON.stringify(E)); guarda(SYNC, sync);
 }
+// Listas que dos móviles pueden haber llenado a la vez: fuera los repetidos (mismo producto o mismo nombre).
+function limpiaDuplicados() {
+  const uniq = (l, clave) => { const vistos = new Set(); return (l || []).filter(x => { const c = clave(x); if (vistos.has(c)) return false; vistos.add(c); return true; }); };
+  const porProducto = x => x.k || L.normaliza(x.n || x.texto || '');
+  const antes = JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros]);
+  E.pendientes = uniq(E.pendientes, porProducto); E.proximaCompra = uniq(E.proximaCompra, porProducto);
+  E.invitaciones = uniq(E.invitaciones, x => x.clave); E.casaOtros = [...new Set(E.casaOtros || [])];
+  return antes !== JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros]);
+}
 function aplicaRemoto() {
+  if (limpiaDuplicados()) guarda(ESTADO, E);
   if (!V.montada) return;   // todavía arrancando
   if (D.amiga && E.hogar) montaAmiga();
   reconstruyeRecetas(); recalcula();
@@ -291,6 +301,8 @@ async function inicio() {
   });
   V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'semana';
   pinta();
+  if (servidor() && !D.amiga) await sincroniza();   // primero lo de los otros móviles: los ajustes se hacen sobre lo de toda la casa
+  if (limpiaDuplicados()) salva();
   const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
   if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
   iniciaSync();   // con servidor: baja lo de los otros móviles y sube lo de este
@@ -533,8 +545,9 @@ function ajusteAutomatico() {
   // El ticket se subió otro día y la compra sigue sin cerrar: se cierra sola (lo comprado a «En casa», lo que no había a pendientes).
   if (s.ticket && !s.compraHecha && hoy() > (s.ticket.fecha || hoy())) { const { filas } = lineaCompra(); const res = terminarCompra(filas, true); if (res?.menu?.length) return res.menu; }
   // El menú publicado se hizo sabiendo lo que hay (el ticket): lo que usa se da por tenido, aunque el lector no lo emparejara.
-  const tienen = D.semana.id === p.id && D.semana.tienen;
-  if (tienen && s.reconciliado !== D.generado) {
+  const tienen = D.semana.id === p.id && D.semana.tienen, marcaTicket = D.semana.reconciliacion || 'ticket';
+  if (tienen && /^\d{4}-\d\d-\d\dT/.test(s.reconciliado || '')) { s.reconciliado = marcaTicket; salva(); }   // marca antigua (la fecha de cada publicación): ya está hecho
+  if (tienen && s.reconciliado !== marcaTicket) {   // una sola vez por semana, no en cada publicación
     for (const [k, g] of Object.entries(tienen)) {
       if (!D.productos[k]) continue;
       delete s.noComprado[k]; if (s.noHabia) delete s.noHabia[k];
@@ -544,7 +557,7 @@ function ajusteAutomatico() {
     E.casaOtros = E.casaOtros.filter(t => !Object.keys(tienen).some(k => D.productos[k] && L.parecido(t, D.productos[k].n) >= 0.6));   // ya está como producto
     for (const k of D.semana.noTienen || []) delete E.casa[k];   // lo que el lector del ticket emparejó mal
     for (const k of D.semana.noHabia || []) if (D.productos[k] && !(E.casa[k] > 0)) apuntaPendiente({ k, n: nombreCorto(D.productos[k]) });   // lo que no había según el ticket
-    s.reconciliado = D.generado; salva();
+    s.reconciliado = marcaTicket; salva();
   }
   const enCasa = Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0);
   const antes = E.casaOtros.length;
