@@ -53,7 +53,7 @@ const I = {
   carro: ic('<path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>'),
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
-const NOMBRE_AGENTE = 'Claude';   // el nombre de la pestaña 💬 lo decide Gabriela
+const NOMBRE_AGENTE = 'Claude';   // el nombre de la pestaña 💬 lo elige la casa
 const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', NOMBRE_AGENTE], ['casa', 'En casa'], ['recetas', 'Recetas']];
 // «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
 const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };

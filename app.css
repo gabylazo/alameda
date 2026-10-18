@@ -522,7 +522,7 @@ body.con-barra .deshacer { bottom: calc(var(--barra) + env(safe-area-inset-botto
 .burbuja.el { align-self: flex-start; background: var(--tarjeta); border: 1px solid var(--linea); border-bottom-left-radius: 6px; box-shadow: var(--sombra); }
 .burbuja.pensando { color: var(--tenue); letter-spacing: 3px; animation: latido 1.2s ease-in-out infinite; }
 
-/* ——— Tema «Vivo pastel» (18/10/2026: Gabriela eligió el diseño C «con un color más claro, más pastel») ——— */
+/* ——— Tema «Vivo pastel» (18/10/2026: diseño C, con colores más claros) ——— */
 :root { --fondo: #fffdf7; --acento: #12805c; --acento-vivo: #34d399; --acento-suave: #d1fae5; --radio: 24px; --aviso: #78350f; --aviso-suave: #fef3c7; --sombra: 0 1px 2px rgba(15, 23, 42, .03), 0 6px 18px rgba(15, 23, 42, .06); }
 html, body { background: var(--fondo); }
 body { background-image: none; padding-top: 0; }
