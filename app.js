@@ -511,6 +511,7 @@ function ajusteAutomatico() {
       if (!(E.casa[k] > 0)) E.casa[k] = g;
     }
     E.casaOtros = E.casaOtros.filter(t => !Object.keys(tienen).some(k => D.productos[k] && L.parecido(t, D.productos[k].n) >= 0.6));   // ya está como producto
+    for (const k of D.semana.noTienen || []) delete E.casa[k];   // lo que el lector del ticket emparejó mal
     s.reconciliado = D.generado; salva();
   }
   if (!s.noHabia && s.compraHecha && u) {
@@ -838,7 +839,9 @@ function lineaCompra() {
   const p = planCompra(), s = est(p.id), h = hoy();
   const desde = h > p.dias[0].f ? h : null, pe = efectivo(p);
   const nec = L.necesidades(pe, recetas, fac, desde);
-  for (const f of E.fijos) if (f.k && D.productos[f.k]) nec[f.k] = (nec[f.k] || 0) + (f.n || 1) * D.productos[f.k].util;
+  const tienen = D.semana.id === p.id && D.semana.tienen ? D.semana.tienen : null;   // el menú publicado se hizo sabiendo lo que hay: eso no se pide
+  if (tienen) for (const k of Object.keys(tienen)) delete nec[k];
+  if (!s.compraHecha) for (const f of E.fijos) if (f.k && D.productos[f.k]) nec[f.k] = (nec[f.k] || 0) + (f.n || 1) * D.productos[f.k].util;   // los favoritos, solo hasta hacer la compra
   const otros = new Map();
   const sumaOtros = (r, para) => { for (const t of r.otros || []) {
     const b = L.normaliza(t).replace(/\b(al gusto|una pizca de|un poco de|pizca de|un chorrito de)\b/g, '').trim(), kk = 'o:' + b;
@@ -853,7 +856,7 @@ function lineaCompra() {
   const { filas, despensa, total } = L.listaCompra(nec, D.productos, E.casa || {});
   const vistas = filas.filter(f => !s.quitados[f.k]).map(f => ({ ...f, clave: f.k, fijo: E.fijos.some(x => x.k === f.k) }))
     .map(f => s.menos[f.k] ? { ...f, envases: f.envases - Math.min(f.envases, s.menos[f.k]), precio: (f.envases - Math.min(f.envases, s.menos[f.k])) * D.productos[f.k].precio } : f).filter(f => f.envases > 0);
-  for (const k of Object.keys(s.faltaDespensa)) if (s.faltaDespensa[k] && D.productos[k]) vistas.push({ k, clave: k, envases: 1, precio: D.productos[k].precio, despensa: true });
+  if (!s.compraHecha) for (const k of Object.keys(s.faltaDespensa)) if (s.faltaDespensa[k] && D.productos[k]) vistas.push({ k, clave: k, envases: 1, precio: D.productos[k].precio, despensa: true });
   for (const x of s.extra) {
     const enLista = x.k && vistas.find(v => v.k === x.k);
     if (enLista) { enLista.envases += x.n || 1; enLista.precio += (x.n || 1) * D.productos[x.k].precio; (enLista.extras ||= []).push(x.id); enLista.manual = true; continue; }
@@ -865,8 +868,8 @@ function lineaCompra() {
     if (x.k && D.productos[x.k]) { if (s.quitados[x.k]) continue; const enLista = vistas.find(v => v.k === x.k); if (enLista) { enLista.proxima = true; continue; } vistas.push({ k: x.k, clave: x.k, envases: 1, precio: D.productos[x.k].precio, proxima: true }); }
     else vistas.push({ k: null, clave: 'px:' + x.id, texto: x.n, proxima: true });
   }
-  for (const f of E.fijos) if (f.texto && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
-  for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
+  if (!s.compraHecha) for (const f of E.fijos) if (f.texto && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
+  if (!s.compraHecha) for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
   for (const [kk, o] of otros) vistas.push({ k: null, clave: kk, texto: o.texto, otro: true, para: o.para });
   for (const v of vistas) v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros';
   vistas.sort((a, b) => (ordenSeccion(a.seccion) - ordenSeccion(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
