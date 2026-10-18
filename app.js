@@ -513,6 +513,7 @@ function ajusteAutomatico() {
     }
     E.casaOtros = E.casaOtros.filter(t => !Object.keys(tienen).some(k => D.productos[k] && L.parecido(t, D.productos[k].n) >= 0.6));   // ya está como producto
     for (const k of D.semana.noTienen || []) delete E.casa[k];   // lo que el lector del ticket emparejó mal
+    for (const k of D.semana.noHabia || []) if (D.productos[k] && !(E.casa[k] > 0)) apuntaPendiente({ k, n: nombreCorto(D.productos[k]) });   // lo que no había según el ticket
     s.reconciliado = D.generado; salva();
   }
   const enCasa = Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0);
@@ -930,7 +931,7 @@ function vCompra() {
       <button class="rapida" id="b-mas"><span class="emo">⋯</span>Más</button>
     </div>
     ${tarjetaTicket(s, comprados.length + noHabia.length > 0)}
-    ${tarjetaPendientes()}
+    ${seccionPendientes()}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="lista">${recetasLista}</div>` : ''}
     ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
@@ -950,7 +951,13 @@ function vCompra() {
   $('#b-ticket')?.addEventListener('click', elegirTicket);
   $('#b-ver-ticket')?.addEventListener('click', () => hojaTicketLeido(s, filas));
   $('#b-ultima')?.addEventListener('click', () => hojaCompra(E.compras[0]));
-  $('#b-pendientes')?.addEventListener('click', abrirPendientes);
+  $$('[data-pend-ya]').forEach(b => b.addEventListener('click', () => {
+    const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
+    if (x?.k && D.productos[x.k]) E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util;
+    E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); tostada(x?.k ? '🏠 Pasa a «En casa»' : 'Quitado'); refrescaCompra();
+  }));
+  $$('[data-pend-quitar]').forEach(b => b.addEventListener('click', () => { E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); refrescaCompra(); }));
+  $('#b-enviar-pend')?.addEventListener('click', () => compartirTexto('Pendiente de otro súper', 'Pendiente de otro súper · NutriHome\n' + E.pendientes.map(x => '☐ ' + x.n).join('\n'), 'Copiado: pégalo en WhatsApp'));
   $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(noHabia.map(nombreFila)));
   $('#b-anadir').addEventListener('click', () => abrirAnadir(seccionesLista));
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
@@ -1803,6 +1810,12 @@ function quitaPendiente(f) {
   if (!E.pendientes?.length) return;
   const n = L.normaliza(nombreFila(f));
   E.pendientes = E.pendientes.filter(x => !((f.k && x.k === f.k) || L.normaliza(x.n) === n));
+}
+// Pendiente de otro súper, a la vista en Compra: filas con «Ya lo tengo» y papelera.
+function seccionPendientes() {
+  if (!E.pendientes?.length) return '';
+  return `<div class="cat"><span class="emo">🏪</span>Pendiente de otro súper<span class="num">${E.pendientes.length}</span></div><div class="lista">${E.pendientes.map(x => `<div class="producto fila-simple"><div class="sinfoto">${x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒'}</div><div class="info"><div class="pn">${esc(x.k && D.productos[x.k] ? nombreCorto(D.productos[x.k]) : x.n)}</div><div class="pc">no había el ${fechaCorta(x.f)}</div></div><button class="chip si" data-pend-ya="${esc(x.id)}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>
+    <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-pend">📤 Enviar esta lista</button></div>`;
 }
 const tarjetaPendientes = () => !E.pendientes?.length ? '' : `<div class="tarjeta pregunta"><span class="emo">🏪</span><div class="t"><b>Pendiente de otro súper</b><span class="nota">${esc(enumera(E.pendientes.map(x => x.k && D.productos[x.k] ? nombreFalta(x.k) : x.n), 4))}</span></div><button class="boton" id="b-pendientes">Ver</button></div>`;
 function abrirPendientes() {
