@@ -147,7 +147,7 @@ async function sincroniza() {
     }
     V.sync = 'ok'; V.syncHora = new Date(); V.syncError = '';
   } catch (e) { V.sync = 'error'; V.syncError = e.message; }
-  finally { sincronizando = false; pintaSync(); if (otraVez) { otraVez = false; programaSync(); } }
+  finally { sincronizando = false; pintaSync(); if (otraVez) { otraVez = false; programaSync(); } for (const c of E.charla || []) if (!c.r && Date.now() - new Date(c.t) < 864e5) esperaRespuesta(c.id); }   // respuestas que queden por recoger
 }
 async function sube(v) {
   const r = await fetch(`${servidor()}/casa/${casaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ v, blob: await cifraSync(E) }) });
@@ -1894,12 +1894,15 @@ async function preguntaServidor(texto) {
   V.datos = null;
   esperaRespuesta(id);
 }
-async function esperaRespuesta(id, intentos = 50) {
+// Espera la respuesta del cerebro: cada 3 s los dos primeros minutos y luego cada 15 s, hasta un día; solo con la app a la vista.
+async function esperaRespuesta(id) {
   if (esperando.has(id)) return; esperando.add(id);
   try {
-    for (let i = 0; i < intentos; i++) {
-      await new Promise(r => setTimeout(r, 3000));
+    const t0 = Date.now();
+    while (Date.now() - t0 < 864e5) {
+      await new Promise(r => setTimeout(r, Date.now() - t0 < 120000 ? 3000 : 15000));
       const x = (E.charla || []).find(c => c.id === id); if (!x || x.r) return;
+      if (document.visibilityState !== 'visible') continue;
       try {
         const r = await fetch(`${servidor()}/casa/${casaId}/respuesta/${id}`, { cache: 'no-store' });
         if (r.status === 200) { const resp = await descifraSync((await r.json()).blob); x.r = resp.texto; x.tr = new Date().toISOString(); salva(); if (V.pestana === 'claude' && !$('.hoja')) vClaude(); return; }
