@@ -600,3 +600,9 @@ details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
 .casa-fila .mini-cant { margin-left: auto; flex: 0 0 auto; }
 .casa-fila .icono { flex: 0 0 auto; }
 .casa-fila .info { flex: 1; min-width: 0; }
+.fila-simple .info { flex: 1; min-width: 0; }
+.fila-simple .chip { flex: 0 0 auto; }
+.fila-simple .icono { flex: 0 0 auto; }
+.burbuja.yo { position: relative; padding-right: 26px; }
+.burbuja .borrar { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: rgba(6, 78, 59, .55); font-size: 18px; line-height: 1; padding: 0 2px; }
+.ver-todo { border: 0; background: none; color: var(--acento); font-weight: 750; font-size: 13.5px; padding: 0; text-decoration: underline; }

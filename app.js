@@ -251,6 +251,7 @@ async function inicio() {
   // El precio del último ticket, si es más nuevo que los datos (cuando se rehacen los datos, mandan los suyos).
   for (const [k, v] of Object.entries(E.precios)) { const [pr, f] = Array.isArray(v) ? v : []; if (D.productos[k] && pr > 0 && f >= (D.generado || '').slice(0, 10)) D.productos[k].precio = pr; }
   for (const f of D.fijos || []) if (f.reemplaza) E.fijos = E.fijos.filter(x => x.texto !== f.reemplaza);   // favoritos que antes eran solo texto y ahora son el producto de Mercadona
+  for (const f of D.fijos || []) if (f.reemplazaM) E.fijos = E.fijos.filter(x => !(x.m && String(x.m.id) === String(f.reemplazaM)));   // o que ahora están en el catálogo
   for (const f of D.fijos || []) { const id = idFav(f); if (!E.fijos.some(x => idFav(x) === id) && !E.fijosQuitados.includes(id)) E.fijos.push(f); }
   recalcula();
   consumePasados();
@@ -514,6 +515,10 @@ function ajusteAutomatico() {
     for (const k of D.semana.noTienen || []) delete E.casa[k];   // lo que el lector del ticket emparejó mal
     s.reconciliado = D.generado; salva();
   }
+  const enCasa = Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0);
+  const antes = E.casaOtros.length;
+  E.casaOtros = E.casaOtros.filter(t => !enCasa.some(k => L.parecido(t, D.productos[k].n) >= 0.6));   // repetido: ya está como producto
+  if (E.casaOtros.length !== antes) salva();
   if (!s.noHabia && s.compraHecha && u) {
     s.noHabia = {};
     const f = iso(new Date(u.f));
@@ -899,7 +904,7 @@ function vCompra() {
   const filaHTML = f => {
     const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
-    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '', f.proxima ? '<span class="pill">🛒 se acabó</span>' : '',
+    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '', f.manual ? '<span class="pill">✏️ añadido</span>' : '', f.proxima ? '<span class="pill">🛒 se acabó</span>' : '',
       estado === 'no' ? '<span class="pill malo">no había</span>' : estado === 'si' ? '<span class="pill bueno">comprado</span>' : ''].join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
     return `<div class="fila-desliza" data-fila="${esc(f.clave)}"><button class="producto ${estado}" data-info="${esc(f.clave)}">
@@ -914,7 +919,7 @@ function vCompra() {
     return html + (sec ? '</div>' : '');
   };
   const noFilas = noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
-  const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<button class="chip" data-quitar-receta="${x.id}">${emojiReceta(recetas[x.r])} ${esc(recetas[x.r].n)} ✕</button>` : '').join('');
+  const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
   $('#vista').innerHTML = `
     <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')} · ${filas.length} productos</div></div><span class="hero-emo">🛒</span></div>
@@ -927,14 +932,14 @@ function vCompra() {
     ${tarjetaTicket(s, comprados.length + noHabia.length > 0)}
     ${tarjetaPendientes()}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
-    ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
+    ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="lista">${recetasLista}</div>` : ''}
     ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
     ${porComprar.length ? porSecciones(porComprar) : !comprados.length && !noHabia.length ? '<div class="vacio"><span class="emo">🎉</span>No falta nada para el menú.</div>' : ''}
     ${comprados.length ? `<details class="tarjeta comprados"><summary>✓ Comprado · ${comprados.length}</summary><div class="lista" style="margin-top:8px">${comprados.map(filaHTML).join('')}</div></details>` : ''}
-    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="chips-despensa">${despensa.map(f => `<button class="chip" data-falta="${f.k}">${esc(nombreCorto(D.productos[f.k]))}</button>`).join('')}</div>` : ''}
-    ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados</div><div class="chips-despensa">${quitados.map(k => `<button class="chip" data-volver="${k}">${esc(nombreCorto(D.productos[k] || { n: k }))} ↺</button>`).join('')}</div>` : ''}
+    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?</div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú; si no queda, a la lista</div></div><button class="chip" data-falta="${f.k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
+    ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista</div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver a poner</button></div>`).join('')}</div>` : ''}
     <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
   activaLetreros();
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
@@ -965,7 +970,7 @@ function hojaTerminar(filas) {
 // El ticket ya leído: qué se compró, qué no había y qué vino fuera de la lista.
 function hojaTicketLeido(s, filas) {
   const t = s.ticket, no = filas.filter(f => s.noComprado[f.clave]).map(nombreFila), si = filas.filter(f => s.marcados[f.clave]).map(nombreFila);
-  const chips = l => `<div class="chips-despensa">${l.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>`;
+  const chips = l => listaSimple(l);
   hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${si.length}</b><span>comprados</span></div><div><b>✕ ${no.length}</b><span>no había</span></div><div><b>＋ ${t.fuera.length}</b><span>fuera de lista</span></div></div>
     <p class="nota"><b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>
@@ -1158,7 +1163,8 @@ async function pintaAlternativa(f, s) {
   let hits = [];
   try {
     const pal = base.split(' ');
-    for (const n of [4, 2, 1]) { hits = (await buscaMercadona(pal.slice(0, n).join(' '), 10)).filter(h => h.id !== evitar); if (hits.length) break; }
+    const cat = f.k ? D.productos[f.k].cat : f.m?.cat;
+    for (const n of [4, 2, 1]) { hits = (await buscaMercadona(pal.slice(0, n).join(' '), 10)).filter(h => h.id !== evitar && (!cat || h.cat === cat)); if (hits.length) break; }   // solo de la misma sección
   } catch { el.innerHTML = '<div class="nota">📡 Sin conexión.</div>'; return; }
   const st = s.alternativas[f.clave] ||= { i: 0 };
   const h = hits[st.i % Math.max(1, hits.length)];
@@ -1299,9 +1305,10 @@ function terminarCompra(filas, silencioso = false) {
 }
 
 // Resumen de una compra (al terminarla o desde «Última compra»): lo que no había, lo de fuera de la lista y el ticket.
+const listaSimple = (l, emo = '•') => `<div class="lista">${l.map(x => `<div class="producto fila-simple"><div class="sinfoto">${emo}</div><div class="info"><div class="pn">${esc(x)}</div></div></div>`).join('')}</div>`;
 function hojaCompra(res, nCasa = null) {
   if (!res) return;
-  const t = res.ticket, chips = l => `<div class="chips-despensa">${l.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>`;
+  const t = res.ticket, chips = l => listaSimple(l);
   hoja(`<h2>${nCasa != null ? '🧾 Compra terminada' : '🗂️ Compra del ' + fechaCorta(iso(new Date(res.f)))}</h2>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
     ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.menu?.filter(x => x.a).length ? ` El menú se ha ajustado: ${res.menu.filter(x => x.a).length} plato${res.menu.filter(x => x.a).length === 1 ? '' : 's'} cambiado${res.menu.filter(x => x.a).length === 1 ? '' : 's'}.` : res.no.length ? ' Lo que no había queda en «Pendiente de otro súper».' : ''}</p>` : ''}
@@ -1484,7 +1491,7 @@ async function muestraTicket(t) {
   const enFila = new Set(pares.map(([, j]) => j)), usados = new Set(pares.map(([i]) => i));
   const faltan = filas.filter((_, j) => !enFila.has(j)), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
   const fuera = items.filter((_, i) => !usados.has(i));
-  const chips = l => `<div class="chips-despensa">${l.map(f => `<span class="chip">${esc(nombreFila(f))}</span>`).join('')}</div>`;
+  const chips = l => listaSimple(l.map(nombreFila));
   hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${pares.length}</b><span>de la lista</span></div><div><b>✕ ${noEstan.length}</b><span>no está</span></div><div><b>＋ ${fuera.length}</b><span>fuera de lista</span></div></div>
     <p class="nota"><b>${euros(t.total ?? t.suma)}</b>${t.cuadra ? '' : ' · ⚠️ no me cuadra el total'}${sinRed ? ' · 📡 sin conexión: comparo solo por el nombre' : ''}</p>
@@ -1515,7 +1522,7 @@ function ticketDeTerminada(t, items, u, sinRed) {
     <p class="nota">La compra ya estaba terminada: lo comparo con lo que marcasteis.</p>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${pares.length}</b><span>coinciden</span></div><div><b>🤔 ${sinTicket.length}</b><span>no salen</span></div><div><b>＋ ${fuera.length}</b><span>fuera de lista</span></div></div>
     <p class="nota"><b>${euros(t.total ?? t.suma)}</b>${t.cuadra ? '' : ' · ⚠️ no me cuadra el total'}${sinRed ? ' · 📡 sin conexión: comparo solo por el nombre' : ''}</p>
-    ${sinTicket.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3><div class="chips-despensa">${sinTicket.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${sinTicket.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${listaSimple(sinTicket)}` : ''}
     ${fuera.length ? `<h3>＋ Fuera de la lista</h3>${fuera.map(filaTicket).join('')}` : ''}
     <button class="boton principal ancho" id="b-guardar-ticket" style="margin-top:14px">✅ Guardar${fuera.length ? ' y pasar lo de fuera a «En casa»' : ''}</button>`, h => {
     $('#b-guardar-ticket', h).addEventListener('click', () => {
@@ -1584,7 +1591,7 @@ function abrirEscaner() {
     <input id="i-codigo-foto" type="file" accept="image/*" capture="environment" class="sr">
     <form class="anadir" id="f-ean"><div class="caja"><input id="i-ean" inputmode="numeric" placeholder="…o escribe los números" autocomplete="off"><button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
     <div id="resultado"></div>
-    ${E.escaneos.length ? `<h3>🕘 Lo último</h3><div class="botones">${E.escaneos.slice(0, 8).map(x => `<button class="chip" data-ean="${esc(x.ean)}">${L.NIVEL[x.nivel]?.e || '⚪'} ${esc(x.n.slice(0, 28))}</button>`).join('')}</div>` : ''}`, h => {
+    ${E.escaneos.length ? `<h3>🕘 Lo último</h3><div class="lista">${E.escaneos.slice(0, 8).map(x => `<button class="producto fila-simple" data-ean="${esc(x.ean)}"><div class="sinfoto">${L.NIVEL[x.nivel]?.e || '⚪'}</div><span class="info"><span class="pn">${esc(x.n.slice(0, 48))}</span></span><span class="flecha">›</span></button>`).join('')}</div>` : ''}`, h => {
     const res = $('#resultado', h);
     const consulta = async ean => {
       ean = String(ean || '').replace(/\D/g, '');
@@ -1836,7 +1843,9 @@ function vClaude() {
     ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
   ].filter(a => a[2]);
   const conServidor = !!servidor(), charla = (E.charla || []).slice(-12);
-  const burbujas = charla.map(c => `<div class="burbuja yo">${esc(c.q)}</div>${c.r ? `<div class="burbuja el">${esc(c.r).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`).join('');
+  const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="' + esc(q.length) + '">ver todo</button>' : esc(q);
+  const burbujas = charla.map(c => `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${esc(c.r).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`).join('')
+    + (charla.length ? '<button class="ver-todo" id="b-borrar-charla" style="align-self:center;margin-top:4px">Borrar toda la conversación</button>' : '');
   $('#vista').innerHTML = `
     ${conServidor && charla.length ? `<div class="charla-hilo" id="hilo">${burbujas}</div>` : ''}
     <div class="tarjeta charla">
@@ -1869,6 +1878,9 @@ function vClaude() {
     if (await mandarAClaude(ta.value + (V.datos?.compra ? '\n\n' + textoCompra(V.datos.compra) : ''), V.adjunto)) { V.borrador = ''; V.adjunto = null; V.datos = null; vClaude(); }
   });
   $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
+  $$('[data-borrar]').forEach(b => b.addEventListener('click', () => { E.charla = (E.charla || []).filter(c => c.id !== b.dataset.borrar); salva(); vClaude(); }));
+  $$('[data-ver]').forEach(b => b.addEventListener('click', e => { const c = (E.charla || []).find(x => x.id === e.target.closest('.burbuja').dataset.q); if (c) hoja(`<h2>Tu mensaje</h2><p style="white-space:pre-wrap">${esc(c.q)}</p>`); }));
+  $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef en los dos móviles?')) { E.charla = []; salva(); vClaude(); } });
   if (charla.length) setTimeout(() => $('#hilo')?.lastElementChild?.scrollIntoView({ block: 'nearest' }), 100);
 }
 // Lo que el cerebro necesita saber para contestar: menú próximo, lo que hay, la lista, pendientes, personas.
