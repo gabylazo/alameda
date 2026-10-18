@@ -191,6 +191,8 @@ async function inicio() {
   });
   V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'semana';
   pinta();
+  const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
+  if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
     let recargada = false;
@@ -416,8 +418,26 @@ function adaptaMenu(p) {
       }
     }
   });
-  if (cambios.length) salva();
+  s.ajustado = [...noTenemos(s)].sort().join(',');   // con estas marcas ya se ha ajustado: no se repite al abrir la app
+  salva();
   return cambios;
+}
+// Al abrir la app: si hay platos con cosas marcadas ✕ (o que no había al terminar la compra) y no se ha ajustado todavía con esas marcas,
+// se ajusta solo. Si la compra se terminó con la versión anterior (sin «noHabia»), lo que no había se recupera del resumen.
+function ajusteAutomatico() {
+  const p = planActivo(), s = est(p.id), u = E.compras[0];
+  if (!s.noHabia && s.compraHecha && u) {
+    s.noHabia = {};
+    const f = iso(new Date(u.f));
+    if (f >= p.dias[0].f && f <= p.dias.at(-1).f && u.no?.length) {
+      const porNombre = Object.fromEntries(Object.entries(D.productos).map(([k, x]) => [L.normaliza(nombreCorto(x)), k]));
+      for (const n of u.no) { const k = porNombre[L.normaliza(n)]; if (k && !(E.casa[k] > 0)) { s.noHabia[k] = true; apuntaPendiente({ k, n }); } }
+    }
+    salva();
+  }
+  const firma = [...noTenemos(s)].sort().join(',');
+  if (!firma || s.ajustado === firma) return [];
+  return adaptaMenu(p);
 }
 function htmlCambiosMenu(cambios) {
   return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · sin ${esc(enumera(x.falta, 3))}</div>
