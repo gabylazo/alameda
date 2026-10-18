@@ -53,7 +53,7 @@ const I = {
   carro: ic('<path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>'),
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
-const NOMBRE_AGENTE = 'Claude';   // el nombre de la pestaña 💬 lo elige la casa
+const NOMBRE_AGENTE = 'Chef';   // el nombre de la pestaña 💬 lo elige la casa
 const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', NOMBRE_AGENTE], ['casa', 'En casa'], ['recetas', 'Recetas']];
 // «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
 const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
@@ -131,7 +131,7 @@ async function sincroniza() {
   sincronizando = true;
   try {
     const r = await fetch(`${servidor()}/casa/${casaId}`, { cache: 'no-store' });
-    if (r.status === 404) await sube(0);
+    if (r.status === 204) await sube(0);   // la casa aún no tiene datos en el servidor: este móvil los estrena
     else if (!r.ok) throw new Error('servidor ' + r.status);
     else {
       const rem = await r.json();
@@ -165,7 +165,7 @@ const iconoSync = () => V.sync === 'ok' ? '☁️ ' : V.sync === 'error' ? '⚠�
 function pintaSync() { const c = $('.fecha-chip'); if (c) c.textContent = iconoSync() + c.textContent.replace(/^(☁️|⚠️) /, ''); }
 function iniciaSync() {
   if (!servidor()) return;
-  sincroniza();
+  sincroniza().then(() => { for (const c of E.charla || []) if (!c.r && Date.now() - new Date(c.t) < 864e5) esperaRespuesta(c.id); });   // respuestas que llegaron mientras la app estaba cerrada
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincroniza(); });
   setInterval(() => { if (document.visibilityState === 'visible') sincroniza(); }, 20000);
   window.addEventListener('online', sincroniza);
@@ -499,6 +499,8 @@ function adaptaMenu(p) {
 // se ajusta solo. Si la compra se terminó con la versión anterior (sin «noHabia»), lo que no había se recupera del resumen.
 function ajusteAutomatico() {
   const p = planActivo(), s = est(p.id), u = E.compras[0];
+  // El ticket se subió otro día y la compra sigue sin cerrar: se cierra sola (lo comprado a «En casa», lo que no había a pendientes).
+  if (s.ticket && !s.compraHecha && hoy() > (s.ticket.fecha || hoy())) { const { filas } = lineaCompra(); const res = terminarCompra(filas, true); if (res?.menu?.length) return res.menu; }
   if (!s.noHabia && s.compraHecha && u) {
     s.noHabia = {};
     const f = iso(new Date(u.f));
@@ -685,7 +687,7 @@ function abrirReceta(id, ctx) {
     <h3>👩‍🍳 Cómo se hace</h3><ol class="pasos">${r.pasos.map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
     <div class="botones" style="margin-top:14px"><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
-      ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}A Claude</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
+      ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}Al Chef</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
       <select id="s-dia" class="boton">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
       <select id="s-com" class="boton">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
@@ -905,7 +907,7 @@ function vCompra() {
     </div>
     ${tarjetaTicket(s, comprados.length + noHabia.length > 0)}
     ${tarjetaPendientes()}
-    ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Claude:</b> ${esc(D.semana.avisoCompra)}`) : ''}
+    ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="chips-despensa">${recetasLista}</div>` : ''}
     ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
@@ -1231,7 +1233,7 @@ function anadeALista(items) {
 
 // Terminar la compra: lo marcado con ✓ pasa a «En casa» (con lo que dice el ticket, si se subió); lo marcado con ✕ sigue en la lista;
 // lo del ticket que no estaba en la lista también pasa a «En casa». Queda un resumen, para Claude y para «Última compra».
-function terminarCompra(filas) {
+function terminarCompra(filas, silencioso = false) {
   const { s, p } = lineaCompra();
   const res = { f: new Date().toISOString(), si: [], no: [], extra: [], estimado: 0 };
   for (const f of filas) {
@@ -1264,6 +1266,7 @@ function terminarCompra(filas) {
   V.filtroCompra = 'todo';
   res.menu = adaptaMenu(p);   // los platos con cosas que no había se cambian por otros que podáis hacer
   E.compras = [res, ...E.compras].slice(0, 20); salva();
+  if (silencioso) return res;
   hojaCompra(res, n);
   vCompra();
 }
@@ -1284,7 +1287,7 @@ function hojaCompra(res, nCasa = null) {
       ${res.no.length ? '<button class="boton" id="b-enviar-no-h">📤 Enviar lo que no había</button>' : ''}
       ${t ? '' : '<button class="boton" id="b-ticket-h">📄 Subir el ticket</button>'}
     </div>
-    <button class="boton principal ancho" id="b-resumen-claude" style="margin-top:10px">${I.enviar}Mandar a Claude para ajustar el plan</button>
+    <button class="boton principal ancho" id="b-resumen-claude" style="margin-top:10px">${I.enviar}Mandar al Chef para ajustar el plan</button>
     ${nCasa != null ? `<button class="boton ancho" id="b-ir-casa" style="margin-top:8px">${I.caja}Ver «En casa»</button>` : ''}`, h => {
     $('#b-enviar-no-h', h)?.addEventListener('click', () => compartirNoHabia(res.no));
     $('#b-ticket-h', h)?.addEventListener('click', elegirTicket);
@@ -1320,7 +1323,7 @@ async function mandarFoto(fichero, texto = 'Para Claude, desde NutriHome: foto d
   try {
     if (navigator.canShare && navigator.canShare({ files: [fichero] })) { tostada('Elige Telegram y el chat con @' + (D.perfiles.bot || 'el bot')); await navigator.share({ files: [fichero], text: texto }); return true; }
   } catch { return false; }
-  hoja(`<h2>📷 Mandárselo a Claude</h2><p>Este móvil no deja compartir ficheros desde la app. Mándalo al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b>.</p>
+  hoja(`<h2>📷 Mandárselo al Chef</h2><p>Este móvil no deja compartir ficheros desde la app. Mándalo al bot de Telegram <b>@${esc(D.perfiles.bot || '')}</b>.</p>
     <a class="boton principal" href="https://t.me/${esc(D.perfiles.bot || '')}" target="_blank" rel="noopener">Abrir Telegram</a>`);
   return false;
 }
@@ -1372,8 +1375,8 @@ async function abreTicket(fichero) {
 }
 function ticketIlegible(fichero, motivo = '') {
   hoja(`<h2>🧾 No he podido leerlo</h2>
-    <p class="nota">${motivo ? esc(motivo) + '. ' : ''}¿Es el PDF del ticket digital de Mercadona? Puedes mandárselo a Claude, o copiar el texto del ticket y pegarlo aquí.</p>
-    <button class="boton principal ancho" id="b-ticket-claude">${I.enviar}Mandárselo a Claude</button>
+    <p class="nota">${motivo ? esc(motivo) + '. ' : ''}¿Es el PDF del ticket digital de Mercadona? Puedes mandárselo al Chef, o copiar el texto del ticket y pegarlo aquí.</p>
+    <button class="boton principal ancho" id="b-ticket-claude">${I.enviar}Mandárselo al Chef</button>
     <textarea class="campo-texto" id="t-ticket" placeholder="MERCADONA, S.A. … TOTAL (€) …" style="margin-top:12px"></textarea>
     <button class="boton ancho" id="b-leer-ticket" style="margin-top:8px">🧾 Leer el texto</button>`, h => {
     $('#b-ticket-claude', h).addEventListener('click', () => irAClaude('el ticket digital de Mercadona. Compáralo con la compra de NutriHome.', fichero));
@@ -1565,7 +1568,7 @@ function abrirEscaner() {
       else {
         let pr = null;
         try { pr = await buscaOFF(ean); } catch { res.innerHTML = '<div class="aviso"><span class="emo">📡</span><div>Sin conexión: prueba otra vez.</div></div>'; return; }
-        if (!pr) { res.innerHTML = `<div class="aviso"><span class="emo">🙈</span><div><b>No lo encuentro</b> (${esc(ean)}).</div></div><button class="boton suave" id="b-off-claude">${I.enviar}Mandárselo a Claude</button>`;
+        if (!pr) { res.innerHTML = `<div class="aviso"><span class="emo">🙈</span><div><b>No lo encuentro</b> (${esc(ean)}).</div></div><button class="boton suave" id="b-off-claude">${I.enviar}Mandárselo al Chef</button>`;
           $('#b-off-claude', h).addEventListener('click', () => irAClaude(`¿Es buena compra el producto con código ${ean}? Te mando foto.`)); return; }
         nut = L.nutrientesOFF(pr); nombre = pr.product_name_es || pr.product_name || pr.generic_name_es || 'Producto ' + ean; img = pr.image_front_small_url;
         if (pr.brands) nombre += ' · ' + pr.brands.split(',')[0];
@@ -1683,7 +1686,7 @@ function vRecetas() {
   const esPregunta = /^(¿)?\s*(c[oó]mo|qu[eé]|puedo|se puede|receta)/i.test(pregunta) || (t && !lista.length);
   $('#vista').innerHTML = `
     <div class="buscador">${I.buscar}<input id="i-busca" type="search" placeholder="Busca o pregunta: ¿cómo se hace…?" value="${esc(V.busca)}" enterkeyhint="search"></div>
-    ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo a Claude y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
+    ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
     <button class="nueva-receta" id="b-nueva"><span class="emo">✍️</span><span><b>Nueva receta</b></span></button>
     <div class="fila-chips">${FILTROS.map(([k, n]) => `<button class="chip" data-filtro="${k}" aria-pressed="${V.filtro === k}">${n}</button>`).join('')}</div>
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
