@@ -172,7 +172,7 @@ function iniciaSync() {
 }
 
 // ——— Estado guardado en el móvil ———
-function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {}, pendientes: [], charla: [] }; }
+function estadoNuevo() { return { v: 1, semanas: {}, planes: [], casa: null, consumidos: {}, creatina: {}, perfiles: {}, gimnasio: null, avisos: {}, fijos: null, propias: [], escaneos: [], secciones: [], casaOtros: [], compras: [], favRecetas: [], fijosQuitados: [], precios: {}, pendientes: [], charla: [], proximaCompra: [] }; }
 const salva = () => { guarda(ESTADO, E); programaSync(); };
 function est(id) {
   if (!E.semanas[id]) E.semanas[id] = { cambios: {}, hechos: {}, marcados: {}, extra: [], quitados: {}, faltaDespensa: id === D.semana.id ? Object.fromEntries((D.semana.falta || []).map(k => [k, true])) : {}, compraHecha: false };
@@ -235,7 +235,7 @@ function consumePasados() {
 // ——— Arranque ———
 async function inicio() {
   E = Object.assign(estadoNuevo(), lee(ESTADO, {}));
-  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados', 'pendientes', 'charla']) E[k] ||= [];
+  for (const k of ['propias', 'escaneos', 'secciones', 'casaOtros', 'compras', 'favRecetas', 'fijosQuitados', 'pendientes', 'charla', 'proximaCompra']) E[k] ||= [];
   const m = location.hash.match(/^#clave=(.+)$/);
   if (m) { guardaTexto(CLAVE, decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
   const clave = leeTexto(CLAVE);
@@ -501,6 +501,18 @@ function ajusteAutomatico() {
   const p = planActivo(), s = est(p.id), u = E.compras[0];
   // El ticket se subió otro día y la compra sigue sin cerrar: se cierra sola (lo comprado a «En casa», lo que no había a pendientes).
   if (s.ticket && !s.compraHecha && hoy() > (s.ticket.fecha || hoy())) { const { filas } = lineaCompra(); const res = terminarCompra(filas, true); if (res?.menu?.length) return res.menu; }
+  // El menú publicado se hizo sabiendo lo que hay (el ticket): lo que usa se da por tenido, aunque el lector no lo emparejara.
+  const tienen = D.semana.id === p.id && D.semana.tienen;
+  if (tienen && s.reconciliado !== D.generado) {
+    for (const [k, g] of Object.entries(tienen)) {
+      if (!D.productos[k]) continue;
+      delete s.noComprado[k]; if (s.noHabia) delete s.noHabia[k];
+      E.pendientes = (E.pendientes || []).filter(x => x.k !== k);
+      if (!(E.casa[k] > 0)) E.casa[k] = g;
+    }
+    E.casaOtros = E.casaOtros.filter(t => !Object.keys(tienen).some(k => D.productos[k] && L.parecido(t, D.productos[k].n) >= 0.6));   // ya está como producto
+    s.reconciliado = D.generado; salva();
+  }
   if (!s.noHabia && s.compraHecha && u) {
     s.noHabia = {};
     const f = iso(new Date(u.f));
@@ -849,6 +861,10 @@ function lineaCompra() {
     else if (x.m) vistas.push({ k: null, m: x.m, clave: 'x:' + x.id, envases: x.n || 1, precio: (x.n || 1) * (x.m.precio || 0), extra: x.id, manual: true, nivel: x.v });
     else vistas.push({ k: null, clave: 'x:' + x.id, texto: x.texto, n: x.n, extra: x.id, manual: true, nivel: x.v, img: x.img, sec: x.sec });
   }
+  for (const x of E.proximaCompra || []) {   // lo que se acabó en casa
+    if (x.k && D.productos[x.k]) { if (s.quitados[x.k]) continue; const enLista = vistas.find(v => v.k === x.k); if (enLista) { enLista.proxima = true; continue; } vistas.push({ k: x.k, clave: x.k, envases: 1, precio: D.productos[x.k].precio, proxima: true }); }
+    else vistas.push({ k: null, clave: 'px:' + x.id, texto: x.n, proxima: true });
+  }
   for (const f of E.fijos) if (f.texto && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
   for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
   for (const [kk, o] of otros) vistas.push({ k: null, clave: kk, texto: o.texto, otro: true, para: o.para });
@@ -880,7 +896,7 @@ function vCompra() {
   const filaHTML = f => {
     const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
-    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '',
+    const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '', f.proxima ? '<span class="pill">🛒 se acabó</span>' : '',
       estado === 'no' ? '<span class="pill malo">no había</span>' : estado === 'si' ? '<span class="pill bueno">comprado</span>' : ''].join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
     return `<div class="fila-desliza" data-fila="${esc(f.clave)}"><button class="producto ${estado}" data-info="${esc(f.clave)}">
@@ -964,10 +980,17 @@ function abrirMas() {
   hoja(`<h2>Más</h2><div class="menu-lista">
     ${fila('m-enviar', '📤', 'Enviar la lista', 'Lo que falta por comprar, para WhatsApp')}
     ${fila('m-escanear', '🔎', '¿Es buena compra?', 'Foto del código de barras')}
-    ${E.compras.length ? fila('m-ultima', '🗂️', 'Última compra', 'Lo que no había y lo de fuera de la lista') : ''}</div>`, h => {
+    ${E.compras.length ? fila('m-ultima', '🗂️', 'Compras anteriores', 'El historial, con sus tickets') : ''}</div>`, h => {
     $('#m-enviar', h).addEventListener('click', () => { cierraHoja(); compartirLista(lineaCompra().filas); });
     $('#m-escanear', h).addEventListener('click', abrirEscaner);
-    $('#m-ultima', h)?.addEventListener('click', () => hojaCompra(E.compras[0]));
+    $('#m-ultima', h)?.addEventListener('click', abrirHistorial);
+  });
+}
+// Historial de compras: cada una con su ticket.
+function abrirHistorial() {
+  const filas = (E.compras || []).map((c, i) => `<button class="menu-fila" data-compra="${i}"><span class="emo">🧾</span><span><b>Compra del ${fechaCorta(iso(new Date(c.f)))}</b><span class="nota" style="display:block">${c.ticket ? euros(c.ticket.total) + ' · con ticket' : 'sin ticket'} · ✓ ${c.si.length} · ✕ ${c.no.length} · ＋ ${c.extra.length}</span></span><span class="flecha">›</span></button>`).join('');
+  hoja(`<h2>🗂️ Compras</h2><div class="menu-lista">${filas || '<div class="vacio"><span class="emo">🧾</span>Todavía no hay compras terminadas.</div>'}</div>`, h => {
+    $$('[data-compra]', h).forEach(b => b.addEventListener('click', () => hojaCompra(E.compras[+b.dataset.compra])));
   });
 }
 
@@ -1065,6 +1088,7 @@ function quitaDeLista(f) {
   const p = planActivo(), s = est(p.id), antes = JSON.stringify(s);
   if (f.k && !f.extra) { s.quitados[f.k] = true; s.extra = s.extra.filter(x => x.k !== f.k); delete s.menos[f.k]; }
   if (f.extra) s.extra = s.extra.filter(x => x.id !== f.extra && !(f.extras || []).includes(x.id));
+  if (f.proxima) E.proximaCompra = (E.proximaCompra || []).filter(x => !((f.k && x.k === f.k) || 'px:' + x.id === f.clave));
   if (f.otro) s.otrosHechos[f.clave] = true;
   if (f.fijo && !f.k) s.fijosHechos[f.clave] = true;
   if (f.despensa) delete s.faltaDespensa[f.k];
@@ -1238,7 +1262,7 @@ function terminarCompra(filas, silencioso = false) {
   const res = { f: new Date().toISOString(), si: [], no: [], extra: [], estimado: 0 };
   for (const f of filas) {
     const n = nombreFila(f);
-    if (s.marcados[f.clave]) { res.si.push(n); res.estimado += f.precio || 0; if (f.manual) res.extra.push(n); quitaPendiente(f); }
+    if (s.marcados[f.clave]) { res.si.push(n); res.estimado += f.precio || 0; if (f.manual) res.extra.push(n); quitaPendiente(f); if (f.proxima) E.proximaCompra = (E.proximaCompra || []).filter(x => !((f.k && x.k === f.k) || L.normaliza(x.n) === L.normaliza(n))); }
     else if (s.noComprado[f.clave]) { res.no.push(n); apuntaPendiente({ k: f.k || null, n }); }
   }
   let n = 0;
@@ -1279,6 +1303,7 @@ function hojaCompra(res, nCasa = null) {
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
     ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.menu?.filter(x => x.a).length ? ` El menú se ha ajustado: ${res.menu.filter(x => x.a).length} plato${res.menu.filter(x => x.a).length === 1 ? '' : 's'} cambiado${res.menu.filter(x => x.a).length === 1 ? '' : 's'}.` : res.no.length ? ' Lo que no había queda en «Pendiente de otro súper».' : ''}</p>` : ''}
     ${t ? `<p class="nota">🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}: <b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>` : ''}
+    ${t?.lineas?.length ? `<details class="emparejados"><summary>🧾 Ver el ticket · ${t.lineas.length} renglones</summary>${t.lineas.map(([n, d, imp, kg]) => `<div class="par"><span>${esc((kg ? String(kg).replace('.', ',') + ' kg ' : n > 1 ? n + ' × ' : '') + d)}</span><span class="nota">${euros(imp)}</span></div>`).join('')}</details>` : ''}
     ${res.no.length ? `<h3>✕ No había</h3>${chips(res.no)}` : ''}
     ${res.sinTicket?.length ? `<h3>🤔 Con ✓ pero no salen en el ticket</h3>${chips(res.sinTicket)}` : ''}
     ${res.extra.length ? `<h3>＋ Extra</h3>${chips(res.extra)}` : ''}
@@ -1291,7 +1316,7 @@ function hojaCompra(res, nCasa = null) {
     ${nCasa != null ? `<button class="boton ancho" id="b-ir-casa" style="margin-top:8px">${I.caja}Ver «En casa»</button>` : ''}`, h => {
     $('#b-enviar-no-h', h)?.addEventListener('click', () => compartirNoHabia(res.no));
     $('#b-ticket-h', h)?.addEventListener('click', elegirTicket);
-    $('#b-resumen-claude', h).addEventListener('click', () => irAClaude(textoCompra(res)));
+    $('#b-resumen-claude', h).addEventListener('click', () => irAClaude(`Esta es nuestra compra del ${new Date(res.f).toLocaleDateString('es-ES')}. Mira qué compramos y dime si cambiarías algo del menú.`, null, { compra: res }));
     $('#b-ir-casa', h)?.addEventListener('click', () => { cierraHoja(); location.hash = 'casa'; });
   });
 }
@@ -1610,27 +1635,35 @@ const LUGAR_EMO = { 'Nevera': '🧊', 'Fruta y verdura': '🥬', 'Congelador': '
 function vCasa() {
   const items = Object.entries(E.casa).filter(([k, g]) => D.productos[k] && g > 0);
   cabecera('En casa', `${items.length + E.casaOtros.length} cosas`);
-  const grupos = {};
-  for (const [k, g] of items) (grupos[LUGAR(k)] ||= []).push([k, g]);
-  const orden = ['Nevera', 'Fruta y verdura', 'Congelador', 'Despensa'];
+  const porSec = {};
+  for (const [k, g] of items) (porSec[D.productos[k].cat] ||= []).push([k, g]);
+  const secs = Object.keys(porSec).sort((a, b) => ordenSeccion(a) - ordenSeccion(b));
+  const fila = (k, g) => { const x = D.productos[k];
+    return `<div class="producto casa-fila">${x.foto ? `<img src="${esc(x.foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(x.cat)}</div>`}
+      <div class="info"><div class="pn">${esc(nombreCorto(x))}</div><div class="pc">${esc(cantidadCasa(k, g))}</div></div>
+      <div class="mini-cant"><button data-menos="${k}" aria-label="Menos">−</button><button data-mas="${k}" aria-label="Más">＋</button></div>
+      <button class="icono" data-acabado="${k}" aria-label="Se acabó" title="Se acabó: a la próxima compra">${I.carro}</button></div>`; };
   $('#vista').innerHTML = `
-    <div class="tarjeta anadir-mas">
-      <h3 style="margin-top:0">📝 ¿Qué tenéis?</h3>
-      <textarea class="campo-texto" id="t-casa" placeholder="Escríbelo todo: 6 huevos, 2 latas de atún, arroz, medio pollo, leche…"></textarea>
-      <button class="boton principal ancho" id="b-casa" style="margin-top:10px">✅ Apuntar y ajustar la lista</button>
-    </div>
-    ${items.length ? orden.filter(o => grupos[o]).map(o => `<div class="cat"><span class="emo">${LUGAR_EMO[o]}</span>${o}<span class="num">${grupos[o].length}</span></div><div class="rejilla">
-      ${grupos[o].sort((a, b) => D.productos[a[0]].n.localeCompare(D.productos[b[0]].n, 'es')).map(([k, g]) => `<div class="casa-item">
-        <div class="arriba">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="46" height="46">` : `<div class="sinfoto" style="display:grid;place-items:center;font-size:22px">${CAT_EMO[D.productos[k].cat] || '🫙'}</div>`}
-          <div style="min-width:0"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="cant">${esc(cantidadCasa(k, g))}</div></div></div>
-        <div class="mas-menos"><button data-menos="${k}" aria-label="Menos">−</button><button data-mas="${k}" aria-label="Más">+</button></div></div>`).join('')}</div>`).join('') : ''}
-    ${E.casaOtros.length ? `<div class="cat"><span class="emo">🧺</span>Otras cosas<span class="num">${E.casaOtros.length}</span></div><div class="chips-despensa">${E.casaOtros.map((t, i) => `<button class="chip" data-otro-casa="${i}">${esc(t)} ✕</button>`).join('')}</div>` : ''}
+    <form class="anadir" id="f-casa"><div class="caja"><input id="i-casa" placeholder="Apunta algo: 6 huevos, arroz, medio pollo…" autocomplete="off" enterkeyhint="done"><button class="icono mas" aria-label="Apuntar">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form>
+    ${letrero('casa-ayuda', '💡', '<b>Toca el carrito</b> cuando algo se acabe: se quita de aquí y entra en la próxima compra.')}
+    ${secs.map(sec => `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${porSec[sec].length}</span></div><div class="lista">${porSec[sec].sort((a, b) => D.productos[a[0]].n.localeCompare(D.productos[b[0]].n, 'es')).map(([k, g]) => fila(k, g)).join('')}</div>`).join('')}
+    ${E.casaOtros.length ? `<div class="cat"><span class="emo">🧺</span>Otras cosas<span class="num">${E.casaOtros.length}</span></div><div class="lista">${E.casaOtros.map((t, i) => `<div class="producto casa-fila"><div class="sinfoto">📝</div><div class="info"><div class="pn">${esc(t)}</div></div>
+      <button class="icono" data-otro-acabado="${i}" aria-label="Se acabó" title="Se acabó: a la próxima compra">${I.carro}</button><button class="icono" data-otro-casa="${i}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
     ${!items.length && !E.casaOtros.length ? '<div class="vacio"><span class="emo">🧺</span>Todavía no hay nada.</div>' : ''}`;
+  activaLetreros();
   const paso = k => { const x = D.productos[k]; return x.gud || Math.max(10, Math.round(x.util / 4 / 10) * 10); };
   $$('[data-menos]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.menos; E.casa[k] = Math.max(0, (E.casa[k] || 0) - paso(k)); if (E.casa[k] <= 0.5) delete E.casa[k]; salva(); vCasa(); }));
   $$('[data-mas]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.mas; E.casa[k] = (E.casa[k] || 0) + paso(k); salva(); vCasa(); }));
+  $$('[data-acabado]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.acabado; delete E.casa[k]; apuntaProxima({ k, n: nombreCorto(D.productos[k]) }); salva(); vCasa(); tostada('🛒 A la próxima compra: ' + nombreCorto(D.productos[k])); }));
+  $$('[data-otro-acabado]').forEach(b => b.addEventListener('click', () => { const [t] = E.casaOtros.splice(+b.dataset.otroAcabado, 1); apuntaProxima({ texto: t, n: t }); salva(); vCasa(); tostada('🛒 A la próxima compra: ' + t); }));
   $$('[data-otro-casa]').forEach(b => b.addEventListener('click', () => { E.casaOtros.splice(+b.dataset.otroCasa, 1); salva(); vCasa(); }));
-  $('#b-casa').addEventListener('click', () => apuntaCasa($('#t-casa').value));
+  $('#f-casa').addEventListener('submit', e => { e.preventDefault(); apuntaCasa($('#i-casa').value); });
+}
+// «Se acabó»: lo que se termina en casa entra en la lista de la próxima compra (hasta que se compra).
+function apuntaProxima({ k = null, texto = null, n }) {
+  E.proximaCompra ||= [];
+  if (!n || E.proximaCompra.some(x => (k && x.k === k) || L.normaliza(x.n) === L.normaliza(n))) return;
+  E.proximaCompra.push({ id: uid(), k, texto, n, f: hoy() });
 }
 // «6 huevos, 2 latas de atún, arroz…» → En casa (con cantidades) y la lista se ajusta sola.
 function apuntaCasa(texto) {
@@ -1783,8 +1816,8 @@ function abrirPendientes() {
 
 // ——— Claude (💬): el único sitio desde el que se le escribe ———
 // Hoy el mensaje sale por Telegram (compartir); cuando esté el servidor, contestará aquí mismo.
-function irAClaude(texto = '', fichero = null) {
-  V.borrador = texto; V.adjunto = fichero; cierraHoja();
+function irAClaude(texto = '', fichero = null, datos = null) {
+  V.borrador = texto; V.adjunto = fichero; V.datos = datos; cierraHoja();
   if (V.pestana === 'claude') pinta(); else location.hash = 'claude';
 }
 function vClaude() {
@@ -1796,7 +1829,7 @@ function vClaude() {
     ['🥘', '¿Qué hago con lo que hay?', `¿Qué puedo cocinar con lo que tenemos en casa? Hay: ${enCasa.join(', ') || 'nada apuntado todavía'}.`],
     ['🔄', 'Cambiar un plato', `Cámbiame ${cena ? `la cena de hoy (${cena})` : 'un plato del menú'} por otra cosa.`],
     ['❄️', '¿Esto se congela?', '¿Se puede congelar '],
-    ['🧾', 'Última compra', u ? textoCompra(u) : null],
+    ['🧾', 'Compras y tickets', 'historial'],
     ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
   ].filter(a => a[2]);
   const conServidor = !!servidor(), charla = (E.charla || []).slice(-12);
@@ -1806,6 +1839,7 @@ function vClaude() {
     <div class="tarjeta charla">
       <textarea class="campo-texto" id="t-claude" placeholder="Escríbeme lo que quieras: ¿esto se congela?, cambia la cena del jueves, ¿qué hago con el brócoli?…">${esc(V.borrador || '')}</textarea>
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
+      ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}${V.datos.compra.ticket ? ' · ticket ' + euros(V.datos.compra.ticket.total) : ''}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       <div class="botones" style="margin-top:10px"><label class="boton" for="i-foto-claude">📷 Foto</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">
         <button class="boton principal" id="b-enviar-claude" style="flex:1">${I.enviar}Enviar</button></div>
     </div>
@@ -1817,9 +1851,10 @@ function vClaude() {
   const ta = $('#t-claude');
   $('#b-escanear-claude').addEventListener('click', abrirEscaner);
   ta.addEventListener('input', () => { V.borrador = ta.value; });
-  $$('[data-atajo]').forEach(b => b.addEventListener('click', () => { V.borrador = atajos[+b.dataset.atajo][2]; ta.value = V.borrador; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }));
+  $$('[data-atajo]').forEach(b => b.addEventListener('click', () => { const v = atajos[+b.dataset.atajo][2]; if (v === 'historial') return abrirHistorial(); V.borrador = v; ta.value = v; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }));
   $('#i-foto-claude').addEventListener('change', e => { V.adjunto = e.target.files[0] || null; vClaude(); });
   $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
+  $('#b-quitar-datos')?.addEventListener('click', () => { V.datos = null; vClaude(); });
   $('#b-enviar-claude').addEventListener('click', async () => {
     if (!ta.value.trim() && !V.adjunto) { ta.focus(); tostada('Escribe algo o adjunta una foto'); return; }
     if (conServidor && !V.adjunto) {
@@ -1828,7 +1863,7 @@ function vClaude() {
       catch (e) { V.borrador = texto; tostada('No llego al servidor: ' + e.message); vClaude(); }
       return;
     }
-    if (await mandarAClaude(ta.value, V.adjunto)) { V.borrador = ''; V.adjunto = null; vClaude(); }
+    if (await mandarAClaude(ta.value + (V.datos?.compra ? '\n\n' + textoCompra(V.datos.compra) : ''), V.adjunto)) { V.borrador = ''; V.adjunto = null; V.datos = null; vClaude(); }
   });
   $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
   if (charla.length) setTimeout(() => $('#hilo')?.lastElementChild?.scrollIntoView({ block: 'nearest' }), 100);
@@ -1852,9 +1887,11 @@ const esperando = new Set();
 async function preguntaServidor(texto) {
   const id = uid();
   E.charla = [...(E.charla || []), { id, q: texto, r: null, t: new Date().toISOString() }].slice(-40); salva();
+  const datos = V.datos || undefined;
   const r = await fetch(`${servidor()}/casa/${casaId}/pregunta`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: id, blob: await cifraSync({ texto, contexto: contextoParaClaude(), cuando: new Date().toISOString() }) }) });
+    body: JSON.stringify({ uid: id, blob: await cifraSync({ texto, contexto: contextoParaClaude(), datos, cuando: new Date().toISOString() }) }) });
   if (!r.ok) { E.charla = E.charla.filter(c => c.id !== id); salva(); throw new Error('servidor ' + r.status); }
+  V.datos = null;
   esperaRespuesta(id);
 }
 async function esperaRespuesta(id, intentos = 50) {

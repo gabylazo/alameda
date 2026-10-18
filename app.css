@@ -597,3 +597,6 @@ details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
 .pregunta .boton { box-shadow: none; background: #f6f7f9; }
 .pregunta .boton.principal { background: linear-gradient(135deg, #6ee7b7, #34d399); }
 .ticket-ok { background: #ecfdf5; }
+.casa-fila .mini-cant { margin-left: auto; flex: 0 0 auto; }
+.casa-fila .icono { flex: 0 0 auto; }
+.casa-fila .info { flex: 1; min-width: 0; }
