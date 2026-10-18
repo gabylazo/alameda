@@ -4,6 +4,8 @@
 export const COMIDAS = ['desayuno', 'comida', 'merienda', 'cena'];
 export const NOMBRE_COMIDA = { desayuno: 'Desayuno', comida: 'Comida', merienda: 'Merienda', cena: 'Cena' };
 export const QUIEN = ['G', 'P'];
+// Las personas de la casa (una o dos): «G» es la primera y «P» la segunda. Las casas amigas pueden ser de una sola.
+export function fijaQuien(qs) { QUIEN.splice(0, QUIEN.length, ...qs); }
 export const PESCADO = ['salmon', 'atun', 'merluza', 'gambas'];
 // Reparto orientativo de las calorías del día entre las comidas (para comparar alternativas).
 export const REPARTO = { desayuno: 0.22, comida: 0.32, merienda: 0.15, cena: 0.28 };
@@ -12,20 +14,25 @@ export const REPARTO = { desayuno: 0.22, comida: 0.32, merienda: 0.15, cena: 0.2
 export function objetivos(p) {
   const tmb = 10 * p.peso + 6.25 * p.altura - 5 * p.edad + (p.sexo === 'M' ? 5 : -161);
   const gasto = tmb * p.actividad;
-  const kcal = Math.round(gasto * (1 - p.deficit) / 10) * 10;
+  const minimo = p.sexo === 'M' ? 1500 : 1200;   // línea roja: ningún objetivo por debajo de este mínimo
+  const kcal = Math.max(minimo, Math.round(gasto * (1 - p.deficit) / 10) * 10);
   const prot = Math.round(p.peso * p.protKg);
   const grasa = Math.round(p.peso * p.grasaKg);
   const hc = Math.max(0, Math.round((kcal - prot * 4 - grasa * 9) / 4));
   return { tmb: Math.round(tmb), gasto: Math.round(gasto), kcal, prot, grasa, hc };
 }
 
-// Las recetas están escritas para la ración de G (ella); la de P (él) se escala por tipo de ingrediente.
-export function factores(perfiles) {
-  const a = objetivos(perfiles.G), b = objetivos(perfiles.P);
-  return {
-    G: { p: 1, h: 1, v: 1, g: 1, 1: 1 },
-    P: { p: b.prot / a.prot, h: b.hc / a.hc, v: 1.2, g: b.grasa / a.grasa, 1: 1 },
-  };
+// Las recetas están escritas para una ración de referencia (la de G en la casa de origen); la de cada persona se escala por
+// tipo de ingrediente. Sin «base», la referencia es G (y G no se escala); con «base» (casas amigas), todos se escalan respecto a ella.
+export function factores(perfiles, base = null) {
+  const a = base || objetivos(perfiles.G), out = {};
+  for (const q of QUIEN) {
+    if (!perfiles[q]) continue;
+    if (!base && q === 'G') { out[q] = { p: 1, h: 1, v: 1, g: 1, 1: 1 }; continue; }
+    const b = objetivos(perfiles[q]);
+    out[q] = { p: b.prot / a.prot, h: b.hc / a.hc, v: base ? (b.kcal / a.kcal > 1.2 ? 1.2 : 1) : 1.2, g: b.grasa / a.grasa, 1: 1 };
+  }
+  return out;
 }
 
 // ing = [clave, gramos de G, escala (p proteína, h hidratos, v verdura, g grasa, 1 fija), opciones]
@@ -209,7 +216,7 @@ export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.no
     .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
   for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda']) {
     if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
-    if (DOBLES.includes(c)) { const g = mejor(i, c); nuevo.dias[i][c] = { G: g, P: null }; nuevo.dias[i][c].P = mejor(i, c, g); }
+    if (DOBLES.includes(c)) { const g = mejor(i, c); nuevo.dias[i][c] = { G: g }; if (QUIEN.includes('P')) nuevo.dias[i][c].P = mejor(i, c, g); }
     else nuevo.dias[i][c] = mejor(i, c);
   }
   return nuevo;

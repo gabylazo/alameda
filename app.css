@@ -606,3 +606,18 @@ details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
 .burbuja.yo { position: relative; padding-right: 26px; }
 .burbuja .borrar { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: rgba(6, 78, 59, .55); font-size: 18px; line-height: 1; padding: 0 2px; }
 .ver-todo { border: 0; background: none; color: var(--acento); font-weight: 750; font-size: 13.5px; padding: 0; text-decoration: underline; }
+
+/* Casas amigas (18/10/2026): bienvenida, casas de una persona y clave de casa */
+[hidden] { display: none !important; }
+.anillos.una { grid-template-columns: 1fr; }
+.bienvenida main { max-width: 720px; margin: 0 auto; padding: 0 16px 130px; }
+.bienvenida .barra-accion { bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.bienvenida .cabecera .sub { line-height: 1.4; }
+.perfil .campo-largo .botones { margin-top: 6px; }
+.perfil .campo-largo input.campo-texto { margin-top: 4px; font-weight: 600; }
+.chip small { font-weight: 600; opacity: .7; font-size: 12px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; font-weight: 650; margin-top: 14px; line-height: 1.35; }
+.check input { width: 20px; height: 20px; flex: 0 0 20px; margin-top: 1px; accent-color: #34d399; }
+.clave-casa { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 15px; margin-top: 8px; }
+.clave-casa b { font-size: 17px; letter-spacing: .04em; font-family: ui-monospace, Menlo, monospace; background: #fef3c7; padding: 4px 10px; border-radius: 10px; }
+.bienvenida .error { color: var(--peligro); font-weight: 750; margin-top: 10px; }
