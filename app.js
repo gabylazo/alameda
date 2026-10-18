@@ -1833,7 +1833,7 @@ function vClaude() {
     ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
   ].filter(a => a[2]);
   const conServidor = !!servidor(), charla = (E.charla || []).slice(-12);
-  const burbujas = charla.map(c => `<div class="burbuja yo">${esc(c.q)}</div>${c.r ? `<div class="burbuja el">${esc(c.r).replace(/\n/g, '<br>')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`).join('');
+  const burbujas = charla.map(c => `<div class="burbuja yo">${esc(c.q)}</div>${c.r ? `<div class="burbuja el">${esc(c.r).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`).join('');
   $('#vista').innerHTML = `
     ${conServidor && charla.length ? `<div class="charla-hilo" id="hilo">${burbujas}</div>` : ''}
     <div class="tarjeta charla">
