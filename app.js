@@ -85,6 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'chef-menu-recetas', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'El Chef rehace el menú y crea recetas', texto: 'Pídele «rehaz el menú con lo que tenemos» o «créame una receta de…»: te sale un botón y, al tocarlo, lo hace (con Deshacer). Sus recetas se guardan como vuestras.', ir: 'claude' },
   { id: 'bebidas', fecha: '2026-10-19', emo: '🥤', titulo: 'Bebidas', texto: 'En Recetas, el filtro «🥤 Bebidas»: limonada de lima con albahaca, mojito sin alcohol, agua de fresas, smoothies… Sin azúcar. Tocad ❤️ en las que os gusten.', ir: 'recetas', foco: '[data-filtro="bebida"]' },
   { id: 'huel-escondido', origen: true, fecha: '2026-10-19', emo: '🥞', titulo: 'Huel que no sabe a Huel', texto: 'Cuatro recetas con Huel sin sabor escondido: tortitas de avena, crema de queso batido con arándanos y cacao, avena de la noche y bizcocho de taza de cacao.', ir: 'recetas' },
   { id: 'buscar-listas', fecha: '2026-10-19', emo: '🔍', titulo: 'Buscar en las listas', texto: 'En «En casa» y en Compra, cuando la lista es larga, arriba tienes un buscador.', ir: 'casa', foco: '#i-filtra' },
@@ -2510,7 +2511,8 @@ function contextoParaClaude(texto = '') {
     recetasPropias: (E.propias || []).map(r => r.n),
     menuSemanaEntera: pe.dias.map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
     recetasCompletas: recetasParaPregunta(texto, pe, h).map(recetaParaChef),
-    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})`),
+    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${r.soloEnsalada ? ' [solo ensalada: no vale sola como comida o cena]' : ''}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}`),
+    productosDeLaApp: Object.values(D.productos).filter(x => !x.despensa).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
     conversacionReciente: (E.charla || []).filter(c => c.r).slice(-5).map(c => ({ pregunta: c.q.slice(0, 400), respuesta: c.r.slice(0, 600) })),
   };
 }
@@ -2525,8 +2527,32 @@ function textoAccion(a) {
   if (a.tipo === 'casa') return `🏠 Añadir «${a.producto}» a En casa`;
   if (a.tipo === 'quitar') return `🚫 No hay «${a.producto}»: quitarlo de En casa y del menú`;
   if (a.tipo === 'lista') return `🛒 Añadir «${a.producto}» a la lista`;
+  if (a.tipo === 'receta') return `💾 Guardar la receta «${a.nombre || 'nueva'}»${a.poner?.length ? ' y ponerla en el menú' : ''}`;
+  if (a.tipo === 'menu') return `🔄 Cambiar ${(a.cambios || []).length} plato${(a.cambios || []).length === 1 ? '' : 's'} del menú`;
+  if (a.tipo === 'rehacer') return '🔄 Rehacer el menú con lo que hay en casa';
   if (a.tipo === 'cambiar') return `🔄 Poner «${recetas[a.receta]?.n || a.receta}» (${L.NOMBRE_COMIDA[a.comida] || a.comida}, ${a.dia})`;
   return 'Hacerlo';
+}
+// Pone una receta en un día y comida (con «quien» solo para esa persona en desayunos y meriendas). Devuelve false si el día no está.
+function ponPlato(a) {
+  const p = planes().find(pl => pl.dias.some(d => d.f === a.dia)); if (!p) return false;
+  const s = est(p.id), k = a.dia + '|' + a.comida, v = efectivo(p).dias.find(d => d.f === a.dia)[a.comida];
+  if (s.hechos[k]) return false;   // lo ya comido no se toca
+  if (a.quien && L.QUIEN.includes(a.quien)) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[a.quien] = a.receta; s.cambios[k] = base; } else s.cambios[k] = a.receta;
+  return true;
+}
+const fotoMenu = () => JSON.stringify(planes().map(p => [p.id, est(p.id).cambios]));
+const vuelveMenu = foto => { for (const [id, c] of JSON.parse(foto)) est(id).cambios = c; };
+// Rehace desde hoy los platos sin comer con recetas cuyo plato principal está en casa (lo que no llegue, lo arregla autoMenu).
+function rehaceConLoQueHay() {
+  const p = planActivo(), s = est(p.id), h = hoy(), pe = efectivo(p);
+  const pool = Object.fromEntries(Object.values(recetas).filter(r => aptaCasa(r) && !alcanza(necesita(r, L.QUIEN, true), E.casa || {}).length).map(r => [r.id, r]));
+  const base = { ...pe, dias: pe.dias.map(d => { const x = { ...d }; for (const c of L.COMIDAS) if (d.f < h || s.hechos[d.f + '|' + c]) x[c] = d[c]; else if (!(d[c] && (d[c].fuera || d[c].libre))) x[c] = null; return x; }) };
+  const fijas = Object.fromEntries(base.dias.flatMap(d => L.COMIDAS.flatMap(c => L.idsDe(d[c]))).filter(id => recetas[id]).map(id => [id, recetas[id]]));   // las que se quedan (pasado, comido)
+  const nuevo = L.proponerSemana(base, { ...fijas, ...pool }, D.productos, fac, obj.G, semillaDe(h + 'rehacer'), null, h);
+  let n = 0;
+  nuevo.dias.forEach((d, i) => { if (d.f < h) return; for (const c of L.COMIDAS) { if (s.hechos[d.f + '|' + c] || JSON.stringify(d[c]) === JSON.stringify(pe.dias[i][c]) || !d[c]) continue; s.cambios[d.f + '|' + c] = d[c]; n++; } });
+  return n;
 }
 function haceAccion(a) {
   if (a.tipo === 'casa' && a.producto) {
@@ -2543,10 +2569,35 @@ function haceAccion(a) {
   }
   if (a.tipo === 'lista' && a.producto) { const k = productoDe(a.producto); anadeALista([k ? { k } : { texto: capital(a.producto) }]); return `${a.producto}: a la lista`; }
   if (a.tipo === 'cambiar' && a.dia && a.comida && recetas[a.receta]) {
-    const p = planes().find(pl => pl.dias.some(d => d.f === a.dia)); if (!p) { tostada('Ese día no está en el menú'); return null; }
-    const s = est(p.id), k = a.dia + '|' + a.comida, v = efectivo(p).dias.find(d => d.f === a.dia)[a.comida];
-    if (a.quien && L.QUIEN.includes(a.quien)) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[a.quien] = a.receta; s.cambios[k] = base; } else s.cambios[k] = a.receta;
+    if (!ponPlato(a)) { tostada('Ese día no está en el menú'); return null; }
     salva(); return 'Menú cambiado';
+  }
+  if (a.tipo === 'menu' && Array.isArray(a.cambios)) {   // varios platos de una vez, con Deshacer
+    const antes = fotoMenu(); let n = 0;
+    for (const c of a.cambios) if (c && c.dia && c.comida && recetas[c.receta] && ponPlato(c)) n++;
+    if (!n) { tostada('No he podido cambiar ningún plato'); return null; }
+    salva(); conDeshacer(`🔄 ${n} plato${n > 1 ? 's' : ''} cambiado${n > 1 ? 's' : ''}`, () => { vuelveMenu(antes); salva(); pinta(); });
+    return `${n} plato${n > 1 ? 's' : ''} cambiado${n > 1 ? 's' : ''}`;
+  }
+  if (a.tipo === 'rehacer') {   // el menú desde hoy, con recetas que se pueden hacer con lo que hay en casa
+    const antes = fotoMenu(), n = rehaceConLoQueHay();
+    if (!n) { tostada('Con lo que hay, el menú ya está bien'); return null; }
+    salva(); autoMenu(); conDeshacer(`🔄 Menú rehecho: ${n} platos`, () => { vuelveMenu(antes); salva(); pinta(); });
+    return `Menú rehecho con lo que hay: ${n} platos`;
+  }
+  if (a.tipo === 'receta' && a.nombre && Array.isArray(a.ingredientes)) {   // receta nueva del Chef: se guarda como vuestra
+    const ingT = a.ingredientes.map(x => typeof x === 'string' ? x : `${x.gramos ? Math.round(x.gramos) + ' g ' : ''}${x.producto || ''}`).join('\n');
+    const x = L.interpretaReceta(ingT, (a.pasos || []).join('\n'), D.productos);
+    const tipos = (a.comidas || []).filter(c => [...L.COMIDAS, 'bebida'].includes(c));
+    const r = { id: 'p-' + uid(), n: capital(String(a.nombre).slice(0, 90)), e: a.emoji || L.emojiDe(a.nombre + ' ' + ingT), tipo: tipos.length ? tipos : ['comida', 'cena'],
+      ap: ['airfryer', 'plancha', 'micro', 'batidora', 'olla', 'horno', 'sin'].includes(a.aparato) ? a.aparato : 'plancha', min: Math.max(1, parseInt(a.minutos, 10) || 15), prot: 'propia',
+      ing: x.ing, otros: x.otros, basicos: x.basicos, pasos: x.pasos.length ? x.pasos : (a.pasos || []), detalle: (a.detalle || []).map(String).slice(0, 20), truco: a.truco ? String(a.truco) : undefined,
+      txt: { ing: ingT, pasos: (a.pasos || []).join('\n') }, propia: true, chef: true, creada: new Date().toISOString() };
+    if (!r.ing.length) { tostada('No reconozco los ingredientes de esa receta'); return null; }
+    E.propias = [...(E.propias || []), r]; reconstruyeRecetas();
+    let puestas = 0; for (const c of a.poner || []) if (c && c.dia && c.comida && ponPlato({ ...c, receta: r.id })) puestas++;
+    salva(); if (V.pestana === 'recetas') vRecetas();
+    return `Receta guardada${puestas ? ` y puesta en ${puestas} comida${puestas > 1 ? 's' : ''}` : ''}`;
   }
   tostada('No sé hacer eso todavía'); return null;
 }
