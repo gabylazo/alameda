@@ -191,6 +191,8 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
   const kcal = macrosReceta(r, 'G', prod, fac).kcal;
   pen += Math.abs(kcal - objG.kcal * REPARTO[comida]) / 60;
   if (r.fav) pen -= 2;   // vuestras favoritas salen antes
+  // Bajar de peso: un batido al día (desayuno o merienda) ayuda; sale antes si ese día aún no hay ninguno.
+  if (r.batido && DOBLES.includes(comida) && !DOBLES.some(c => idsDe(dia[c]).some(x => recetas[x]?.batido))) pen -= 3;
   return pen + rnd() * 2.5;
 }
 
