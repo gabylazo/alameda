@@ -640,3 +640,5 @@ details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
 /* Vaciar lo que se acumula en Compra (18/10/2026) */
 .cat .cat-accion { border: 0; background: none; color: var(--acento); font-weight: 800; font-size: 13.5px; padding: 4px 2px 4px 10px; text-decoration: underline; }
 .fila-simple .chip + .chip, .fila-simple .chip + .icono { margin-left: -4px; }
+.prep { margin: 6px 0 4px; padding-left: 20px; } .prep li { margin: 5px 0; font-size: 15px; }
+.pasos li span { font-size: 15.5px; line-height: 1.45; }

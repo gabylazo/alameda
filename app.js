@@ -84,6 +84,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'recetas-claras', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Recetas paso a paso', texto: 'Cada receta dice qué preparar antes, el fuego, el tiempo y cómo saber que está hecho. Y abajo, «¿Dudas?» para preguntar al Chef sobre esa receta.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'vaciar-compra', fecha: '2026-10-18', emo: '🧹', titulo: 'Compra sin acumular', texto: '«Quitados», «¿Os queda?» y «Pendiente de otro súper» se vacían u ocultan desde su título, con «Deshacer». Los pendientes salen plegados.', ir: 'compra', foco: '.cat-accion' },
   { id: 'cocina', fecha: '2026-10-18', emo: '🍳', titulo: 'Lo que tenéis en la cocina', texto: 'En Recetas, marca los aparatos que tienes: solo verás lo que puedes hacer y el menú se adapta.', ir: 'recetas', foco: '.cocina' },
   { id: 'se-acabo', fecha: '2026-10-18', emo: '🛒', titulo: '«Se acabó»', texto: 'En «En casa», toca el carrito cuando algo se termine: pasa solo a la próxima compra.', ir: 'casa', foco: '.casa-fila .icono' },
@@ -813,8 +814,11 @@ function abrirReceta(id, ctx) {
     <div class="macros${una ? ' una' : ''}">${quienes.map(q => m(q, mac[q])).join('')}</div>
     <h3>🥕 Ingredientes</h3>
     <div class="ing-lista"><div class="ing-fila cab${una ? ' una' : ''}"><span>Ingrediente</span>${quienes.map(q => `<span class="c persona-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</div>${filas}</div>
-    <h3>👩‍🍳 Cómo se hace</h3><ol class="pasos">${r.pasos.map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
+    ${r.prep?.length ? `<h3>🧺 Antes de empezar</h3><ul class="prep">${r.prep.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <h3>👩‍🍳 Paso a paso</h3><ol class="pasos">${r.pasos.map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
+    ${r.truco ? `<div class="aviso"><span class="emo">💡</span><div><b>Truco:</b> ${esc(r.truco)}</div></div>` : ''}
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
+    <button class="boton suave ancho" id="b-duda-receta" style="margin-top:10px">💬 ¿Dudas? Pregúntale al Chef</button>
     <div class="botones" style="margin-top:14px"><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
       ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}Al Chef</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
@@ -829,6 +833,7 @@ function abrirReceta(id, ctx) {
       salva(); cierraHoja(); tostada('📅 Puesta en el menú'); if (V.pestana === 'semana') vSemana();
     });
     $('#b-a-lista', h).addEventListener('click', () => elegirRaciones(r));
+    $('#b-duda-receta', h).addEventListener('click', () => irAClaude(`Estoy haciendo «${r.n}»: `, null, { receta: recetaParaChef(r) }));
     $('#b-fav-receta', h).addEventListener('click', e => {
       E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
       reconstruyeRecetas(); salva(); e.currentTarget.textContent = r.fav ? '❤️ Favorita' : '🤍 Favorita'; e.currentTarget.classList.add('pop');
@@ -2235,6 +2240,7 @@ function vClaude() {
     <div class="tarjeta charla">
       <textarea class="campo-texto" id="t-claude" placeholder="Escríbeme lo que quieras: ¿esto se congela?, cambia la cena del jueves, ¿qué hago con el brócoli?…">${esc(V.borrador || '')}</textarea>
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
+      ${V.datos?.receta ? `<div class="adjunto"><span>📖 ${esc(V.datos.receta.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}${V.datos.compra.ticket ? ' · ticket ' + euros(V.datos.compra.ticket.total) : ''}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       <div class="botones" style="margin-top:10px">${D.perfiles.bot ? '<label class="boton" for="i-foto-claude">📷 Foto</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">' : ''}
         <button class="boton principal" id="b-enviar-claude" style="flex:1">${I.enviar}Enviar</button></div>
@@ -2267,6 +2273,10 @@ function vClaude() {
   $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef en los dos móviles?')) { E.charla = []; salva(); vClaude(); } });
   if (charla.length) setTimeout(() => $('#hilo')?.lastElementChild?.scrollIntoView({ block: 'nearest' }), 100);
 }
+// La receta entera para el Chef: ingredientes con la cantidad de cada uno y los pasos.
+const recetaParaChef = r => ({ nombre: r.n, aparato: APARATO[r.ap] || r.ap, minutos: r.min,
+  ingredientes: r.ing.map(i => ({ producto: nombreCorto(D.productos[i[0]] || { n: i[0] }), ...Object.fromEntries(L.QUIEN.map(q => [NOM[q], L.gramos(i, q, fac) ? L.cantidadTexto(i[0], L.gramos(i, q, fac), D.productos) : '—'])) })),
+  otros: [...(r.otros || []), ...(r.basicos || [])], antesDeEmpezar: r.prep || [], pasos: r.pasos, truco: r.truco || '' });
 // Lo que el cerebro necesita saber para contestar: menú próximo, lo que hay, la lista, pendientes, personas.
 function contextoParaClaude() {
   const p = planActivo(), pe = efectivo(p), h = hoy(), s = est(p.id), per = perfiles();
@@ -2281,6 +2291,7 @@ function contextoParaClaude() {
     personas: L.QUIEN.map(q => ({ nombre: per[q].nombre, objetivo: obj[q], gusta: per[q].gusta || '', noGusta: per[q].noGusta || '', alergias: [...(per[q].alergias || []), per[q].otrasAlergias || ''].filter(Boolean), dieta: per[q].dieta || 'todo', tca: !!per[q].tca })),
     casa: { super: nombreSuper(), presupuestoSemanal: E.hogar?.presupuesto || null, cocina: aparatosCasa().map(nombreAparato) },
     recetasPropias: (E.propias || []).map(r => r.n),
+    recetasDeHoyYManana: [...new Set(pe.dias.filter(d => d.f >= h).slice(0, 2).flatMap(d => L.COMIDAS.flatMap(c => L.idsDe(d[c]))))].map(id => recetas[id]).filter(Boolean).map(recetaParaChef),
   };
 }
 const esperando = new Set();
