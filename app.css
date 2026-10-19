@@ -180,6 +180,7 @@ a { color: var(--acento); font-weight: 700; }
 .c-comida { --color-comida: var(--comida); --color-comida-suave: var(--comida-suave); }
 .c-merienda { --color-comida: var(--merienda); --color-comida-suave: var(--merienda-suave); }
 .c-cena { --color-comida: var(--cena); --color-comida-suave: var(--cena-suave); }
+.c-bebida { --color-comida: #0e7490; --color-comida-suave: #cffafe; }   /* bebidas: turquesa */
 
 /* Comidas como botón y hoja de acciones */
 button.comida { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }

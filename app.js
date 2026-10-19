@@ -85,6 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'bebidas', fecha: '2026-10-19', emo: '🥤', titulo: 'Bebidas', texto: 'En Recetas, el filtro «🥤 Bebidas»: limonada de lima con albahaca, mojito sin alcohol, agua de fresas, smoothies… Sin azúcar. Tocad ❤️ en las que os gusten.', ir: 'recetas', foco: '[data-filtro="bebida"]' },
   { id: 'huel-escondido', origen: true, fecha: '2026-10-19', emo: '🥞', titulo: 'Huel que no sabe a Huel', texto: 'Cuatro recetas con Huel sin sabor escondido: tortitas de avena, crema de queso batido con arándanos y cacao, avena de la noche y bizcocho de taza de cacao.', ir: 'recetas' },
   { id: 'buscar-listas', fecha: '2026-10-19', emo: '🔍', titulo: 'Buscar en las listas', texto: 'En «En casa» y en Compra, cuando la lista es larga, arriba tienes un buscador.', ir: 'casa', foco: '#i-filtra' },
   { id: 'no-vuelve', fecha: '2026-10-19', emo: '🗑️', titulo: 'Lo que quitas no vuelve', texto: 'Lo que quitas de En casa se queda quitado, también en el otro móvil. Solo vuelve si lo añades o lo compras otra vez.', ir: 'casa' },
@@ -2044,7 +2045,7 @@ function anadeACasa(items) {
 }
 
 // ——— Recetas ———
-const FILTROS = [['todas', '✨ Todas'], ['favoritas', '❤️ Favoritas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min']];
+const FILTROS = [['todas', '✨ Todas'], ['favoritas', '❤️ Favoritas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min'], ['bebida', '🥤 Bebidas']];
 function vRecetas() {
   const todas = todasRecetas();
   cabecera('Recetas', `${todas.length} recetas`);
