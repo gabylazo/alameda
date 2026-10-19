@@ -85,6 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'no-hay', fecha: '2026-10-19', emo: '🚫', titulo: 'Dile al Chef lo que no hay', texto: 'Escríbele «no hay albóndigas» y te sale un botón: lo quita de En casa y cambia los platos que lo llevaban.', ir: 'claude' },
   { id: 'detalle', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Paso a paso detallado', texto: 'Todas las recetas tienen «Resumen» y «Paso a paso detallado»: qué fuego, cuánto tiempo y cómo saber que está hecho.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias' },
   { id: 'ensaladas', fecha: '2026-10-19', emo: '🥗', titulo: 'Cenas con ensalada', texto: 'Todas las cenas llevan su ensalada, distinta cada día y con lo que tenéis en casa.', ir: 'semana' },
@@ -609,6 +610,12 @@ const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0,
 function autoMenu() {
   if (!D?.semana || !E?.casa) return [];
   const p = planActivo(), s = est(p.id), h = hoy();
+  // Correcciones publicadas (semana.json → correcciones: [{id, quitar: [claves]}]): se aplican una vez y se sincronizan.
+  for (const c of D.semana.correcciones || []) {
+    E.correcciones ||= {}; if (E.correcciones[c.id]) continue;
+    for (const k of c.quitar || []) delete E.casa[k];
+    E.correcciones[c.id] = new Date().toISOString(); salva();
+  }
   if (!s.compraHecha) return [];   // antes de comprar, lo que falta va a la lista
   const hay = { ...E.casa }, cambios = [];
   p.dias.forEach((d0, i) => {
@@ -2435,6 +2442,7 @@ function separaAcciones(r) {
 const productoDe = n => { const b = L.buscaProducto(String(n || ''), D.productos); return b?.k || null; };
 function textoAccion(a) {
   if (a.tipo === 'casa') return `🏠 Añadir «${a.producto}» a En casa`;
+  if (a.tipo === 'quitar') return `🚫 No hay «${a.producto}»: quitarlo de En casa y del menú`;
   if (a.tipo === 'lista') return `🛒 Añadir «${a.producto}» a la lista`;
   if (a.tipo === 'cambiar') return `🔄 Poner «${recetas[a.receta]?.n || a.receta}» (${L.NOMBRE_COMIDA[a.comida] || a.comida}, ${a.dia})`;
   return 'Hacerlo';
@@ -2444,6 +2452,13 @@ function haceAccion(a) {
     const k = productoDe(a.producto);
     if (k) E.casa[k] = (E.casa[k] || 0) + (a.gramos || D.productos[k].util); else E.casaExtra = [...(E.casaExtra || []), { id: uid(), n: capital(a.producto), cat: a.seccion || 'Otros' }];
     salva(); return `${a.producto}: en «En casa»`;
+  }
+  if (a.tipo === 'quitar' && a.producto) {   // «no hay»: fuera de En casa; el menú se adapta solo al repintar
+    const k = productoDe(a.producto);
+    if (k) delete E.casa[k];
+    E.casaExtra = (E.casaExtra || []).filter(x => L.parecido(x.n, a.producto) < 0.6);
+    E.casaOtros = E.casaOtros.filter(x => L.parecido(x, a.producto) < 0.6);
+    salva(); const c = autoMenu(); return `${a.producto}: fuera de En casa${c.length ? ` · ${c.length} plato${c.length > 1 ? 's' : ''} cambiado${c.length > 1 ? 's' : ''}` : ''}`;
   }
   if (a.tipo === 'lista' && a.producto) { const k = productoDe(a.producto); anadeALista([k ? { k } : { texto: capital(a.producto) }]); return `${a.producto}: a la lista`; }
   if (a.tipo === 'cambiar' && a.dia && a.comida && recetas[a.receta]) {
