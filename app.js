@@ -85,7 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
-  { id: 'sin-repetir', fecha: '2026-10-19', emo: '🔁', titulo: 'El menú no repite y te avisa', texto: 'Lo que coméis se descuenta de En casa. Si cambia un plato, no pone uno que ya habéis comido esa semana; y si con lo que hay no llega, elige el que menos haya que comprar y te lo apunta en Compra.', ir: 'semana' },
+  { id: 'sin-repetir', fecha: '2026-10-19', emo: '🔁', titulo: 'El menú no repite y te avisa', texto: 'Lo que coméis se descuenta de En casa. Comidas y cenas siempre con plato principal (la ensalada acompaña). No repite lo de esa semana; y si con lo que hay no llega, elige el que menos haya que comprar y te lo apunta en Compra.', ir: 'semana' },
   { id: 'no-hay', fecha: '2026-10-19', emo: '🚫', titulo: 'Dile al Chef lo que no hay', texto: 'Escríbele «no hay albóndigas» y te sale un botón: lo quita de En casa y cambia los platos que lo llevaban.', ir: 'claude' },
   { id: 'detalle', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Paso a paso detallado', texto: 'Todas las recetas tienen «Resumen» y «Paso a paso detallado»: qué fuego, cuánto tiempo y cómo saber que está hecho.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias' },
@@ -611,12 +611,11 @@ const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0,
 function autoMenu() {
   if (!D?.semana || !E?.casa) return [];
   const p = planActivo(), s = est(p.id), h = hoy();
-  // Correcciones publicadas (semana.json → correcciones: [{id, quitar: [claves]}]): se aplican una vez y se sincronizan.
-  for (const c of D.semana.correcciones || []) {
-    E.correcciones ||= {}; if (E.correcciones[c.id]) continue;
-    for (const k of c.quitar || []) delete E.casa[k];
-    for (const [k, g] of Object.entries(c.restar || {})) if (E.casa[k] != null) { E.casa[k] -= g; if (E.casa[k] <= 0.5) delete E.casa[k]; }   // lo comido que no se descontó
-    E.correcciones[c.id] = new Date().toISOString(); salva();
+  // Correcciones publicadas (semana.json → correcciones: [{id, si: {clave: [si hay justo esto, quitar esto]}}]): solo si En casa sigue con la
+  // cantidad del ticket, así que se pueden repetir sin peligro aunque la sincronización junte móviles (no hay marca que pueda viajar sola).
+  if (D.semana.id === p.id) for (const c of D.semana.correcciones || []) for (const [k, [si, g]] of Object.entries(c.si || {})) {
+    if (E.casa[k] == null || Math.abs(E.casa[k] - si) >= 1) continue;
+    E.casa[k] = si - g; if (E.casa[k] <= 0.5) delete E.casa[k]; salva();
   }
   if (!s.compraHecha) return [];   // antes de comprar, lo que falta va a la lista
   const hay = { ...E.casa }, cambios = [];
@@ -631,7 +630,8 @@ function autoMenu() {
         const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)];
         if (!r) continue;
         let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true), hay).filter(kk => !(E.pendientes || []).some(x => x.k === kk));   // lo apuntado para comprar ya cuenta: el plato se queda
-        if (falta.length) {
+        const sola = r.soloEnsalada && !L.DOBLES.includes(c);   // una ensalada sola no es comida ni cena: hace falta un plato principal
+        if (falta.length || sola) {
           const cand = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '')), q).filter(x => aptaCasa(x, qs));
           // Nada repetido en comidas y cenas: ni lo de esta semana (también lo ya comido) ni lo de otro día.
           const cerca = new Set();
@@ -640,13 +640,14 @@ function autoMenu() {
           const posibles = cand.filter(x => !alcanza(necesita(x, qs, true), hay).length).sort(orden);
           let nueva = posibles.find(x => !cerca.has(x.id)) || (cerca.has(r.id) ? null : posibles[0]), comprar = [];
           if (!nueva) {   // con lo que hay no sale ningún plato: el que menos haya que comprar, sin repetir, y lo que falta a la compra
-            const mejor = cand.filter(x => !cerca.has(x.id)).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => a.f.length - b.f.length || orden(a.x, b.x))[0];
-            if (mejor && (cerca.has(r.id) || mejor.f.length < falta.length)) { nueva = mejor.x; comprar = mejor.f; } else comprar = falta;
+            const noHay = new Set([...Object.keys(E.noHay || {}), ...(D.semana.correcciones || []).flatMap(cc => Object.keys(cc.si || {}).filter(kk => (cc.si[kk][1] >= cc.si[kk][0])))]);   // lo que dijeron que no hay: no se propone comprarlo
+            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => a.f.length - b.f.length || orden(a.x, b.x))[0];
+            if (mejor && (sola || cerca.has(r.id) || mejor.f.length < falta.length)) { nueva = mejor.x; comprar = mejor.f; } else comprar = falta;
           }
           for (const kk of comprar) apuntaPendiente({ k: kk, n: nombreCorto(D.productos[kk]) });
           if (nueva) {
             if (q) { const base = L.esDoble(vv) ? { ...vv } : { G: L.idDe(vv), P: L.idDe(vv) }; base[q] = nueva.id; s.cambios[k] = base; } else s.cambios[k] = nueva.id;
-            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta), comprar: comprar.map(nombreFalta) });
+            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta), sola: sola && !falta.length, comprar: comprar.map(nombreFalta) });
             n = necesita(nueva, qs); falta = [];
           }
         }
@@ -696,7 +697,7 @@ function ajusteAutomatico() {
   return adaptaMenu(p);
 }
 function htmlCambiosMenu(cambios) {
-  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · sin ${esc(enumera(x.falta, 3))}</div>
+  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · ${x.sola ? 'solo era ensalada' : 'sin ' + esc(enumera(x.falta, 3))}</div>
     <div><s>${esc(x.de)}</s><br>${x.a ? `<b>${esc(x.a)}</b>` : '<b class="persona-g">Sin alternativa con lo que tenéis</b>'}${x.comprar?.length ? `<div class="nota">🛒 Para este hay que comprar ${esc(enumera(x.comprar, 3))}: está en «Pendiente» de Compra.</div>` : ''}</div></div>`).join('');
 }
 // Platos pendientes (desde hoy, sin comer) que necesitan un aparato que la casa no tiene.
@@ -2467,7 +2468,7 @@ function haceAccion(a) {
   }
   if (a.tipo === 'quitar' && a.producto) {   // «no hay»: fuera de En casa; el menú se adapta solo al repintar
     const k = productoDe(a.producto);
-    if (k) delete E.casa[k];
+    if (k) { delete E.casa[k]; (E.noHay ||= {})[k] = hoy(); }
     E.casaExtra = (E.casaExtra || []).filter(x => L.parecido(x.n, a.producto) < 0.6);
     E.casaOtros = E.casaOtros.filter(x => L.parecido(x, a.producto) < 0.6);
     salva(); const c = autoMenu(); return `${a.producto}: fuera de En casa${c.length ? ` · ${c.length} plato${c.length > 1 ? 's' : ''} cambiado${c.length > 1 ? 's' : ''}` : ''}`;

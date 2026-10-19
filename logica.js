@@ -197,7 +197,7 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
 export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
   const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
-    .filter(r => r.tipo.includes(comida) && r.id !== actual)
+    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida)))
     .map(r => ({ r, pen: puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) }))
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
@@ -212,7 +212,7 @@ export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.no
     for (const c of COMIDAS) if (toca(d, c) && (nd[c] === null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
     return nd;
   }) };
-  const mejor = (i, c, salvo) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo)
+  const mejor = (i, c, salvo) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c)))
     .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
   for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda']) {
     if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
