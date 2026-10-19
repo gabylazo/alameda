@@ -660,3 +660,6 @@ body.con-chat main { padding-bottom: 210px; }
 .enviar-chat { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; border: 0; background: linear-gradient(135deg, #6ee7b7, #34d399); color: #053b2a; display: grid; place-items: center; }
 .chat-form .icono { flex: 0 0 auto; font-size: 20px; }
 .burbuja.pensando { font-style: italic; letter-spacing: 0; }
+.ing-fila .hay { display: inline-block; width: 18px; font-weight: 900; }
+.ing-fila .hay.si { color: #059669; } .ing-fila .hay.no { color: #dc2626; }
+.segmento.dos { grid-template-columns: 1fr 1.4fr; margin: 16px 0 6px; }

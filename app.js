@@ -84,6 +84,8 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'detalle', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Paso a paso detallado', texto: 'En cada receta, «Resumen» o «Paso a paso detallado»: qué fuego, cuánto tiempo y cómo saber que está hecho.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias' },
   { id: 'ensaladas', fecha: '2026-10-19', emo: '🥗', titulo: 'Cenas con ensalada', texto: 'Todas las cenas llevan su ensalada, distinta cada día y con lo que tenéis en casa.', ir: 'semana' },
   { id: 'chef-hace', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef te explica y te ayuda', texto: 'Pregúntale cómo se hace cualquier plato de la semana y te lo explica paso a paso. Si le pides algo («añade los huevos a lo que hay en casa»), te sale un botón para hacerlo.', ir: 'claude', foco: '.charla' },
@@ -401,6 +403,8 @@ function pintaMarco() {
 
 let tEntra;
 function pinta() {
+  const auto = autoMenu();   // el menú, siempre al día con lo que hay en casa
+  if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que hay en casa: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
   $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === V.pestana ? 'page' : 'false'));
   const f = VISTAS[V.pestana] || vSemana;
   document.body.classList.toggle('con-barra', V.pestana === 'compra');
@@ -487,6 +491,7 @@ function vSemana() {
   // Platos con cosas que no comprasteis (✕) o que no hay en casa: se ofrece cambiarlos por otros que sí podáis hacer.
   V.tengo = loQueTenemos(p, s);
   const sinCosas = platosSinCosas(pe, s);
+  if (E.ultimosAuto && Date.now() - new Date(E.ultimosAuto.t) < 864e5) banners.push(letrero('auto:' + E.ultimosAuto.t, '🔄', `<b>Menú adaptado a lo que hay en casa</b>: ${E.ultimosAuto.cambios.length} plato${E.ultimosAuto.cambios.length > 1 ? 's' : ''}.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-auto">Ver cambios</button></div>`));
   const sinAparato = platosSinAparato(p);
   if (sinAparato.length) banners.push(letrero('aparatos:' + p.id + ':' + aparatosCasa().join(','), '🍳', `<b>${sinAparato.length} plato${sinAparato.length > 1 ? 's necesitan' : ' necesita'} ${esc(enumera([...new Set(sinAparato.map(x => nombreAparato(x.r.ap)))], 3))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar-aparatos">🔄 Cambiarlos</button></div>`));
   if (sinCosas.platos) banners.push(letrero('falta:' + p.id + ':' + [...sinCosas.claves].sort().join(','), '🛒',
@@ -518,6 +523,7 @@ function vSemana() {
   $$('[data-acc]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.acc, b.dataset.q || null)));
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
   $('#b-ajustar')?.addEventListener('click', () => { const c = adaptaMenu(p); vSemana(); hojaCambiosMenu(c); });
+  $('#b-ver-auto')?.addEventListener('click', () => hojaCambiosMenu(E.ultimosAuto.cambios));
   $('#b-ajustar-aparatos')?.addEventListener('click', () => { const c = ajustaPorAparatos(p); vSemana(); hojaCambiosMenu(c); });
   $('#b-preparar')?.addEventListener('click', () => { siguienteSemana(); location.hash = 'compra'; });
   activaLetreros();
@@ -592,6 +598,48 @@ function adaptaMenu(p) {
 }
 // Al abrir la app: si hay platos con cosas marcadas ✕ (o que no había al terminar la compra) y no se ha ajustado todavía con esas marcas,
 // se ajusta solo. Si la compra se terminó con la versión anterior (sin «noHabia»), lo que no había se recupera del resumen.
+// ——— El menú sigue a lo que hay en casa, solo y siempre ———
+// Tras la compra de la semana, se recorren los platos pendientes por orden (desde hoy, sin comer) «gastando» lo que hay en casa.
+// Si a un plato le falta algo (no está o no llega), se cambia por el primero que se pueda hacer con lo que queda. La despensa no cuenta.
+const infinito = k => { const x = D.productos[k]; return !x || x.despensa || x.en_casa || !x.util; };
+// base: solo lo principal (proteína o hidrato, 30 g o más): es lo único que obliga a cambiar el plato; lo demás (ensalada, adornos) solo se avisa.
+function necesita(r, qs, base = false) { const n = {}; for (const ing of r.ing) { if (base && !(['p', 'h'].includes(ing[2]) && ing[1] >= 30)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
+const alcanza = (n, hay) => Object.entries(n).filter(([k, g]) => (hay[k] || 0) < g * 0.7).map(([k]) => k);   // margen: lo de casa es aproximado
+const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);   // igual en todos los móviles: eligen lo mismo
+function autoMenu() {
+  if (!D?.semana || !E?.casa) return [];
+  const p = planActivo(), s = est(p.id), h = hoy();
+  if (!s.compraHecha) return [];   // antes de comprar, lo que falta va a la lista
+  const hay = { ...E.casa }, cambios = [];
+  p.dias.forEach((d0, i) => {
+    if (d0.f < h) return;
+    for (const c of L.COMIDAS) {
+      const k = d0.f + '|' + c;
+      if (s.hechos[k]) continue;
+      const v = efectivo(p).dias[i][c];
+      if (!v || v.fuera || v.libre) continue;
+      for (const q of (L.esDoble(v) ? L.QUIEN : [null])) {
+        const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)];
+        if (!r) continue;
+        let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true), hay);
+        if (falta.length) {
+          const alts = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '')), q).filter(x => aptaCasa(x, qs) && !alcanza(necesita(x, qs, true), hay).length).sort((x, y) => alcanza(necesita(x, qs), hay).length - alcanza(necesita(y, qs), hay).length);
+          const nueva = alts[0];
+          if (nueva) {
+            if (q) { const base = L.esDoble(vv) ? { ...vv } : { G: L.idDe(vv), P: L.idDe(vv) }; base[q] = nueva.id; s.cambios[k] = base; } else s.cambios[k] = nueva.id;
+            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta) });
+            n = necesita(nueva, qs); falta = [];
+          }
+        }
+        for (const [kk, g] of Object.entries(n)) hay[kk] = Math.max(0, (hay[kk] || 0) - g);   // lo que se va a gastar
+      }
+    }
+  });
+  if (cambios.length) { E.ultimosAuto = { t: new Date().toISOString(), cambios }; salva(); }
+  return cambios;
+}
+// Lo que le falta a un plato concreto con lo que hay en casa (para la pastilla y la receta).
+const faltaEnCasa = (r, qs = L.QUIEN) => !est(planActivo().id).compraHecha ? [] : alcanza(necesita(r, qs), E.casa || {});
 function ajusteAutomatico() {
   const p = planActivo(), s = est(p.id), u = E.compras[0];
   // El ticket se subió otro día y la compra sigue sin cerrar: se cierra sola (lo comprado a «En casa», lo que no había a pendientes).
@@ -672,7 +720,7 @@ function tarjetaComida(p, d, i, c, s, ahora) {
   const mom = `<span class="momento">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}${ahora && !hecho ? '<span class="ahora-pill">AHORA</span>' : ''}${hecho ? '<span class="hecho-pill">✓ comido</span>' : ''}</span>`;
   const cls = `tarjeta comida c-${c}${hecho ? ' hecha' : ''}${ahora && !hecho ? ' ahora' : ''}`;
   if (v && v.fuera) return `<button class="${cls} fuera" data-acc="${c}"><span class="tile">🍽️</span><span class="cuerpo">${mom}<span class="nombre">Coméis fuera</span></span><span class="flecha">›</span></button>`;
-  const pillFalta = r => { const f = hecho ? [] : faltaExplicita(r, s); return f.length ? `<span class="pill malo">⚠️ sin ${esc(enumera(f.map(nombreFalta), 2))}</span>` : ''; };
+  const pillFalta = r => { const f = hecho ? [] : [...new Set([...faltaExplicita(r, s), ...faltaEnCasa(r)])]; return f.length ? `<span class="pill malo">⚠️ sin ${esc(enumera(f.map(nombreFalta), 2))}</span>` : ''; };
   if (L.esDoble(v)) {
     const fila = q => { const r = recetas[v[q]]; const m = r ? L.macrosReceta(r, q, D.productos, fac) : null;
       return `<button class="fila-doble" data-acc="${c}" data-q="${q}"><span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span><span class="mini-tile">${r ? emojiReceta(r) : '➕'}</span>
@@ -802,8 +850,9 @@ function abrirReceta(id, ctx) {
   const quienes = solo ? [solo] : L.QUIEN, una = quienes.length === 1;
   const mac = Object.fromEntries(quienes.map(q => [q, L.macrosReceta(r, q, D.productos, fac)]));
   const filas = r.ing.map(ing => {
-    const x = D.productos[ing[0]];
-    return `<div class="ing-fila${una ? ' una' : ''}"><span>${esc(nombreCorto(x))}</span>${quienes.map(q => { const g = L.gramos(ing, q, fac); return `<span class="c persona-${q.toLowerCase()}">${g ? esc(L.cantidadTexto(ing[0], g, D.productos)) : '—'}</span>`; }).join('')}</div>`;
+    const x = D.productos[ing[0]], necesita = quienes.reduce((t, q) => t + (L.gramos(ing, q, fac) || 0), 0);
+    const marca = infinito(ing[0]) ? '' : (E.casa[ing[0]] || 0) >= necesita * 0.7 ? '<span class="hay si">✓</span>' : '<span class="hay no">✕</span>';
+    return `<div class="ing-fila${una ? ' una' : ''}"><span>${marca}${esc(nombreCorto(x))}</span>${quienes.map(q => { const g = L.gramos(ing, q, fac); return `<span class="c persona-${q.toLowerCase()}">${g ? esc(L.cantidadTexto(ing[0], g, D.productos)) : '—'}</span>`; }).join('')}</div>`;
   }).join('') + [...(r.otros || []), ...(r.basicos || [])].map(t => `<div class="ing-fila${una ? ' una' : ''}"><span class="otro">${esc(t)}</span>${quienes.map(() => '<span class="c">·</span>').join('')}</div>`).join('');
   const m = (q, x) => {
     const o = obj[q], color = q === 'G' ? 'var(--persona-g)' : 'var(--persona-p)';
@@ -820,7 +869,8 @@ function abrirReceta(id, ctx) {
     <h3>🥕 Ingredientes</h3>
     <div class="ing-lista"><div class="ing-fila cab${una ? ' una' : ''}"><span>Ingrediente</span>${quienes.map(q => `<span class="c persona-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</div>${filas}</div>
     ${r.prep?.length ? `<h3>🧺 Antes de empezar</h3><ul class="prep">${r.prep.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-    <h3>👩‍🍳 Paso a paso</h3><ol class="pasos">${r.pasos.map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
+    ${r.detalle?.length ? `<div class="segmento dos" role="tablist"><button data-modo="resumen" aria-selected="${!V.detalle}">Resumen</button><button data-modo="detalle" aria-selected="${!!V.detalle}">👩‍🍳 Paso a paso detallado</button></div>` : '<h3>👩‍🍳 Paso a paso</h3>'}
+    <ol class="pasos">${(V.detalle && r.detalle?.length ? r.detalle : r.pasos).map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
     ${r.truco ? `<div class="aviso"><span class="emo">💡</span><div><b>Truco:</b> ${esc(r.truco)}</div></div>` : ''}
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
     <button class="boton suave ancho" id="b-duda-receta" style="margin-top:10px">💬 ¿Dudas? Pregúntale al Chef</button>
@@ -838,6 +888,7 @@ function abrirReceta(id, ctx) {
       salva(); cierraHoja(); tostada('📅 Puesta en el menú'); if (V.pestana === 'semana') vSemana();
     });
     $('#b-a-lista', h).addEventListener('click', () => elegirRaciones(r));
+    $$('[data-modo]', h).forEach(b => b.addEventListener('click', () => { V.detalle = b.dataset.modo === 'detalle'; const y = h.scrollTop; abrirReceta(id, ctx); requestAnimationFrame(() => { const n = $('.hoja'); if (n) n.scrollTop = y; }); }));
     $('#b-duda-receta', h).addEventListener('click', () => irAClaude('', null, { receta: recetaParaChef(r) }));
     $('#b-fav-receta', h).addEventListener('click', e => {
       E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
