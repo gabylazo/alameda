@@ -85,6 +85,9 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'buscar-listas', fecha: '2026-10-19', emo: '🔍', titulo: 'Buscar en las listas', texto: 'En «En casa» y en Compra, cuando la lista es larga, arriba tienes un buscador.', ir: 'casa', foco: '#i-filtra' },
+  { id: 'no-vuelve', fecha: '2026-10-19', emo: '🗑️', titulo: 'Lo que quitas no vuelve', texto: 'Lo que quitas de En casa se queda quitado, también en el otro móvil. Solo vuelve si lo añades o lo compras otra vez.', ir: 'casa' },
+  { id: 'presupuesto', amigas: true, fecha: '2026-10-19', emo: '💶', titulo: 'La compra, dentro del presupuesto', texto: 'El menú de cada semana se hace para que la compra entre en vuestro presupuesto, contando lo que ya tenéis en casa. Si os pasáis, en Compra: «Ajustar al presupuesto». Luego subís el ticket y el menú sigue a lo que comprasteis.', ir: 'compra' },
   { id: 'batidos', fecha: '2026-10-19', emo: '🥤', titulo: 'Un batido al día', texto: 'El menú pone un batido cada día: Huel para quien lo toma (con agua es lo más ligero) y batidos sin Huel, con queso batido y fruta.', ir: 'semana', origen: true },
   { id: 'sin-repetir', fecha: '2026-10-19', emo: '🔁', titulo: 'El menú no repite y te avisa', texto: 'Lo que coméis se descuenta de En casa. Comidas y cenas siempre con plato principal (la ensalada acompaña). No repite lo de esa semana; y si con lo que hay no llega, elige el que menos haya que comprar y te lo apunta en Compra.', ir: 'semana' },
   { id: 'no-hay', fecha: '2026-10-19', emo: '🚫', titulo: 'Dile al Chef lo que no hay', texto: 'Escríbele «no hay albóndigas» y te sale un botón: lo quita de En casa y cambia los platos que lo llevaban.', ir: 'claude' },
@@ -104,7 +107,7 @@ const NOVEDADES = [   // la más nueva, arriba
 const VISTAS_NOV = 'nutrihome.novedades';   // en cada móvil, no se sincroniza: cada uno las ve una vez
 const novedadesVistas = () => { try { return JSON.parse(leeTexto(VISTAS_NOV) || '[]'); } catch { return []; } };
 // Las casas amigas no ven lo que ya estaba cuando entraron.
-const novedadesCasa = () => NOVEDADES.filter(n => !(n.origen && D.amiga) && !(D.amiga && E.hogar?.creada && n.fecha <= E.hogar.creada));
+const novedadesCasa = () => NOVEDADES.filter(n => !(n.origen && D.amiga) && !(n.amigas && !D.amiga) && !(D.amiga && E.hogar?.creada && n.fecha <= E.hogar.creada));
 const novedadesNuevas = () => { const v = new Set(novedadesVistas()); return novedadesCasa().filter(n => !v.has(n.id)); };
 const marcaNovedadesVistas = () => guardaTexto(VISTAS_NOV, JSON.stringify([...new Set([...novedadesVistas(), ...novedadesCasa().map(n => n.id)])]));
 const etiquetaNuevo = id => { const n = novedadesCasa().find(x => x.id === id); return n && (fecha(hoy()) - fecha(n.fecha)) / 864e5 <= 7 ? '<span class="nuevo">Nuevo</span>' : ''; };
@@ -285,6 +288,16 @@ function efectivo(p) {
   return { ...p, dias: p.dias.map(d => { const n = { ...d }; for (const c of L.COMIDAS) { const k = d.f + '|' + c; if (k in s.cambios) n[c] = s.cambios[k]; } return n; }) };
 }
 
+// Lo que quitáis de «En casa» a mano no vuelve solo: se apunta cuándo (E.casaBaja) y nada automático (ajustes del ticket,
+// correcciones, otro móvil que sincroniza con datos viejos) puede devolverlo. Solo vuelve si lo añadís o lo compráis después (E.casaAlta).
+const ahora = () => new Date().toISOString();
+const alta = k => { (E.casaAlta ||= {})[k] = ahora(); };
+const baja = k => { (E.casaBaja ||= {})[k] = ahora(); };
+function respetaBajas() {
+  let n = 0;
+  for (const [k, t] of Object.entries(E.casaBaja || {})) if (E.casa[k] != null && (E.casaAlta?.[k] || '') < t) { delete E.casa[k]; n++; }
+  if (n) salva();
+}
 // Lo que se ha comido sale de «En casa»: al marcar «Ya comido» o, si no se marca, al pasar el día.
 function descuentaHueco(v) {
   for (const q of L.QUIEN) {
@@ -611,6 +624,7 @@ const alcanza = (n, hay) => Object.entries(n).filter(([k, g]) => (hay[k] || 0) <
 const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);   // igual en todos los móviles: eligen lo mismo
 function autoMenu() {
   if (!D?.semana || !E?.casa) return [];
+  respetaBajas();
   const p = planActivo(), s = est(p.id), h = hoy();
   // Correcciones publicadas (semana.json → correcciones: [{id, si: {clave: [si hay justo esto, quitar esto]}}]): solo si En casa sigue con la
   // cantidad del ticket, así que se pueden repetir sin peligro aunque la sincronización junte móviles (no hay marca que pueda viajar sola).
@@ -1100,12 +1114,57 @@ function tarjetaTicket(s, marcas) {
   return `<div class="tarjeta pregunta"><span class="emo">🧾</span><div class="t"><b>Ticket digital</b><span class="nota">El PDF del correo o una foto: marco la lista</span></div><button class="boton principal" id="b-ticket">Subir</button></div>`;
 }
 
+// Compra por encima del presupuesto: cambia platos (desde hoy, sin tocar lo comido) hasta que la lista entre, contando lo que hay en casa.
+// El presupuesto es semanal: si el menú es de menos días (la primera semana, hasta el día de compra), se reparte.
+const topeDe = p => E.hogar?.presupuesto ? Math.round(E.hogar.presupuesto * Math.min(7, p.dias.length) / 7 * 100) / 100 : null;
+function ajustaAlPresupuesto() {
+  const { p, s, total } = lineaCompra(), tope = topeDe(p), desde = hoy();
+  if (!tope) return;
+  const pe = efectivo(p), menu = L.listaCompra(L.necesidades(pe, recetas, fac, desde), D.productos, E.casa || {}).total;
+  const fijo = Math.max(0, total - menu);   // favoritos, añadidos a mano…: no son del menú
+  const plan = { ...pe, dias: pe.dias.map(d => { const x = { ...d }; for (const c of L.COMIDAS) if (s.hechos[d.f + '|' + c]) x[c] = { libre: 'comido' }; return x; }) };
+  const res = L.ajustaPresupuesto(plan, recetas, D.productos, fac, E.casa || {}, tope - fijo, aptaCasa, desde);
+  if (!res.cambios.length) { hoja(`<h2>💶 Presupuesto</h2><p>${res.cabe ? 'Ya estáis dentro.' : `Con las recetas que podéis comer no encuentro un menú más barato: la compra mínima es ${euros(fijo + res.despues)} y el presupuesto, ${euros(tope)}.`}</p>${caros(pe)}<p class="nota">Podéis cambiar alguno de esos platos a mano, quitar favoritos o cosas añadidas, comer fuera algún día o subir el presupuesto en Nosotros.</p>`); return; }
+  const antes = JSON.stringify(s.cambios);
+  res.plan.dias.forEach((d, i) => { for (const c of L.COMIDAS) if (JSON.stringify(d[c]) !== JSON.stringify(pe.dias[i][c]) && !s.hechos[d.f + '|' + c]) s.cambios[d.f + '|' + c] = d[c]; });
+  salva(); pinta();
+  const ahorro = res.antes - res.despues;
+  hoja(`<h2>💶 Ajustado al presupuesto</h2><p>${res.cabe ? `✓ La compra baja a <b>${euros(fijo + res.despues)}</b> (presupuesto ${euros(tope)}).` : `He bajado ${euros(ahorro)}, hasta <b>${euros(fijo + res.despues)}</b>. Con vuestras recetas no se puede bajar más: os pasáis ${euros(fijo + res.despues - tope)}.${caros(res.plan)}`}</p>
+    ${res.cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · −${euros(x.ahorro)}${x.repite ? ' · se cocina para dos días' : ''}</div><div><s>${esc(x.de)}</s><br><b>${esc(x.a)}</b></div></div>`).join('')}
+    <div class="botones" style="margin-top:12px"><button class="boton" id="b-deshacer-pres">Deshacer</button></div>`);
+  $('#b-deshacer-pres')?.addEventListener('click', () => { s.cambios = JSON.parse(antes); salva(); cierraHoja(); pinta(); });
+}
+
+// Los platos que más encarecen la compra (de hoy en adelante).
+function caros(plan) {
+  const vistos = new Map();
+  for (const d of plan.dias) if (d.f >= hoy()) for (const c of ['comida', 'cena']) { const r = recetas[L.idDe(d[c])]; if (r && !vistos.has(r.id)) vistos.set(r.id, { n: r.n, e: L.QUIEN.reduce((t, q) => t + L.macrosReceta(r, q, D.productos, fac).coste, 0) }); }
+  const top = [...vistos.values()].sort((a, b) => b.e - a.e).slice(0, 3);
+  return top.length ? `<p class="nota" style="margin-top:8px">Lo que más encarece: ${top.map(x => `${esc(x.n)} (${euros(x.e)})`).join(' · ')}.</p>` : '';
+}
+
+// Buscador para listas largas: filtra las filas de la vista sin repintar; oculta las secciones que se quedan vacías.
+const buscadorLista = (n, txt = 'Buscar en la lista') => n > 10 ? `<input class="campo-texto buscador-lista" id="i-filtra" type="search" placeholder="🔍 ${txt}" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}">` : '';
+function activaBuscador() {
+  const i = $('#i-filtra'); if (!i) { V.filtra = ''; return; }
+  const filtra = () => {
+    const q = L.normaliza(i.value.trim()); V.filtra = i.value; V.filtraDe = V.pestana;
+    $$('#vista .lista').forEach(l => {
+      let vis = 0;
+      l.querySelectorAll('.producto').forEach(f => { const si = !q || L.normaliza(f.innerText).includes(q); f.style.display = si ? '' : 'none'; if (si) vis++; });
+      l.style.display = vis ? '' : 'none';
+      const cab = l.previousElementSibling; if (cab?.classList.contains('cat')) cab.style.display = vis ? '' : 'none';
+    });
+  };
+  i.addEventListener('input', filtra); if (i.value) filtra();
+}
+
 function vCompra() {
   const { p, s, filas, despensa, total, quitados } = lineaCompra();
   const comprados = filas.filter(f => s.marcados[f.clave]), noHabia = filas.filter(f => s.noComprado[f.clave]), porComprar = filas.filter(f => !s.marcados[f.clave] && !s.noComprado[f.clave]);
   const conTicket = !!s.ticket;
   cabecera('Compra', `${nombreSuper()} · ${filas.length} productos${esMercadona() ? '' : ' · precios de Mercadona'}`);
-  const tope = E.hogar?.presupuesto;
+  const tope = topeDe(p);
   const filaHTML = f => {
     const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
@@ -1127,7 +1186,7 @@ function vCompra() {
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
   $('#vista').innerHTML = `
-    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')} · ${filas.length} productos</div>${tope ? `<div class="sub">${total > tope ? '⚠️ Te pasas del presupuesto' : '✓ Dentro del presupuesto'}: ${euros(tope)}</div>` : ''}</div><span class="hero-emo">🛒</span></div>
+    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')} · ${filas.length} productos</div>${tope ? `<div class="sub">${total > tope ? '⚠️ Te pasas del presupuesto' : '✓ Dentro del presupuesto'}: ${euros(tope)}</div>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto" style="margin-top:8px">💶 Ajustar al presupuesto</button>' : ''}` : ''}</div><span class="hero-emo">🛒</span></div>
     <div class="rapidas">
       <button class="rapida" id="b-anadir"><span class="emo">➕</span>Añadir</button>
       <button class="rapida" id="b-receta-lista"><span class="emo">🍲</span>Receta</button>
@@ -1135,6 +1194,7 @@ function vCompra() {
       <button class="rapida" id="b-mas"><span class="emo">⋯</span>Más</button>
     </div>
     ${tarjetaTicket(s, comprados.length + noHabia.length > 0)}
+    ${buscadorLista(filas.length + (E.pendientes || []).length, 'Buscar en la compra')}
     ${seccionPendientes()}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="lista">${recetasLista}</div>` : ''}
@@ -1169,7 +1229,7 @@ function vCompra() {
   $('#b-ultima')?.addEventListener('click', () => hojaCompra(E.compras[0]));
   $$('[data-pend-ya]').forEach(b => b.addEventListener('click', () => {
     const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
-    if (x?.k && D.productos[x.k]) E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util;
+    if (x?.k && D.productos[x.k]) (E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util, alta(x.k));
     descarta(x); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); tostada(x?.k ? '🏠 Pasa a «En casa»' : 'Quitado'); refrescaCompra();
   }));
   $$('[data-pend-quitar]').forEach(b => b.addEventListener('click', () => { descarta(E.pendientes.find(y => y.id === b.dataset.pendQuitar)); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); refrescaCompra(); }));
@@ -1179,6 +1239,8 @@ function vCompra() {
   $('#b-receta-lista').addEventListener('click', elegirRecetaParaLista);
   $('#b-favoritos').addEventListener('click', abrirFavoritos);
   $('#b-mas').addEventListener('click', abrirMas);
+  activaBuscador();
+  $('#b-presupuesto')?.addEventListener('click', ajustaAlPresupuesto);
   $('#b-terminar').addEventListener('click', () => conTicket ? terminarCompra(filas) : hojaTerminar(filas));
   for (const f of noFilas) pintaAlternativa(f, s);
 }
@@ -1503,7 +1565,7 @@ function terminarCompra(filas, silencioso = false) {
     if (!s.marcados[f.clave]) continue;
     if (f.k) {
       const x = D.productos[f.k], c = s.ticketCant[f.clave];   // con ticket, lo que se compró de verdad
-      E.casa[f.k] = (E.casa[f.k] || 0) + (c ? (c.kg ? c.kg * 1000 : c.n * x.util) : f.envases * x.util); n++;
+      (E.casa[f.k] = (E.casa[f.k] || 0) + (c ? (c.kg ? c.kg * 1000 : c.n * x.util) : f.envases * x.util), alta(f.k)); n++;
       if (f.despensa) delete s.faltaDespensa[f.k];
     }
     else if (f.m && !NO_COMIDA.has(f.m.cat)) { E.casaOtros = [...new Set([...E.casaOtros, f.m.n])]; }
@@ -1689,7 +1751,7 @@ function aCasaTicket(fuera = []) {
   for (const x of fuera) {
     const cat = x.k ? D.productos[x.k].cat : x.m?.cat;
     if (!cat || NO_COMIDA.has(cat)) continue;
-    if (x.k) E.casa[x.k] = (E.casa[x.k] || 0) + (x.kg ? x.kg * 1000 : x.n * D.productos[x.k].util);
+    if (x.k) (E.casa[x.k] = (E.casa[x.k] || 0) + (x.kg ? x.kg * 1000 : x.n * D.productos[x.k].util), alta(x.k));
     else E.casaOtros = [...new Set([...E.casaOtros, nombreFuera(x)])];
     n++;
   }
@@ -1885,18 +1947,20 @@ function vCasa() {
       <button class="icono" data-acabado="${k}" aria-label="Se acabó" title="Se acabó: a la próxima compra">${I.carro}</button></div>`; };
   $('#vista').innerHTML = `
     <button class="boton principal ancho" id="b-anadir-casa" style="margin:4px 0 12px">➕ Añadir algo que tenéis</button>
+    ${buscadorLista(items.length + extra.length + E.casaOtros.length, 'Buscar en casa')}
     ${letrero('casa-ayuda', '💡', '<b>Toca el carrito</b> cuando algo se acabe: se quita de aquí y entra en la próxima compra.')}
     ${secs.map(sec => `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${porSec[sec].length}</span></div><div class="lista">${porSec[sec].map(fila).join('')}</div>`).join('')}
     ${E.casaOtros.length ? `<div class="cat"><span class="emo">🧺</span>Otras cosas<span class="num">${E.casaOtros.length}</span></div><div class="lista">${E.casaOtros.map((t, i) => `<div class="producto casa-fila"><div class="sinfoto">📝</div><div class="info"><div class="pn">${esc(t)}</div></div>
       <button class="icono" data-otro-acabado="${i}" aria-label="Se acabó">${I.carro}</button><button class="icono" data-otro-casa="${i}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
     ${!secs.length && !E.casaOtros.length ? '<div class="vacio"><span class="emo">🧺</span>Todavía no hay nada.</div>' : ''}`;
   activaLetreros();
+  activaBuscador();
   const paso = k => { const x = D.productos[k]; return x.gud || Math.max(10, Math.round(x.util / 4 / 10) * 10); };
   const quitarConVuelta = (txt, hacer) => { const antes = JSON.stringify({ casa: E.casa, extra: E.casaExtra, otros: E.casaOtros, prox: E.proximaCompra }); hacer(); salva(); vCasa();
     conDeshacer(txt, () => { const a = JSON.parse(antes); E.casa = a.casa; E.casaExtra = a.extra; E.casaOtros = a.otros; E.proximaCompra = a.prox; salva(); vCasa(); }); };
-  $$('[data-menos]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.menos; E.casa[k] = Math.max(0, (E.casa[k] || 0) - paso(k)); if (E.casa[k] <= 0.5) delete E.casa[k]; salva(); vCasa(); }));
-  $$('[data-mas]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.mas; E.casa[k] = (E.casa[k] || 0) + paso(k); salva(); vCasa(); }));
-  $$('[data-acabado]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.acabado; quitarConVuelta('🛒 A la próxima compra: ' + nombreCorto(D.productos[k]), () => { delete E.casa[k]; apuntaProxima({ k, n: nombreCorto(D.productos[k]) }); }); }));
+  $$('[data-menos]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.menos; E.casa[k] = Math.max(0, (E.casa[k] || 0) - paso(k)); if (E.casa[k] <= 0.5) { delete E.casa[k]; baja(k); } salva(); vCasa(); }));
+  $$('[data-mas]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.mas; (E.casa[k] = (E.casa[k] || 0) + paso(k), alta(k)); salva(); vCasa(); }));
+  $$('[data-acabado]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.acabado; quitarConVuelta('🛒 A la próxima compra: ' + nombreCorto(D.productos[k]), () => { delete E.casa[k]; baja(k); apuntaProxima({ k, n: nombreCorto(D.productos[k]) }); }); }));
   $$('[data-extra-acabado]').forEach(b => b.addEventListener('click', () => { const x = (E.casaExtra || []).find(y => y.id === b.dataset.extraAcabado); if (x) quitarConVuelta('🛒 A la próxima compra: ' + x.n, () => { E.casaExtra = E.casaExtra.filter(y => y !== x); apuntaProxima({ texto: x.n, n: x.n }); }); }));
   $$('[data-extra-quitar]').forEach(b => b.addEventListener('click', () => { const x = (E.casaExtra || []).find(y => y.id === b.dataset.extraQuitar); if (x) quitarConVuelta('🗑️ ' + x.n, () => { E.casaExtra = E.casaExtra.filter(y => y !== x); }); }));
   $$('[data-otro-acabado]').forEach(b => b.addEventListener('click', () => { const t = E.casaOtros[+b.dataset.otroAcabado]; quitarConVuelta('🛒 A la próxima compra: ' + t, () => { E.casaOtros.splice(E.casaOtros.indexOf(t), 1); apuntaProxima({ texto: t, n: t }); }); }));
@@ -1922,7 +1986,7 @@ function abrirAnadirCasa() {
         + `<button class="chip" id="b-casa-tal" style="margin-top:8px">Apuntar «${esc(capital(q))}» tal cual</button>`;
       $$('[data-res-casa]', caja).forEach(b => b.addEventListener('click', () => {
         const x = hits[+b.dataset.resCasa];
-        if (x.k) E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util;
+        if (x.k) (E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util, alta(x.k));
         else E.casaExtra = [...(E.casaExtra || []), { id: uid(), n: x.n, cat: x.cat || 'Otros', foto: x.foto, m: x.id }];
         salva(); b.classList.add('anadido'); tostada('🏠 ' + (x.k ? nombreCorto(D.productos[x.k]) : x.n)); if (V.pestana === 'casa') vCasa();
       }));
@@ -1950,7 +2014,7 @@ function apuntaCasa(texto) {
     if (d?.basico) continue;
     if (d?.k) {
       const x = D.productos[d.k], conCantidad = /\d|\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|medio|media)\b/i.test(t);
-      E.casa[d.k] = (E.casa[d.k] || 0) + (conCantidad ? d.g : x.util);
+      (E.casa[d.k] = (E.casa[d.k] || 0) + (conCantidad ? d.g : x.util), alta(d.k));
       hechos.push(nombreCorto(x));
     } else otros.push(capital(t));
   }
@@ -1970,7 +2034,7 @@ function anadeACasa(items) {
   for (const it of items) {
     if (!it || !it.k) continue;
     const x = D.productos[it.k];
-    E.casa[it.k] = (E.casa[it.k] || 0) + (it.n ? (x.gud ? it.n * x.gud : it.n * x.util) : x.util);
+    (E.casa[it.k] = (E.casa[it.k] || 0) + (it.n ? (x.gud ? it.n * x.gud : it.n * x.util) : x.util), alta(it.k));
     nombres.push(nombreCorto(x));
   }
   salva();
@@ -2157,17 +2221,8 @@ function creaPlan(inicio, n) {
   const base = { id: inicio, titulo: tituloPlan(inicio, dias.at(-1).f), dias };
   const pool = recetasAptas();
   let plan = L.proponerSemana(base, pool, D.productos, fac, obj.G);
-  const tope = D.amiga && E.hogar?.presupuesto;
-  if (tope) {
-    const coste = pl => L.listaCompra(L.necesidades(pl, recetas, fac, null), D.productos, E.casa || {}).total;
-    const c1 = coste(plan);
-    if (c1 > tope * n / 7) {
-      const precio = r => L.QUIEN.reduce((t, q) => t + L.macrosReceta(r, q, D.productos, fac).coste, 0);
-      const orden = Object.values(pool).map(precio).sort((a, b) => a - b), mediana = orden[Math.floor(orden.length / 2)] || 0;
-      const plan2 = L.proponerSemana(base, Object.fromEntries(Object.entries(pool).filter(([, r]) => precio(r) <= mediana)), D.productos, fac, obj.G);
-      if (coste(plan2) < c1) plan = plan2;
-    }
-  }
+  const tope = E.hogar?.presupuesto;
+  if (tope) plan = L.ajustaPresupuesto(plan, recetas, D.productos, fac, E.casa || {}, tope * n / 7, aptaCasa).plan;   // la compra, dentro del presupuesto
   return plan;
 }
 // Recetas que puede comer toda la casa: sin alergias (regla fija), con su forma de comer, sin lo que no le gusta a nadie,
@@ -2331,7 +2386,7 @@ function abrirPendientes() {
       <button class="chip si" data-pend-ya="${x.id}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${x.id}" aria-label="Quitar">${I.papelera}</button></div>`).join('') || '<div class="vacio"><span class="emo">🎉</span>No queda nada pendiente.</div>';
     $$('[data-pend-ya]', h).forEach(b => b.addEventListener('click', () => {
       const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
-      if (x?.k && D.productos[x.k]) E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util;
+      if (x?.k && D.productos[x.k]) (E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util, alta(x.k));
       descarta(x); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); pinta(h); tostada(x?.k ? '🏠 Pasa a «En casa»' : 'Quitado'); refrescaCompra();
     }));
     $$('[data-pend-quitar]', h).forEach(b => b.addEventListener('click', () => { descarta(E.pendientes.find(y => y.id === b.dataset.pendQuitar)); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); pinta(h); refrescaCompra(); }));
@@ -2474,12 +2529,12 @@ function textoAccion(a) {
 function haceAccion(a) {
   if (a.tipo === 'casa' && a.producto) {
     const k = productoDe(a.producto);
-    if (k) E.casa[k] = (E.casa[k] || 0) + (a.gramos || D.productos[k].util); else E.casaExtra = [...(E.casaExtra || []), { id: uid(), n: capital(a.producto), cat: a.seccion || 'Otros' }];
+    if (k) (E.casa[k] = (E.casa[k] || 0) + (a.gramos || D.productos[k].util), alta(k)); else E.casaExtra = [...(E.casaExtra || []), { id: uid(), n: capital(a.producto), cat: a.seccion || 'Otros' }];
     salva(); return `${a.producto}: en «En casa»`;
   }
   if (a.tipo === 'quitar' && a.producto) {   // «no hay»: fuera de En casa; el menú se adapta solo al repintar
     const k = productoDe(a.producto);
-    if (k) { delete E.casa[k]; (E.noHay ||= {})[k] = hoy(); }
+    if (k) { delete E.casa[k]; baja(k); (E.noHay ||= {})[k] = hoy(); }
     E.casaExtra = (E.casaExtra || []).filter(x => L.parecido(x.n, a.producto) < 0.6);
     E.casaOtros = E.casaOtros.filter(x => L.parecido(x, a.producto) < 0.6);
     salva(); const c = autoMenu(); return `${a.producto}: fuera de En casa${c.length ? ` · ${c.length} plato${c.length > 1 ? 's' : ''} cambiado${c.length > 1 ? 's' : ''}` : ''}`;

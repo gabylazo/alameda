@@ -204,6 +204,44 @@ export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, s
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
 
+// Ajusta un menú a un presupuesto: cambia platos uno a uno, siempre el cambio que más baja la compra, hasta entrar en el tope.
+// La compra se calcula con lo que ya hay en casa (lo que tienen no se paga). Sin repetir comidas ni cenas, sin ensaladas solas,
+// con calorías parecidas (±30 %) para no romper la dieta. `apta(r, qs)`: lo que puede comer la casa. `desde`: no toca días anteriores.
+export function ajustaPresupuesto(plan, recetas, prod, fac, casa, tope, apta, desde = null, maxCambios = 30) {
+  const coste = pl => listaCompra(necesidades(pl, recetas, fac, desde), prod, casa).total;
+  const pl = { ...plan, dias: plan.dias.map(d => ({ ...d })) }, antes = coste(pl), cambios = [];
+  const kcal = (r, q) => macrosReceta(r, q, prod, fac).kcal;
+  let actual = antes, repetir = 1;   // primero sin repetir; si no cabe, cada comida o cena hasta dos veces (cocinar para dos días sale más barato)
+  while (actual > tope && cambios.length < maxCambios) {
+    let mejor = null;
+    pl.dias.forEach((d, i) => {
+      if (desde && d.f < desde) return;
+      for (const c of COMIDAS) {
+        const v = d[c];
+        if (!v || v.fuera || v.libre) continue;
+        for (const q of esDoble(v) ? QUIEN : [null]) {
+          const qs = q ? [q] : QUIEN, id = q ? v[q] : idDe(v), r = recetas[id];
+          if (!r) continue;
+          const usados = {}; pl.dias.forEach((dd, j) => ['comida', 'cena'].forEach(cc => { if (!(j === i && cc === c)) idsDe(dd[cc]).forEach(x => { usados[x] = (usados[x] || 0) + 1; }); }));
+          const cands = Object.values(recetas).filter(x => x.id !== id && x.tipo.includes(c) && apta(x, qs) && !(x.soloEnsalada && !DOBLES.includes(c))
+              && (DOBLES.includes(c) || (usados[x.id] || 0) < repetir) && Math.abs(kcal(x, qs[0]) - kcal(r, qs[0])) <= kcal(r, qs[0]) * 0.3);   // todas: lo que ya se compra para otro plato sale casi gratis
+          for (const x of cands) {
+            const viejo = d[c];
+            d[c] = q ? { ...viejo, [q]: x.id } : x.id;
+            const n = coste(pl);
+            if (actual - n > 0.05 && (!mejor || actual - n > mejor.ahorro)) mejor = { i, c, q, v: d[c], de: r.n, a: x.n, ahorro: actual - n, n };
+            d[c] = viejo;
+          }
+        }
+      }
+    });
+    if (!mejor) { if (repetir === 1) { repetir = 2; continue; } break; }
+    pl.dias[mejor.i][mejor.c] = mejor.v; actual = mejor.n;
+    cambios.push({ f: pl.dias[mejor.i].f, c: mejor.c, q: mejor.q, de: mejor.de, a: mejor.a, ahorro: Math.round(mejor.ahorro * 100) / 100, repite: repetir > 1 });
+  }
+  return { plan: pl, antes, despues: actual, cambios, cabe: actual <= tope };
+}
+
 // Rellena de nuevo los huecos que no estén marcados como «fuera» o «libre». Con «solo», únicamente ese tipo de comida;
 // con «desde», únicamente desde ese día. Desayunos y meriendas: uno distinto para cada uno.
 export const DOBLES = ['desayuno', 'merienda'];

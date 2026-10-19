@@ -663,3 +663,5 @@ body.con-chat main { padding-bottom: 210px; }
 .ing-fila .hay { display: inline-block; width: 18px; font-weight: 900; }
 .ing-fila .hay.si { color: #059669; } .ing-fila .hay.no { color: #dc2626; }
 .segmento.dos { grid-template-columns: 1fr 1.4fr; margin: 16px 0 6px; }
+
+.buscador-lista { width: 100%; margin: 4px 0 12px; }
