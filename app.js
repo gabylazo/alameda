@@ -84,6 +84,8 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias' },
+  { id: 'ensaladas', fecha: '2026-10-19', emo: '🥗', titulo: 'Cenas con ensalada', texto: 'Todas las cenas llevan su ensalada, distinta cada día y con lo que tenéis en casa.', ir: 'semana' },
   { id: 'chef-hace', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef te explica y te ayuda', texto: 'Pregúntale cómo se hace cualquier plato de la semana y te lo explica paso a paso. Si le pides algo («añade los huevos a lo que hay en casa»), te sale un botón para hacerlo.', ir: 'claude', foco: '.charla' },
   { id: 'casa-buscar', fecha: '2026-10-19', emo: '🏠', titulo: 'Añadir a En casa', texto: '«Añadir algo que tenéis» busca en Mercadona y coloca cada cosa en su sección. Lo que borras ya no vuelve solo.', ir: 'casa', foco: '#b-anadir-casa' },
   { id: 'recetas-claras', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Recetas paso a paso', texto: 'Cada receta dice qué preparar antes, el fuego, el tiempo y cómo saber que está hecho. Y abajo, «¿Dudas?» para preguntar al Chef sobre esa receta.', ir: 'recetas', foco: '.receta-tarjeta' },
@@ -401,13 +403,14 @@ let tEntra;
 function pinta() {
   $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === V.pestana ? 'page' : 'false'));
   const f = VISTAS[V.pestana] || vSemana;
-  document.body.classList.toggle('con-barra', V.pestana === 'compra');   // en Compra hay un botón fijo abajo
+  document.body.classList.toggle('con-barra', V.pestana === 'compra');
+  document.body.classList.toggle('con-chat', V.pestana === 'claude');   // en Compra hay un botón fijo abajo
   const vista = $('#vista');
   vista.classList.add('entra');
   f();
   $$('#vista > *').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   clearTimeout(tEntra); tEntra = setTimeout(() => vista.classList.remove('entra'), 1100);
-  window.scrollTo({ top: 0 });
+  if (V.pestana !== 'claude') window.scrollTo({ top: 0 });
 }
 function cabecera(titulo, sub = '') {
   const d = new Date(), perfil = V.pestana === 'nosotros';
@@ -835,7 +838,7 @@ function abrirReceta(id, ctx) {
       salva(); cierraHoja(); tostada('📅 Puesta en el menú'); if (V.pestana === 'semana') vSemana();
     });
     $('#b-a-lista', h).addEventListener('click', () => elegirRaciones(r));
-    $('#b-duda-receta', h).addEventListener('click', () => irAClaude(`Estoy haciendo «${r.n}»: `, null, { receta: recetaParaChef(r) }));
+    $('#b-duda-receta', h).addEventListener('click', () => irAClaude('', null, { receta: recetaParaChef(r) }));
     $('#b-fav-receta', h).addEventListener('click', e => {
       E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
       reconstruyeRecetas(); salva(); e.currentTarget.textContent = r.fav ? '❤️ Favorita' : '🤍 Favorita'; e.currentTarget.classList.add('pop');
@@ -2266,55 +2269,65 @@ function irAClaude(texto = '', fichero = null, datos = null) {
   if (V.pestana === 'claude') pinta(); else location.hash = 'claude';
 }
 function vClaude() {
-  cabecera(NOMBRE_AGENTE, 'Pregunta, pide un cambio o manda una foto');
-  const u = E.compras[0], p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
-  const enCasa = [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => nombreCorto(D.productos[k])), ...E.casaOtros];
-  const cena = d && recetas[L.idDe(d.cena)]?.n;
-  const atajos = [
-    ['🥘', '¿Qué hago con lo que hay?', `¿Qué puedo cocinar con lo que tenemos en casa? Hay: ${enCasa.join(', ') || 'nada apuntado todavía'}.`],
-    ['🔄', 'Cambiar un plato', `Cámbiame ${cena ? `la cena de hoy (${cena})` : 'un plato del menú'} por otra cosa.`],
-    ['❄️', '¿Esto se congela?', '¿Se puede congelar '],
-    ['🧾', 'Compras y tickets', 'historial'],
-    ['✍️', 'Receta nueva', 'Receta para NutriHome: '],
-  ].filter(a => a[2]);
-  const conServidor = !!servidor(), charla = (E.charla || []).slice(-12);
-  const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="' + esc(q.length) + '">ver todo</button>' : esc(q);
+  cabecera(NOMBRE_AGENTE, 'Pregúntale lo que quieras de cocina');
+  const conServidor = !!servidor(), charla = (E.charla || []).slice(-20), adj = V.datos?.receta;
+  const p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
+  const rec = c => d && !L.esDoble(d[c]) ? recetas[L.idDe(d[c])] : null, cena = rec('cena'), comida = rec('comida');
+  // Preguntas de un toque: se envían solas (con la receta adjunta cuando toca).
+  const rapidas = adj ? [
+    ['👩‍🍳', 'Explícamela paso a paso', `Explícame paso a paso «${adj.nombre}», que no sé cocinar.`],
+    ['🔁', '¿Qué puedo cambiar?', `¿Qué ingrediente de «${adj.nombre}» puedo cambiar por algo que tengamos en casa?`],
+    ['❄️', '¿Se puede guardar?', `¿Cuánto aguanta «${adj.nombre}» en la nevera? ¿Se puede congelar?`],
+  ] : [
+    cena && ['🌙', '¿Cómo hago la cena?', `Explícame paso a paso cómo hago la cena de hoy: ${cena.n}.`, { receta: recetaParaChef(cena) }],
+    comida && ['🍽️', '¿Cómo hago la comida?', `Explícame paso a paso cómo hago la comida de hoy: ${comida.n}.`, { receta: recetaParaChef(comida) }],
+    ['🥘', '¿Qué hago con lo que hay?', '¿Qué puedo cocinar ahora con lo que tenemos en casa?'],
+    cena && ['🔄', 'Cambia la cena', `Cámbiame la cena de hoy (${cena.n}) por otra que podamos hacer con lo que hay en casa.`],
+    ['🏠', 'Apuntar algo en casa', null, null, 'Tengo '],
+    ['🔎', '¿Es buena compra?', null, null, null, abrirEscaner],
+    ['🧾', 'Compras y tickets', null, null, null, abrirHistorial],
+  ].filter(Boolean);
+  const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="1">ver todo</button>' : esc(q);
   const burbujas = charla.map(c => { const { texto: rt, acciones } = separaAcciones(c.r || '');
-    return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${esc(rt).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}${acciones.map((a, i) => `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${(c.hechas || []).includes(i) ? ' disabled' : ''}>${(c.hechas || []).includes(i) ? '✓ Hecho' : esc(textoAccion(a))}</button>`).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">•••</div>`}`; }).join('')
-    + (charla.length ? '<button class="ver-todo" id="b-borrar-charla" style="align-self:center;margin-top:4px">Borrar toda la conversación</button>' : '');
+    return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${esc(rt).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}${acciones.map((a, i) => `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${(c.hechas || []).includes(i) ? ' disabled' : ''}>${(c.hechas || []).includes(i) ? '✓ Hecho' : esc(textoAccion(a))}</button>`).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">El Chef está escribiendo…</div>`}`; }).join('');
   $('#vista').innerHTML = `
-    ${conServidor && charla.length ? `<div class="charla-hilo" id="hilo">${burbujas}</div>` : ''}
-    <div class="tarjeta charla">
-      <textarea class="campo-texto" id="t-claude" placeholder="Escríbeme lo que quieras: ¿esto se congela?, cambia la cena del jueves, ¿qué hago con el brócoli?…">${esc(V.borrador || '')}</textarea>
+    <div class="chat" id="hilo">${charla.length ? `<button class="ver-todo" id="b-borrar-charla" style="align-self:center">Borrar la conversación</button>${burbujas}`
+      : `<div class="chat-hola"><span class="emo">👨‍🍳</span><b>Hola, soy el Chef.</b><span class="nota">Pregúntame cómo se hace un plato, qué cocinar con lo que tienes o pídeme que apunte algo. Toca una pregunta de abajo o escribe.</span></div>`}</div>
+    <div class="chat-barra"><div class="dentro">
+      ${adj ? `<div class="adjunto"><span>📖 ${esc(adj.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
+      ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
-      ${V.datos?.receta ? `<div class="adjunto"><span>📖 ${esc(V.datos.receta.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
-      ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}${V.datos.compra.ticket ? ' · ticket ' + euros(V.datos.compra.ticket.total) : ''}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
-      <div class="botones" style="margin-top:10px">${D.perfiles.bot ? '<label class="boton" for="i-foto-claude">📷 Foto</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">' : ''}
-        <button class="boton principal" id="b-enviar-claude" style="flex:1">${I.enviar}Enviar</button></div>
-    </div>
-    <button class="nueva-receta verde" id="b-escanear-claude"><span class="emo">🔎</span><span><b>¿Es buena compra?</b>Escanea el código o hazle una foto: te digo si es 🟢 🟡 🔴</span></button>
-    <div class="cat"><span class="emo">⚡</span>Atajos</div>
-    <div class="atajos">${atajos.map((a, i) => `<button class="atajo" data-atajo="${i}"><span class="emo">${a[0]}</span>${esc(a[1])}</button>`).join('')}</div>
-    ${conServidor ? `<div class="aviso" style="margin-top:16px"><span class="emo">☁️</span><div><b>Te contesto aquí</b>, normalmente en menos de un minuto.${D.perfiles.bot ? ' Las fotos, de momento, van por Telegram.' : ''}</div></div>`
-      : `<div class="aviso" style="margin-top:16px"><span class="emo">📨</span><div><b>Por ahora te contesto por Telegram.</b> Al enviar, elige Telegram y el chat con @${esc(D.perfiles.bot || 'el bot')}. Dentro de poco responderé aquí mismo.</div></div>`}`;
+      <div class="sugerencias">${rapidas.map((a, i) => `<button class="chip" data-rapida="${i}">${a[0]} ${esc(a[1])}</button>`).join('')}</div>
+      <form class="chat-form" id="f-chat">${D.perfiles.bot ? '<label class="icono" for="i-foto-claude" aria-label="Foto">📷</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">' : ''}
+        <textarea id="t-claude" rows="1" placeholder="Escribe al Chef…" enterkeyhint="send">${esc(V.borrador || '')}</textarea>
+        <button class="enviar-chat" aria-label="Enviar">${I.enviar}</button></form>
+    </div></div>`;
   const ta = $('#t-claude');
-  $('#b-escanear-claude').addEventListener('click', abrirEscaner);
-  ta.addEventListener('input', () => { V.borrador = ta.value; });
-  $$('[data-atajo]').forEach(b => b.addEventListener('click', () => { const v = atajos[+b.dataset.atajo][2]; if (v === 'historial') return abrirHistorial(); V.borrador = v; ta.value = v; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }));
+  const crece = () => { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; };
+  crece();
+  const enviar = async (texto, datos) => {
+    texto = (texto || '').trim();
+    if (!texto && !V.adjunto) { ta.focus(); return; }
+    if (datos) V.datos = datos;
+    if (conServidor && !V.adjunto) {
+      V.borrador = ''; ta.value = '';
+      try { await preguntaServidor(texto); } catch (e) { V.borrador = texto; tostada('No llego al servidor: ' + e.message); }
+      vClaude(); return;
+    }
+    if (await mandarAClaude(texto + (V.datos?.compra ? '\n\n' + textoCompra(V.datos.compra) : ''), V.adjunto)) { V.borrador = ''; V.adjunto = null; V.datos = null; vClaude(); }
+  };
+  ta.addEventListener('input', () => { V.borrador = ta.value; crece(); });
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviar(ta.value); } });
+  $('#f-chat').addEventListener('submit', e => { e.preventDefault(); enviar(ta.value); });
+  $$('[data-rapida]').forEach(b => b.addEventListener('click', () => {
+    const [, , texto, datos, rellena, fn] = rapidas[+b.dataset.rapida];
+    if (fn) return fn();
+    if (rellena) { ta.value = V.borrador = rellena; crece(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
+    enviar(texto, datos);
+  }));
   $('#i-foto-claude')?.addEventListener('change', e => { V.adjunto = e.target.files[0] || null; vClaude(); });
   $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
   $('#b-quitar-datos')?.addEventListener('click', () => { V.datos = null; vClaude(); });
-  $('#b-enviar-claude').addEventListener('click', async () => {
-    if (!ta.value.trim() && !V.adjunto) { ta.focus(); tostada('Escribe algo o adjunta una foto'); return; }
-    if (conServidor && !V.adjunto) {
-      const texto = ta.value.trim(); V.borrador = ''; ta.value = '';
-      try { await preguntaServidor(texto); vClaude(); $('#hilo')?.scrollIntoView({ block: 'end' }); }
-      catch (e) { V.borrador = texto; tostada('No llego al servidor: ' + e.message); vClaude(); }
-      return;
-    }
-    if (await mandarAClaude(ta.value + (V.datos?.compra ? '\n\n' + textoCompra(V.datos.compra) : ''), V.adjunto)) { V.borrador = ''; V.adjunto = null; V.datos = null; vClaude(); }
-  });
-  $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
   $$('[data-accion]').forEach(b => b.addEventListener('click', () => {
     const [id, i] = b.dataset.accion.split('|'), c = (E.charla || []).find(x => x.id === id); if (!c) return;
     const a = separaAcciones(c.r).acciones[+i]; if (!a) return;
@@ -2323,8 +2336,9 @@ function vClaude() {
   }));
   $$('[data-borrar]').forEach(b => b.addEventListener('click', () => { E.charla = (E.charla || []).filter(c => c.id !== b.dataset.borrar); salva(); vClaude(); }));
   $$('[data-ver]').forEach(b => b.addEventListener('click', e => { const c = (E.charla || []).find(x => x.id === e.target.closest('.burbuja').dataset.q); if (c) hoja(`<h2>Tu mensaje</h2><p style="white-space:pre-wrap">${esc(c.q)}</p>`); }));
-  $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef en los dos móviles?')) { E.charla = []; salva(); vClaude(); } });
-  if (charla.length) setTimeout(() => $('#hilo')?.lastElementChild?.scrollIntoView({ block: 'nearest' }), 100);
+  $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef?')) { E.charla = []; salva(); vClaude(); } });
+  $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
+  requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight));   // lo último, a la vista
 }
 // Recetas que el Chef necesita ver enteras: las de ayer, hoy y mañana, y las que se nombran en la pregunta o en lo último hablado.
 function recetasParaPregunta(texto, pe, h) {

@@ -642,3 +642,21 @@ details.comprados .lista { box-shadow: none; background: var(--tarjeta-2); }
 .fila-simple .chip + .chip, .fila-simple .chip + .icono { margin-left: -4px; }
 .prep { margin: 6px 0 4px; padding-left: 20px; } .prep li { margin: 5px 0; font-size: 15px; }
 .pasos li span { font-size: 15.5px; line-height: 1.45; }
+
+/* Chef como chat (19/10/2026): conversación arriba, escribir abajo, preguntas de un toque */
+body.con-chat main { padding-bottom: 210px; }
+.chat { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.chat-hola { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 26px 12px; }
+.chat-hola .emo { font-size: 46px; } .chat-hola b { font-size: 18px; }
+.chat-barra { position: fixed; left: 0; right: 0; bottom: calc(var(--barra) + env(safe-area-inset-bottom)); z-index: 19; background: rgba(255, 253, 247, .97); border-top: 1px solid #f1f5f9; padding: 8px 12px 10px; }
+.chat-barra .dentro { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.chat-barra .adjunto { margin: 0; }
+.sugerencias { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
+.sugerencias::-webkit-scrollbar { display: none; }
+.sugerencias .chip { flex: 0 0 auto; background: #ecfdf5; border-color: #d1fae5; color: #065f46; }
+.chat-form { display: flex; align-items: flex-end; gap: 8px; }
+.chat-form textarea { flex: 1; min-width: 0; resize: none; border: 1.5px solid var(--linea); border-radius: 22px; padding: 10px 14px; font-size: 16px; line-height: 1.35; background: #fff; outline: 0; max-height: 120px; }
+.chat-form textarea:focus { border-color: var(--acento-vivo); }
+.enviar-chat { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; border: 0; background: linear-gradient(135deg, #6ee7b7, #34d399); color: #053b2a; display: grid; place-items: center; }
+.chat-form .icono { flex: 0 0 auto; font-size: 20px; }
+.burbuja.pensando { font-style: italic; letter-spacing: 0; }
