@@ -619,6 +619,8 @@ function autoMenu() {
   }
   if (!s.compraHecha) return [];   // antes de comprar, lo que falta va a la lista
   const hay = { ...E.casa }, cambios = [];
+  const principal = x => x.ing.filter(ing => ['p', 'h'].includes(ing[2]) && ing[1] >= 30 && !infinito(ing[0])).map(ing => ing[0]);
+  let previo = [];   // lo principal de la comida o cena anterior (para no repetirlo seguido)
   p.dias.forEach((d0, i) => {
     if (d0.f < h) return;
     for (const c of L.COMIDAS) {
@@ -631,27 +633,35 @@ function autoMenu() {
         if (!r) continue;
         let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true), hay).filter(kk => !(E.pendientes || []).some(x => x.k === kk));   // lo apuntado para comprar ya cuenta: el plato se queda
         const sola = r.soloEnsalada && !L.DOBLES.includes(c);   // una ensalada sola no es comida ni cena: hace falta un plato principal
-        if (falta.length || sola) {
+        const seguido = !L.DOBLES.includes(c) && principal(r).some(kk => previo.includes(kk));   // lo mismo que la comida o cena anterior
+        if (falta.length || sola || seguido) {
           const cand = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '')), q).filter(x => aptaCasa(x, qs));
           // Nada repetido en comidas y cenas: ni lo de esta semana (también lo ya comido) ni lo de otro día.
           const cerca = new Set();
           if (!L.DOBLES.includes(c)) efectivo(p).dias.forEach(d => { for (const cc of L.COMIDAS) { if (d.f === d0.f && cc === c) continue; const v2 = d[cc]; if (v2 && !v2.fuera && !v2.libre) L.idsDe(v2).forEach(x => cerca.add(x)); } });
-          const orden = (x, y) => alcanza(necesita(x, qs), hay).length - alcanza(necesita(y, qs), hay).length;
+          // Tampoco el mismo ingrediente principal en las comidas y cenas de ese día ni del día antes o después (jamoncitos a mediodía y por la noche).
+          const prin = x => x.ing.filter(ing => ['p', 'h'].includes(ing[2]) && ing[1] >= 30 && !infinito(ing[0])).map(ing => ing[0]);
+          const junto = new Set();
+          if (!L.DOBLES.includes(c)) efectivo(p).dias.forEach((d, j) => { if (Math.abs(j - i) > 1) return; for (const cc of ['comida', 'cena']) { if (j === i && cc === c) continue; const v2 = d[cc]; if (v2 && !v2.fuera && !v2.libre) L.idsDe(v2).forEach(x => recetas[x] && prin(recetas[x]).forEach(kk => junto.add(kk))); } });
+          const choca = x => prin(x).filter(kk => junto.has(kk)).length;
+          const orden = (x, y) => choca(x) - choca(y) || alcanza(necesita(x, qs), hay).length - alcanza(necesita(y, qs), hay).length;
           const posibles = cand.filter(x => !alcanza(necesita(x, qs, true), hay).length).sort(orden);
-          let nueva = posibles.find(x => !cerca.has(x.id)) || (cerca.has(r.id) ? null : posibles[0]), comprar = [];
-          if (!nueva) {   // con lo que hay no sale ningún plato: el que menos haya que comprar, sin repetir, y lo que falta a la compra
+          let nueva = posibles.find(x => !cerca.has(x.id) && (!seguido || !choca(x))) || (cerca.has(r.id) || seguido ? null : posibles[0]), comprar = [];
+          if (!nueva && seguido && !falta.length && !sola) { /* se puede hacer y no hay otro sin repetir: se queda */ }
+          else if (!nueva) {   // con lo que hay no sale ningún plato: el que menos haya que comprar, sin repetir, y lo que falta a la compra
             const noHay = new Set([...Object.keys(E.noHay || {}), ...(D.semana.correcciones || []).flatMap(cc => Object.keys(cc.si || {}).filter(kk => (cc.si[kk][1] >= cc.si[kk][0])))]);   // lo que dijeron que no hay: no se propone comprarlo
-            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => a.f.length - b.f.length || orden(a.x, b.x))[0];
+            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => choca(a.x) - choca(b.x) || a.f.length - b.f.length || orden(a.x, b.x))[0];
             if (mejor && (sola || cerca.has(r.id) || mejor.f.length < falta.length)) { nueva = mejor.x; comprar = mejor.f; } else comprar = falta;
           }
           for (const kk of comprar) apuntaPendiente({ k: kk, n: nombreCorto(D.productos[kk]) });
           if (nueva) {
             if (q) { const base = L.esDoble(vv) ? { ...vv } : { G: L.idDe(vv), P: L.idDe(vv) }; base[q] = nueva.id; s.cambios[k] = base; } else s.cambios[k] = nueva.id;
-            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta), sola: sola && !falta.length, comprar: comprar.map(nombreFalta) });
+            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta), sola: sola && !falta.length, seguido: seguido && !sola && !falta.length, comprar: comprar.map(nombreFalta) });
             n = necesita(nueva, qs); falta = [];
           }
         }
         for (const [kk, g] of Object.entries(n)) hay[kk] = Math.max(0, (hay[kk] || 0) - g);   // lo que se va a gastar
+        if (!L.DOBLES.includes(c)) { const rr = recetas[L.idDe(efectivo(p).dias[i][c])]; previo = rr ? principal(rr) : []; }
       }
     }
   });
@@ -697,7 +707,7 @@ function ajusteAutomatico() {
   return adaptaMenu(p);
 }
 function htmlCambiosMenu(cambios) {
-  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · ${x.sola ? 'solo era ensalada' : 'sin ' + esc(enumera(x.falta, 3))}</div>
+  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · ${x.sola ? 'solo era ensalada' : x.seguido ? 'repetía lo anterior' : 'sin ' + esc(enumera(x.falta, 3))}</div>
     <div><s>${esc(x.de)}</s><br>${x.a ? `<b>${esc(x.a)}</b>` : '<b class="persona-g">Sin alternativa con lo que tenéis</b>'}${x.comprar?.length ? `<div class="nota">🛒 Para este hay que comprar ${esc(enumera(x.comprar, 3))}: está en «Pendiente» de Compra.</div>` : ''}</div></div>`).join('');
 }
 // Platos pendientes (desde hoy, sin comer) que necesitan un aparato que la casa no tiene.
