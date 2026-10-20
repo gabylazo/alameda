@@ -85,6 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'compartir-receta', fecha: '2026-10-20', emo: '📤', titulo: 'Compartir recetas', texto: 'En cada receta, «📤 Compartir»: la mandas por WhatsApp (o donde quieras) con los ingredientes y el paso a paso.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'chef-menu-recetas', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'El Chef rehace el menú y crea recetas', texto: 'Pídele «rehaz el menú con lo que tenemos» o «créame una receta de…»: te sale un botón y, al tocarlo, lo hace (con Deshacer). Sus recetas se guardan como vuestras.', ir: 'claude' },
   { id: 'bebidas', fecha: '2026-10-19', emo: '🥤', titulo: 'Bebidas', texto: 'En Recetas, el filtro «🥤 Bebidas»: limonada de lima con albahaca, mojito sin alcohol, agua de fresas, smoothies… Sin azúcar. Tocad ❤️ en las que os gusten.', ir: 'recetas', foco: '[data-filtro="bebida"]' },
   { id: 'huel-escondido', origen: true, fecha: '2026-10-19', emo: '🥞', titulo: 'Huel que no sabe a Huel', texto: 'Cuatro recetas con Huel sin sabor escondido: tortitas de avena, crema de queso batido con arándanos y cacao, avena de la noche y bizcocho de taza de cacao.', ir: 'recetas' },
@@ -922,13 +923,14 @@ function abrirReceta(id, ctx) {
     ${r.truco ? `<div class="aviso"><span class="emo">💡</span><div><b>Truco:</b> ${esc(r.truco)}</div></div>` : ''}
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
     <button class="boton suave ancho" id="b-duda-receta" style="margin-top:10px">💬 ¿Dudas? Pregúntale al Chef</button>
-    <div class="botones" style="margin-top:14px"><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
+    <div class="botones" style="margin-top:14px"><button class="boton" id="b-compartir-receta">📤 Compartir</button><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
       ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}Al Chef</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
       <select id="s-dia" class="boton">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
       <select id="s-com" class="boton">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
       ${L.QUIEN.length > 1 ? `<select id="s-quien" class="boton"><option value="">👫 Los dos</option>${L.QUIEN.map(q => `<option value="${q}">${esc(NOM[q])}</option>`).join('')}</select>` : ''}
       <button class="boton principal" id="b-poner">Poner</button></div>`}`, h => {
+    $('#b-compartir-receta', h)?.addEventListener('click', () => compartirTexto(r.n, recetaParaCompartir(r), '📋 Receta copiada: pégala donde quieras'));
     $('#b-poner', h)?.addEventListener('click', () => {
       const f = $('#s-dia', h).value, c = $('#s-com', h).value, q = $('#s-quien', h)?.value || '', s = est(plan.id), k = f + '|' + c;
       if (q) { const v = efectivo(plan).dias.find(d => d.f === f)[c]; const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[q] = r.id; s.cambios[k] = base; }
@@ -1626,6 +1628,15 @@ const textoCompra = r => [`Compra del ${new Date(r.f).toLocaleDateString('es-ES'
   r.ticket?.lineas?.length ? `Renglones del ticket: ${r.ticket.lineas.map(([n, d, imp, kg]) => `${kg ? String(kg).replace('.', ',') + ' kg' : n} ${d} ${euros(imp)}`).join('; ')}` : '',
   r.ticket ? 'Compáralo con el plan y ajústalo.' : 'Compáralo con el ticket y ajusta el plan.'].filter(Boolean).join('\n');
 
+// La receta en texto para mandarla (WhatsApp, notas…): cantidades de una ración, el paso a paso más completo y el truco.
+function recetaParaCompartir(r) {
+  const q = L.QUIEN[0], g = ing => { const x = L.gramos(ing, q, fac); return x ? cantidadCasa(ing[0], x) : ''; };
+  const ings = [...r.ing.map(ing => `• ${nombreCorto(D.productos[ing[0]] || { n: ing[0] }).replace(/\s*\([^)]*\)/g, '')}${g(ing) ? ' · ' + g(ing).replace(/^≈\s*/, '') : ''}`), ...[...(r.otros || []), ...(r.basicos || [])].map(t => `• ${t}`)];
+  const pasos = r.detalle?.length ? r.detalle : r.pasos || [];
+  return [`${emojiReceta(r)} ${r.n}`, `${APARATO[r.ap] || 'Cocina'} · ${r.min} min`, '', 'Ingredientes (1 ración):', ...ings,
+    ...(r.prep?.length ? ['', 'Antes de empezar:', ...r.prep.map(x => `• ${x}`)] : []),
+    '', 'Paso a paso:', ...pasos.map((x, i) => `${i + 1}. ${x}`), ...(r.truco ? ['', `💡 ${r.truco}`] : []), '', '— NutriHome'].join('\n');
+}
 async function compartirTexto(titulo, txt, copiado) {
   try { if (navigator.share) { await navigator.share({ title: titulo, text: txt }); return; } } catch { return; }
   try { await navigator.clipboard.writeText(txt); tostada(copiado); } catch { tostada('No he podido compartirlo'); }
