@@ -85,6 +85,7 @@ const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
+  { id: 'aviso-noche', fecha: '2026-10-20', emo: '🌙', titulo: 'Aviso la noche antes', texto: 'Si mañana toca algo que se prepara la noche antes (como la avena de la noche), desde las 17:00 te sale en Semana «Esta noche, 5 minutos».', ir: 'semana' },
   { id: 'compartir-receta', fecha: '2026-10-20', emo: '📤', titulo: 'Compartir recetas', texto: 'En cada receta, «📤 Compartir»: la mandas por WhatsApp (o donde quieras) con los ingredientes y el paso a paso.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'chef-menu-recetas', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'El Chef rehace el menú y crea recetas', texto: 'Pídele «rehaz el menú con lo que tenemos» o «créame una receta de…»: te sale un botón y, al tocarlo, lo hace (con Deshacer). Sus recetas se guardan como vuestras.', ir: 'claude' },
   { id: 'bebidas', fecha: '2026-10-19', emo: '🥤', titulo: 'Bebidas', texto: 'En Recetas, el filtro «🥤 Bebidas»: limonada de lima con albahaca, mojito sin alcohol, agua de fresas, smoothies… Sin azúcar. Tocad ❤️ en las que os gusten.', ir: 'recetas', foco: '[data-filtro="bebida"]' },
@@ -512,6 +513,10 @@ function vSemana() {
   V.tengo = loQueTenemos(p, s);
   const sinCosas = platosSinCosas(pe, s);
   if (E.ultimosAuto && Date.now() - new Date(E.ultimosAuto.t) < 864e5) banners.push(letrero('auto:' + E.ultimosAuto.t, '🔄', `<b>Menú adaptado a lo que hay en casa</b>: ${E.ultimosAuto.cambios.length} plato${E.ultimosAuto.cambios.length > 1 ? 's' : ''}.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-auto">Ver cambios</button></div>`));
+  // Recetas que se preparan la noche antes (avena de la noche…): aviso desde las 17:00 del día anterior.
+  const manana = masDias(h, 1), dm = planes().map(efectivo).flatMap(x => x.dias).find(x => x.f === manana);
+  const deNoche = new Date().getHours() >= 17 && dm ? L.COMIDAS.flatMap(c => L.idsDe(dm[c]).filter(id => recetas[id]?.noche).map(id => ({ c, id }))) : [];
+  if (deNoche.length) banners.unshift(letrero('noche:' + manana, '🌙', `<b>Esta noche, 5 minutos:</b> deja preparada ${deNoche.map(x => esc(recetas[x.id].n.toLowerCase())).join(' y ')} para ${L.NOMBRE_COMIDA[deNoche[0].c].toLowerCase()} de mañana.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-noche" data-receta-noche="${deNoche[0].id}">Ver cómo</button></div>`));
   const sinAparato = platosSinAparato(p);
   if (sinAparato.length) banners.push(letrero('aparatos:' + p.id + ':' + aparatosCasa().join(','), '🍳', `<b>${sinAparato.length} plato${sinAparato.length > 1 ? 's necesitan' : ' necesita'} ${esc(enumera([...new Set(sinAparato.map(x => nombreAparato(x.r.ap)))], 3))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar-aparatos">🔄 Cambiarlos</button></div>`));
   if (sinCosas.platos) banners.push(letrero('falta:' + p.id + ':' + [...sinCosas.claves].sort().join(','), '🛒',
@@ -544,6 +549,7 @@ function vSemana() {
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
   $('#b-ajustar')?.addEventListener('click', () => { const c = adaptaMenu(p); vSemana(); hojaCambiosMenu(c); });
   $('#b-ver-auto')?.addEventListener('click', () => hojaCambiosMenu(E.ultimosAuto.cambios));
+  $('#b-ver-noche')?.addEventListener('click', e => abrirReceta(e.currentTarget.dataset.recetaNoche));
   $('#b-ajustar-aparatos')?.addEventListener('click', () => { const c = ajustaPorAparatos(p); vSemana(); hojaCambiosMenu(c); });
   $('#b-preparar')?.addEventListener('click', () => { siguienteSemana(); location.hash = 'compra'; });
   activaLetreros();
@@ -2522,8 +2528,8 @@ function contextoParaClaude(texto = '') {
     recetasPropias: (E.propias || []).map(r => r.n),
     menuSemanaEntera: pe.dias.map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
     recetasCompletas: recetasParaPregunta(texto, pe, h).map(recetaParaChef),
-    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${r.soloEnsalada ? ' [solo ensalada: no vale sola como comida o cena]' : ''}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}`),
-    productosDeLaApp: Object.values(D.productos).filter(x => !x.despensa).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
+    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}`),
+    productosDeLaApp: Object.values(D.productos).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
     conversacionReciente: (E.charla || []).filter(c => c.r).slice(-5).map(c => ({ pregunta: c.q.slice(0, 400), respuesta: c.r.slice(0, 600) })),
   };
 }
@@ -2544,6 +2550,8 @@ function textoAccion(a) {
   if (a.tipo === 'cambiar') return `🔄 Poner «${recetas[a.receta]?.n || a.receta}» (${L.NOMBRE_COMIDA[a.comida] || a.comida}, ${a.dia})`;
   return 'Hacerlo';
 }
+// El aparato como lo diga el Chef («Sartén», «air fryer», «microondas»…) → la clave de la app.
+const aparatoDe = t => { const n = L.normaliza(String(t || '')); return /air|freidora/.test(n) ? 'airfryer' : /horno/.test(n) ? 'horno' : /micro/.test(n) ? 'micro' : /batidor|licuador/.test(n) ? 'batidora' : /olla|cazo|hervi|cocer/.test(n) ? 'olla' : /sin|nada|frio/.test(n) ? 'sin' : 'plancha'; };
 // Pone una receta en un día y comida (con «quien» solo para esa persona en desayunos y meriendas). Devuelve false si el día no está.
 function ponPlato(a) {
   const p = planes().find(pl => pl.dias.some(d => d.f === a.dia)); if (!p) return false;
@@ -2601,7 +2609,7 @@ function haceAccion(a) {
     const x = L.interpretaReceta(ingT, (a.pasos || []).join('\n'), D.productos);
     const tipos = (a.comidas || []).filter(c => [...L.COMIDAS, 'bebida'].includes(c));
     const r = { id: 'p-' + uid(), n: capital(String(a.nombre).slice(0, 90)), e: a.emoji || L.emojiDe(a.nombre + ' ' + ingT), tipo: tipos.length ? tipos : ['comida', 'cena'],
-      ap: ['airfryer', 'plancha', 'micro', 'batidora', 'olla', 'horno', 'sin'].includes(a.aparato) ? a.aparato : 'plancha', min: Math.max(1, parseInt(a.minutos, 10) || 15), prot: 'propia',
+      ap: aparatoDe(a.aparato), soloEnsalada: a.acompanamiento ? true : undefined, acomp: a.acompanamiento ? true : undefined, min: Math.max(1, parseInt(a.minutos, 10) || 15), prot: 'propia',
       ing: x.ing, otros: x.otros, basicos: x.basicos, pasos: x.pasos.length ? x.pasos : (a.pasos || []), detalle: (a.detalle || []).map(String).slice(0, 20), truco: a.truco ? String(a.truco) : undefined,
       txt: { ing: ingT, pasos: (a.pasos || []).join('\n') }, propia: true, chef: true, creada: new Date().toISOString() };
     if (!r.ing.length) { tostada('No reconozco los ingredientes de esa receta'); return null; }
