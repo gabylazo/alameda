@@ -60,6 +60,7 @@ const SVG = {
   volver: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
 };
 const I = {
+  corazon: ic('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>'),
   buscar: ic('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
   chispas: ic('<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
   caja: ic('<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>'),
@@ -85,6 +86,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'fotos', fecha: '2026-10-24', emo: '', titulo: 'Fotos y letra nueva', texto: 'Cada receta tiene su foto, también las que creéis vosotros o con el Chef (se elige sola y se puede cambiar en la receta). Letra más limpia y listas más ordenadas.', ir: 'recetas' },
   { id: 'nutrihome3', fecha: '2026-10-23', emo: '', titulo: 'NutriHome, más sencilla', texto: 'Tres pantallas: Hoy (lo que toca hoy y el Chef en la misma pantalla), Compra y Nevera. «Cómo se hace» te explica la cena paso a paso al momento. Desayuno, almuerzo con Huel y cena sólida con ensalada. La semana y las recetas, desde Hoy.', ir: 'hoy', origen: true },
   { id: 'legumbres', fecha: '2026-10-22', emo: '🫘', titulo: 'Platos de legumbres', texto: 'Cinco platos calientes con garbanzos y lentejas: salteado con atún, lentejas guisadas, lentejas con arroz y cebolla, bol de quinoa con garbanzos crujientes y curry de garbanzos. El menú los usa cuando están en casa.', ir: 'recetas' },
   { id: 'chef-notas', fecha: '2026-10-22', emo: '📝', titulo: 'El Chef recuerda vuestras costumbres', texto: 'Lo que le contéis (horarios, comidas ligeras, cenas más elaboradas…) se queda apuntado en Nosotros y lo tiene en cuenta siempre. Y ya solo propone platos que salen con lo de casa, salvo que le pidáis comprar.', ir: 'nosotros', foco: '#f-nota' },
@@ -151,6 +153,37 @@ const CAT_EMO = { 'Fruta y verdura': '🥬', 'Panadería y pastelería': '🥖',
   'Cuidado del cabello': '💇‍♀️', 'Cuidado facial y corporal': '🧴', 'Fitoterapia y parafarmacia': '💊', 'Maquillaje': '💄', 'Bebé': '🍼', 'Mascotas': '🐾', 'Otros': '🛒' };
 const NO_COMIDA = new Set(['Limpieza y hogar', 'Cuidado del cabello', 'Cuidado facial y corporal', 'Fitoterapia y parafarmacia', 'Maquillaje', 'Mascotas']);
 const emojiReceta = r => r?.e || L.emojiDe(r?.n || '');
+// Fotos de los platos (24/10/2026): fotos libres de Pexels; `foto` en recetas.json es la ruta tras /photos/. Sin foto, un fondo suave con el icono de la comida.
+const urlRuta = (ruta, w = 600) => `https://images.pexels.com/photos/${ruta}?auto=compress&cs=tinysrgb&fit=crop&w=${w}&h=${Math.round(w * .75)}`;
+const urlFoto = (r, w = 600) => { const f = r?.foto || fotoAuto(r); return f ? urlRuta(f, w) : ''; };
+// Las recetas que creáis vosotros o el Chef: la foto sale sola del banco de Pexels (web/fotos.json, [ruta, descripción en inglés]),
+// traduciendo el nombre y los ingredientes con ES_EN y quedándose con la descripción que más palabras comparte. Se guarda al crearla.
+let BANCO = null;
+const cargaBanco = () => BANCO || (BANCO = fetch('fotos.json').then(r => r.ok ? r.json() : []).catch(() => []).then(l => { BANCO = l.map(([ruta, t]) => ({ ruta, p: new Set(L.normaliza(t).split(/[^a-z]+/).map(raiz)) })); return BANCO; }));
+const raiz = w => w.replace(/(ies)$/, 'y').replace(/(es|s)$/, '');
+const ES_EN = { pollo: 'chicken', pechuga: 'chicken breast', muslo: 'chicken', jamoncito: 'chicken drumstick', pavo: 'turkey', ternera: 'beef', anojo: 'beef steak', vacuno: 'beef', entrecot: 'steak', filete: 'steak', carne: 'meat', cerdo: 'pork', lomo: 'pork loin', solomillo: 'tenderloin', costilla: 'ribs', hamburguesa: 'burger', albondiga: 'meatballs', jamon: 'ham', serrano: 'ham', chorizo: 'chorizo',
+  pescado: 'fish', merluza: 'white fish', bacalao: 'cod', salmon: 'salmon', atun: 'tuna', gamba: 'shrimp', langostino: 'prawn', marisco: 'seafood', calamar: 'squid', pulpo: 'octopus', sardina: 'sardine',
+  huevo: 'egg', clara: 'egg', tortilla: 'omelette', revuelto: 'scrambled egg', queso: 'cheese', cabra: 'goat cheese', mozzarella: 'mozzarella', yogur: 'yogurt', kefir: 'yogurt', leche: 'milk', nata: 'cream', mantequilla: 'butter',
+  arroz: 'rice', pasta: 'pasta', macarron: 'pasta', espagueti: 'spaghetti', fideo: 'noodles', noqui: 'gnocchi', pan: 'bread', tostada: 'toast', wrap: 'wrap', quinoa: 'quinoa', avena: 'oats', cuscus: 'couscous', patata: 'potato', boniato: 'sweet potato', batata: 'sweet potato', yuca: 'cassava', platano: 'banana', maiz: 'corn',
+  lenteja: 'lentil', garbanzo: 'chickpea', alubia: 'beans', judia: 'green beans', frijol: 'beans', legumbre: 'beans', edamame: 'edamame', hummus: 'hummus', tofu: 'tofu',
+  ensalada: 'salad', lechuga: 'lettuce', rucula: 'arugula', canonigo: 'salad', espinaca: 'spinach', tomate: 'tomato', cherry: 'cherry tomato', pepino: 'cucumber', zanahoria: 'carrot', cebolla: 'onion', ajo: 'garlic', pimiento: 'pepper', calabacin: 'zucchini', berenjena: 'eggplant', champinon: 'mushroom', seta: 'mushroom', brocoli: 'broccoli', coliflor: 'cauliflower', esparrago: 'asparagus', aguacate: 'avocado', verdura: 'vegetables', calabaza: 'pumpkin', guisante: 'peas',
+  fruta: 'fruit', fresa: 'strawberry', arandano: 'blueberry', frambuesa: 'raspberry', frutos: 'berries', rojos: 'berries', kiwi: 'kiwi', mango: 'mango', pina: 'pineapple', naranja: 'orange', mandarina: 'mandarin', limon: 'lemon', lima: 'lime', manzana: 'apple', pera: 'pear', uva: 'grape', melon: 'melon', sandia: 'watermelon', granada: 'pomegranate', coco: 'coconut',
+  nuez: 'walnuts', almendra: 'almonds', anacardo: 'cashews', cacahuete: 'peanut', pinon: 'pine nuts', chocolate: 'chocolate', cacao: 'chocolate', canela: 'cinnamon', miel: 'honey', albahaca: 'basil', hierbabuena: 'mint', menta: 'mint', jengibre: 'ginger', curry: 'curry', mojo: 'sauce', salsa: 'sauce',
+  sopa: 'soup', crema: 'cream soup', pure: 'mashed', guiso: 'stew', guisada: 'stew', estofado: 'stew', asado: 'roasted', plancha: 'grilled', horno: 'baked', frito: 'fried', salteado: 'stir fry', wok: 'wok', brocheta: 'skewers', bol: 'bowl', batido: 'smoothie', smoothie: 'smoothie', zumo: 'juice', limonada: 'lemonade', agua: 'water', helado: 'ice cream', bizcocho: 'cake', tarta: 'cake', galleta: 'cookies', tortita: 'pancakes', crep: 'crepe', postre: 'dessert', pizza: 'pizza', lasana: 'lasagna', paella: 'paella', croqueta: 'croquettes', empanada: 'empanada', arepa: 'arepa', taco: 'tacos', burrito: 'burrito', sandwich: 'sandwich', bocadillo: 'sandwich' };
+const CONDIMENTOS = new Set(['garlic', 'sauce', 'lime', 'lemon', 'onion', 'cinnamon', 'basil', 'mint', 'ginger', 'honey', 'water', 'cream', 'grilled', 'baked', 'roasted', 'fried', 'bowl'].map(w => w.replace(/(es|s)$/, '')));
+const palabrasEn = t => L.normaliza(t).split(/[^a-z]+/).filter(w => w.length > 2).flatMap(w => { const e = ES_EN[w] || ES_EN[w.replace(/(es|s)$/, '')]; return e ? e.split(' ') : []; }).map(raiz);
+function fotosPara(r, n = 1) {
+  if (!Array.isArray(BANCO) || !r) return [];
+  const nom = palabrasEn(r.n), ing = palabrasEn((r.ing || []).map(i => D.productos[i[0]]?.n || '').join(' ') + ' ' + (r.otros || []).join(' '));
+  if (!nom.length && !ing.length) return [];
+  const usadas = new Set(Object.values(recetas).map(x => x.foto).filter(Boolean));
+  // Manda lo principal (la primera palabra del nombre que no es condimento): una foto que lo tiene gana siempre a una que no.
+  const peso = w => CONDIMENTOS.has(w) ? .5 : 3, principal = nom.find(w => !CONDIMENTOS.has(w));
+  return BANCO.map(f => ({ f, pts: (principal && f.p.has(principal) ? 100 : 0) + nom.reduce((t, w) => t + (f.p.has(w) ? peso(w) : 0), 0) + ing.reduce((t, w) => t + (f.p.has(w) ? peso(w) / 3 : 0), 0) - (usadas.has(f.ruta) ? 2 : 0) }))
+    .filter(x => x.pts > 0).sort((a, b) => b.pts - a.pts).filter((x, i, l) => l[0].pts < 100 || x.pts >= 100 || i < 4).slice(0, n).map(x => x.f.ruta);   // si hay fotos de lo principal, solo esas
+}
+const fotoAuto = r => r && !r.foto && (r.propia || r.chef) ? fotosPara(r)[0] || '' : '';
+const fotoPlato = (r, w = 600, cls = 'foto') => urlFoto(r, w) ? `<img class="${cls}" src="${urlFoto(r, w)}" alt="" loading="lazy" decoding="async">` : `<span class="${cls} sin-foto c-${r?.tipo0 || r?.tipo?.[0] || 'cena'}">${ICONO_COMIDA[(r?.tipo0 || r?.tipo?.[0]) === 'desayuno' ? 'desayuno' : (r?.tipo0 || r?.tipo?.[0]) === 'merienda' ? 'merienda' : 'cena']}</span>`;
 const emojiSeccion = n => CAT_EMO[n] || (E.secciones || []).find(s => s.n === n)?.e || '🏷️';
 
 // Anillo doble (SVG): por fuera las kcal, por dentro la proteína.
@@ -384,6 +417,12 @@ async function inicio() {
   if (D.amiga && !D.semana) { const plan = creaPlan(hoy(), diasHasta(E.hogar.diaCompra ?? 6)); E.planes = [plan]; D.semana = plan; salva(); }   // su primer menú
   consumePasados();
   pintaMarco();
+  cargaBanco().then(() => {   // fotos de las recetas propias que aún no la tienen (las de antes del 24/10): se eligen una vez y se guardan
+    const sin = (E.propias || []).filter(r => !r.foto);
+    for (const r of sin) r.foto = fotosPara(r)[0] || undefined;
+    if (sin.some(r => r.foto)) { reconstruyeRecetas(); salva(); }
+    if (!document.querySelector('.hoja')) repinta();
+  });
   window.addEventListener('hashchange', () => {
     const n = (location.hash.slice(1) || 'hoy').split('/')[0];
     if (SUBVISTAS.includes(n) && !SUBVISTAS.includes(V.pestana)) V.anterior = V.pestana;   // para el botón de volver
@@ -815,13 +854,13 @@ function tarjetaComida(p, d, i, c, s, ahora) {
   const pillFalta = r => { const f = hecho ? [] : [...new Set([...faltaExplicita(r, s), ...faltaEnCasa(r)])]; return f.length ? `<span class="pill malo">⚠️ sin ${esc(enumera(f.map(nombreFalta), 2))}</span>` : ''; };
   if (L.esDoble(v)) {
     const fila = q => { const r = recetas[v[q]]; const m = r ? L.macrosReceta(r, q, D.productos, fac) : null;
-      return `<button class="fila-doble" data-acc="${c}" data-q="${q}"><span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span><span class="mini-tile">${r ? emojiReceta(r) : '➕'}</span>
+      return `<button class="fila-doble" data-acc="${c}" data-q="${q}"><span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span>${r ? fotoPlato(r, 120, 'doble-foto') : ''}
         <span class="nombre-s">${r ? esc(r.n) : 'Sin plato'}${r && (pillFalta(r) || pillAparato(r)) ? '<br>' + pillFalta(r) + pillAparato(r) : ''}</span>${m ? `<span class="pill ${q.toLowerCase()}">${r0(m.kcal)}</span>` : ''}<span class="flecha">›</span></button>`; };
     return `<div class="${cls} doble">${mom}${L.QUIEN.map(fila).join('')}</div>`;
   }
   const r = recetas[L.idDe(v)];
   if (!r) return `<button class="${cls} fuera" data-acc="${c}"><span class="tile">🏠</span><span class="cuerpo">${mom}<span class="nombre">${esc(v && v.libre ? v.libre : 'Sin plato')}</span></span><span class="flecha">›</span></button>`;
-  return `<button class="${cls}" data-acc="${c}"><span class="tile">${emojiReceta(r)}</span>
+  return `<button class="${cls}" data-acc="${c}">${fotoPlato(r, 200, 'comida-foto')}
     <span class="cuerpo">${mom}<span class="nombre">${esc(r.n)}</span>
       <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${pillsKcal(r)}${r.propia ? '<span class="pill">⭐</span>' : ''}${pillFalta(r)}${pillAparato(r)}</span></span>
     <span class="flecha">›</span></button>`;
@@ -935,6 +974,17 @@ function abrirCambiar(p, i, c, q) {
 }
 
 // ——— Receta ———
+// Cambiar la foto de una receta vuestra: las 12 que mejor encajan del banco.
+function elegirFoto(r) {
+  const op = [...new Set([r.foto, ...fotosPara(r, 12)].filter(Boolean))];
+  hoja(`<h2>Foto de la receta</h2><p class="nota">${esc(r.n)}</p>
+    <div class="fotos-elegir">${op.map(f => `<button data-foto="${esc(f)}" aria-pressed="${f === r.foto}"><img src="${urlRuta(f, 300)}" alt="" loading="lazy"></button>`).join('')}</div>`, h => {
+    $$('[data-foto]', h).forEach(b => b.addEventListener('click', () => {
+      E.propias = E.propias.map(x => x.id === r.id ? { ...x, foto: b.dataset.foto } : x);
+      reconstruyeRecetas(); salva(); cierraHoja(); tostada('Foto cambiada'); abrirReceta(r.id);
+    }));
+  });
+}
 function abrirReceta(id, ctx) {
   const r = recetas[id];
   if (!r) return;
@@ -954,7 +1004,7 @@ function abrirReceta(id, ctx) {
   };
   const plan = planActivo();
   const tipoPrincipal = r.tipo?.[0] || 'comida';
-  hoja(`<div class="portada-hoja c-${tipoPrincipal}"><span class="emo">${emojiReceta(r)}</span><div><h2>${esc(r.n)}</h2>
+  hoja(`${urlFoto(r) ? `<div class="ficha-foto">${fotoPlato(r, 900, 'foto')}${r.propia ? '<button class="ficha-cambiar" id="b-foto">Cambiar foto</button>' : ''}</div>` : ''}<div class="portada-hoja c-${tipoPrincipal}"><span class="emo">${emojiReceta(r)}</span><div><h2>${esc(r.n)}</h2>
       <div class="botones" style="margin-top:8px"><span class="pill verde">${APARATO_EMO[r.ap] || '🍴'} ${APARATO[r.ap] || 'Cocina'}</span><span class="pill">⏱ ${r.min}′</span>${r.propia ? '<span class="pill">⭐ vuestra</span>' : ''}</div></div></div>
     ${!sePuedeHacer(r) ? `<div class="aviso"><span class="emo">🍳</span><div><b>Necesita ${esc(nombreAparato(r.ap))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.</div></div>` : conHorno(r) ? '<div class="aviso"><span class="emo">🔥</span><div><b>Sin air fryer, en el horno:</b> a 200 °C con ventilador, unos 5 o 10 minutos más que en la receta y dándole la vuelta a mitad.</div></div>' : ''}
     <div class="macros${una ? ' una' : ''}">${quienes.map(q => m(q, mac[q])).join('')}</div>
@@ -973,6 +1023,7 @@ function abrirReceta(id, ctx) {
       <select id="s-com" class="boton">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
       ${L.QUIEN.length > 1 ? `<select id="s-quien" class="boton"><option value="">👫 Los dos</option>${L.QUIEN.map(q => `<option value="${q}">${esc(NOM[q])}</option>`).join('')}</select>` : ''}
       <button class="boton principal" id="b-poner">Poner</button></div>`}`, h => {
+    $('#b-foto', h)?.addEventListener('click', () => elegirFoto(r));
     $('#b-compartir-receta', h)?.addEventListener('click', () => compartirTexto(r.n, recetaParaCompartir(r), '📋 Receta copiada: pégala donde quieras'));
     $('#b-poner', h)?.addEventListener('click', () => {
       const f = $('#s-dia', h).value, c = $('#s-com', h).value, q = $('#s-quien', h)?.value || '', s = est(plan.id), k = f + '|' + c;
@@ -1063,6 +1114,7 @@ function editorReceta(r, aLaLista = false, inicial = {}) {
       const nuevaR = { id: r?.id || 'p-' + uid(), n, e: L.emojiDe(n + ' ' + ingT), tipo: tipo.length ? tipo : ['comida', 'cena'],
         ap: $('[data-ap][aria-pressed="true"]', h)?.dataset.ap || 'plancha', min: Math.max(1, parseInt($('#r-min', h).value, 10) || 20), prot: 'propia',
         ing: x.ing, otros: x.otros, basicos: x.basicos, pasos: x.pasos, txt: { ing: ingT, pasos: pasosT }, propia: true, creada: r?.creada || new Date().toISOString() };
+      nuevaR.foto = r?.foto && r.n === n ? r.foto : fotosPara(nuevaR)[0] || undefined;   // la foto sale sola; si cambia el nombre, se vuelve a elegir
       E.propias = [...E.propias.filter(y => y.id !== nuevaR.id), nuevaR];
       reconstruyeRecetas(); salva();
       tostada(nueva ? '🎉 Receta guardada' : 'Receta actualizada');
@@ -1192,7 +1244,7 @@ function caros(plan) {
 }
 
 // Buscador para listas largas: filtra las filas de la vista sin repintar; oculta las secciones que se quedan vacías.
-const buscadorLista = (n, txt = 'Buscar en la lista') => n > 10 ? `<input class="campo-texto buscador-lista" id="i-filtra" type="search" placeholder="🔍 ${txt}" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}">` : '';
+const buscadorLista = (n, txt = 'Buscar en la lista') => n > 10 ? `<input class="campo-texto buscador-lista" id="i-filtra" type="search" placeholder="${txt}" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}">` : '';
 function activaBuscador() {
   const i = $('#i-filtra'); if (!i) { V.filtra = ''; return; }
   const filtra = () => {
@@ -1234,7 +1286,7 @@ function vCompra() {
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
   $('#vista').innerHTML = `
-    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')} · ${filas.length} productos</div>${tope ? `<div class="sub">${total > tope ? '⚠️ Te pasas del presupuesto' : '✓ Dentro del presupuesto'}: ${euros(tope)}</div>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto" style="margin-top:8px">💶 Ajustar al presupuesto</button>' : ''}` : ''}</div><span class="hero-emo">🛒</span></div>
+    <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')}</div>${tope ? `<div class="sub">${total > tope ? '⚠️ Te pasas del presupuesto' : '✓ Dentro del presupuesto'}: ${euros(tope)}</div>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto" style="margin-top:8px">💶 Ajustar al presupuesto</button>' : ''}` : ''}</div><span class="hero-emo">🛒</span></div>
     <div class="rapidas">
       <button class="rapida" id="b-anadir"><span class="emo">➕</span>Añadir</button>
       <button class="rapida" id="b-receta-lista"><span class="emo">🍲</span>Receta</button>
@@ -1992,7 +2044,7 @@ const LUGAR = k => {
 const LUGAR_EMO = { 'Nevera': '🧊', 'Fruta y verdura': '🥬', 'Congelador': '❄️', 'Despensa': '🫙' };
 function vCasa() {
   const items = Object.entries(E.casa).filter(([k, g]) => D.productos[k] && g > 0), extra = E.casaExtra || [];
-  cabecera('En casa', `${items.length + extra.length + E.casaOtros.length} cosas`);
+  cabecera('Nevera', `${items.length + extra.length + E.casaOtros.length} cosas`);
   const porSec = {};
   for (const [k, g] of items) (porSec[D.productos[k].cat] ||= []).push({ k, g });
   for (const x of extra) (porSec[x.cat || 'Otros'] ||= []).push({ x });
@@ -2122,17 +2174,18 @@ function vRecetas() {
   $('#vista').innerHTML = `
     <div class="buscador">${I.buscar}<input id="i-busca" type="search" placeholder="Busca o pregunta: ¿cómo se hace…?" value="${esc(V.busca)}" enterkeyhint="search"></div>
     ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
-    <button class="nueva-receta" id="b-nueva"><span class="emo">✍️</span><span><b>Nueva receta</b></span></button>
-    <div class="tarjeta cocina"><div class="cocina-cab"><b>🍳 Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina${etiquetaNuevo('cocina')}</b><span class="nota">toca para quitar o poner</span></div>
+    <div class="rec-linea"><button class="ver-todo" id="b-cocina">${V.verCocina ? 'Listo' : `${vos ? 'Vuestra' : 'Tu'} cocina · ${APARATOS_CASA.filter(([k]) => aparatosCasa().includes(k)).length} aparatos`}</button><button class="ver-todo" id="b-nueva">+ Nueva receta</button></div>
+    <div class="tarjeta cocina"${V.verCocina || ocultas && V.verOcultas || sinAp ? '' : ' hidden'}><div class="cocina-cab"><b>Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina</b><span class="nota">toca para quitar o poner</span></div>
       <div class="botones">${APARATOS_CASA.map(([k, n]) => `<button class="chip" data-aparato="${k}" aria-pressed="${aparatosCasa().includes(k)}">${n}</button>`).join('')}</div>
       ${ocultas ? `<p class="nota" style="margin:10px 0 0">${ocultas} receta${ocultas > 1 ? 's necesitan' : ' necesita'} algo que no ${vos ? 'tenéis' : 'tienes'}. <button class="ver-todo" id="b-ver-ocultas">${V.verOcultas ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
       ${sinAp ? `<p class="nota" style="margin:8px 0 0">⚠️ ${sinAp} plato${sinAp > 1 ? 's' : ''} de esta semana no se ${sinAp > 1 ? 'pueden' : 'puede'} hacer. <button class="ver-todo" id="b-cambiar-sinap">Cambiar${sinAp > 1 ? 'los' : 'lo'}</button></p>` : ''}</div>
     <div class="fila-chips">${FILTROS.map(([k, n]) => `<button class="chip" data-filtro="${k}" aria-pressed="${V.filtro === k}">${n}</button>`).join('')}</div>
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
-      return `<button class="receta-tarjeta c-${r.tipo[0]}${sePuedeHacer(r) ? '' : ' no-puedo'}" data-receta="${r.id}"><div class="portada">${r.propia ? '<span class="propia">⭐ VUESTRA</span>' : ''}${r.fav ? '<span class="corazon">❤️</span>' : ''}${emojiReceta(r)}</div>
-        <div class="cuerpo"><div class="nombre">${esc(r.n)}</div><div class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span><span class="pill g">${r0(g.kcal)} kcal</span>${pillAparato(r)}</div></div></button>`; }).join('')}</div>
+      return `<button class="rt${sePuedeHacer(r) ? '' : ' no-puedo'}" data-receta="${r.id}">${fotoPlato(r, 400, 'rt-foto')}${r.fav ? `<span class="rt-fav" aria-label="Favorita">${I.corazon}</span>` : ''}
+        <span class="rt-nombre">${esc(r.n)}</span><span class="rt-datos">${r.min} min · ${r0(g.kcal)} kcal${r.propia ? ' · vuestra' : ''}</span></button>`; }).join('')}</div>
     ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}`;
   $('#b-nueva').addEventListener('click', () => editorReceta(null));
+  $('#b-cocina').addEventListener('click', () => { V.verCocina = !V.verCocina; vRecetas(); });
   $('#b-preguntar')?.addEventListener('click', () => irAClaude(`${/^¿/.test(pregunta) ? pregunta : '¿' + capital(pregunta) + '?'} Explícamelo y, si vale, ponla en NutriHome.`));
   $('#i-busca').addEventListener('input', e => { V.busca = e.target.value; const pos = e.target.selectionStart; vRecetas(); const i = $('#i-busca'); i.focus(); i.setSelectionRange(pos, pos); });
   $$('[data-filtro]').forEach(b => b.addEventListener('click', () => { V.filtro = b.dataset.filtro; vRecetas(); }));
@@ -2192,7 +2245,7 @@ function vNosotros() {
     <div class="tarjeta perfil"><h3>✨ Novedades</h3><p class="nota" style="margin:6px 0 10px">Lo último que ha llegado a la app, por si te lo perdiste.</p><button class="boton" id="b-novedades">Ver las novedades</button></div>
     <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Todos los móviles de casa comparten lo mismo a través del servidor. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
-      <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div>`;
+      <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div><p class="nota creditos">Fotos de los platos: Pexels (fotos libres). Pueden no ser exactamente vuestra receta.</p>`;
   $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(i.value.replace(',', '.'));
     if (!isFinite(v) || v <= 0) return;
@@ -2563,15 +2616,23 @@ function bloqueHoy(p, d) {
     const v = d[c], hecho = !!s.hechos[d.f + '|' + c];
     if (v === undefined || v === null) return '';
     const nombre = v.fuera ? 'Fuera' : L.esDoble(v) ? L.QUIEN.map(q => `<span class="quien-ini ${q.toLowerCase()}">${ini(q)}</span>${esc(recetas[v[q]]?.n || '—')}`).join('<br>') : esc(recetas[L.idDe(v)]?.n || v.libre || '—');
-    return `<button class="hoy-fila c-${c}${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}"><span class="hoy-ic">${ICONO_COMIDA[c] || ''}</span><span class="hoy-txt"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}</span><span class="hoy-plato">${nombre}</span></span><span class="hoy-estado">${hecho ? 'hecho' : ''}</span></button>`;
+    const r1 = v.fuera ? null : recetas[L.idsDe(v)[0]];
+    return `<button class="hoy-fila c-${c}${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}">${r1 ? fotoPlato(r1, 160, 'hoy-mini') : `<span class="hoy-mini sin-foto c-${c}">${ICONO_COMIDA[c] || ''}</span>`}<span class="hoy-txt"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}${hecho ? ' · hecho' : ''}</span><span class="hoy-plato">${nombre}</span></span><span class="flecha">›</span></button>`;
   };
   const vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, cenaHecha = !!s.hechos[d.f + '|cena'];
   const falta = rc && !cenaHecha ? faltaEnCasa(rc) : [];
-  return `<section class="hoy-plan">
-    ${L.COMIDAS.map(fila).join('')}
-    ${rc ? `${falta.length ? `<p class="hoy-falta">Para la cena falta ${esc(enumera(falta.map(nombreFalta), 3))}.</p>` : ''}
-      <div class="hoy-botones">${cenaHecha ? `<button class="boton" data-hoy-acc="hecho">Desmarcar la cena</button>` : `<button class="boton principal" data-hoy-acc="como">Cómo se hace</button><button class="boton" data-hoy-acc="hecho">Ya hemos cenado</button>`}<button class="boton" data-hoy-acc="cambiar">Cambiar</button><button class="boton" data-hoy-acc="fuera">Cenamos fuera</button></div>`
-      : vc?.fuera ? `<div class="hoy-botones"><button class="boton" data-hoy-acc="fuera">Al final cenamos en casa</button></div>` : ''}
+  const kc = rc ? L.QUIEN.map(q => r0(L.macrosReceta(rc, q, D.productos, fac).kcal)).join(' / ') : '';
+  return `${rc ? `<section class="hoy-cena">
+      <button class="hoy-cena-foto" data-hoy-acc="receta">${fotoPlato(rc, 900, 'foto')}</button>
+      <div class="hoy-cena-cuerpo"><span class="hoy-comida">Cena de hoy${cenaHecha ? ' · hecha' : ''}</span>
+        <h2>${esc(rc.n)}</h2><p class="hoy-cena-datos">${rc.min} min · ${esc(APARATO[rc.ap] || 'Cocina')} · ${kc} kcal</p>
+        ${falta.length ? `<p class="hoy-falta">Falta ${esc(enumera(falta.map(nombreFalta), 3))}.</p>` : ''}
+        <div class="hoy-botones">${cenaHecha ? `<button class="boton" data-hoy-acc="hecho">Desmarcar la cena</button>` : `<button class="boton principal" data-hoy-acc="como">Cómo se hace</button><button class="boton" data-hoy-acc="hecho">Ya hemos cenado</button>`}</div>
+        <div class="hoy-enlaces"><button class="ver-todo" data-hoy-acc="cambiar">Cambiar</button><button class="ver-todo" data-hoy-acc="fuera">Cenamos fuera</button></div></div>
+    </section>` : ''}
+    <section class="hoy-plan"><h3 class="hoy-tit">${rc ? 'El resto del día' : 'Hoy'}</h3>
+    ${L.COMIDAS.filter(c => !(rc && c === 'cena')).map(fila).join('')}
+    ${vc?.fuera ? `<div class="hoy-botones"><button class="boton" data-hoy-acc="fuera">Al final cenamos en casa</button></div>` : ''}
     <div class="hoy-enlaces"><button class="ver-todo" data-ir="semana">La semana</button><button class="ver-todo" data-ir="recetas">Recetas</button></div>
   </section>`;
 }
@@ -2584,6 +2645,7 @@ function activaHoy(p, d) {
   $$('[data-hoy-acc]').forEach(b => b.addEventListener('click', () => {
     const a = b.dataset.hoyAcc;
     if (a === 'como' && rc) explicaAqui(rc, '¿Cómo se hace la cena?');
+    if (a === 'receta' && rc) abrirReceta(rc.id);
     if (a === 'hecho') alternaHecho(p, d.f, 'cena');
     if (a === 'fuera') alternaFuera(p, d.f, 'cena');
     if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);
@@ -2736,6 +2798,7 @@ function haceAccion(a) {
       ing: x.ing, otros: x.otros, basicos: x.basicos, pasos: x.pasos.length ? x.pasos : (a.pasos || []), detalle: (a.detalle || []).map(String).slice(0, 20), truco: a.truco ? String(a.truco) : undefined,
       txt: { ing: ingT, pasos: (a.pasos || []).join('\n') }, propia: true, chef: true, creada: new Date().toISOString() };
     if (!r.ing.length) { tostada('No reconozco los ingredientes de esa receta'); return null; }
+    r.foto = fotosPara(r)[0] || undefined;
     E.propias = [...(E.propias || []), r]; reconstruyeRecetas();
     let puestas = 0; for (const c of a.poner || []) if (c && c.dia && c.comida && ponPlato({ ...c, receta: r.id })) puestas++;
     salva(); if (V.pestana === 'recetas') vRecetas();

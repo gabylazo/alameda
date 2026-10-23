@@ -856,3 +856,166 @@ body { color: var(--texto); }
 .receta-tarjeta { border-top: 1px solid var(--linea); }
 .bm { grid-template-columns: 42px 1fr auto !important; }
 .bm > span:first-child { font-size: 12px; font-weight: 600; color: var(--suave); }
+
+/* ——— NutriHome 3.2 (24/10/2026): como las apps de comida serias (Lifesum, Mealime, Kitchen Stories). Las fotos de los platos
+   ponen el color; el resto, blanco, texto casi negro, gris para lo secundario y un solo verde para lo que se toca ——— */
+:root {
+  --fondo: #ffffff; --tarjeta: #ffffff; --tarjeta-2: #f4f4f2; --texto: #1c1c1e; --suave: #6b6b70; --tenue: #a1a1a6; --linea: #ececec;
+  --acento: #2e7d5b; --acento-vivo: #2e7d5b; --acento-suave: #eaf4ee; --tomate: #c4473a; --tomate-suave: #fbeae7;
+  --desayuno: #6b6b70; --desayuno-suave: #f4f4f2; --comida: #6b6b70; --comida-suave: #f4f4f2; --cena: #6b6b70; --cena-suave: #f4f4f2;
+  --radio: 16px;
+}
+html, body { background: #fff; }
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; color: var(--texto); }
+.cabecera h1 { font-size: 32px; font-weight: 700; letter-spacing: -.02em; }
+.marca .nutri, .marca .home { color: var(--texto); }
+.marca .home { color: var(--acento); }
+.tarjeta, .lista, .comida, .hero, .hoy-plan, .burbuja.el, .aviso, .por-que { box-shadow: none; border-color: var(--linea); }
+.boton.principal, .accion.primaria, .pregunta .boton.principal, .enviar-chat, .barra-accion .boton, .hoy-botones .boton.principal { background: var(--acento); border-color: var(--acento); color: #fff; }
+.boton { border-radius: 12px; }
+.chip { border-color: var(--linea); }
+.pestanas button[aria-current="page"] .ic { background: none; }
+.c-desayuno, .c-comida, .c-cena, .c-merienda, .c-bebida { --color-comida: var(--suave); --color-comida-suave: var(--tarjeta-2); }
+
+/* Fotos */
+.sin-foto { display: grid !important; place-items: center; background: var(--tarjeta-2); color: var(--tenue); }
+.sin-foto svg { width: 34%; height: 34%; max-width: 40px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+img.foto, img.rt-foto, img.hoy-mini, img.comida-foto, img.doble-foto { object-fit: cover; background: var(--tarjeta-2); display: block; }
+
+/* Recetas: cuadrícula de fotos */
+.rec-linea { display: flex; justify-content: space-between; gap: 12px; margin: 2px 2px 12px; font-size: 14.5px; }
+.rec-linea .ver-todo { text-align: left; }
+.tarjeta.cocina[hidden] { display: none; }
+.recetas-rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 12px; }
+.rt { position: relative; display: flex; flex-direction: column; gap: 6px; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: inherit; min-width: 0; }
+.rt-foto { width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; }
+.rt-nombre { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rt-datos { font-size: 13px; color: var(--suave); margin-top: -2px; }
+.rt-fav { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255, 255, 255, .92); display: grid; place-items: center; color: var(--tomate); }
+.rt-fav svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.rt.no-puedo { opacity: .45; }
+.fila-chips .chip[aria-pressed="true"] { background: var(--texto); border-color: var(--texto); color: #fff; }
+
+/* Hoy: la cena con su foto grande y el resto del día en filas con miniatura */
+.hoy-cena { margin: 4px 0 22px; }
+.hoy-cena-foto { display: block; width: 100%; padding: 0; border: 0; background: none; border-radius: 18px; overflow: hidden; }
+.hoy-cena-foto .foto { width: 100%; aspect-ratio: 4 / 3; border-radius: 18px; }
+.hoy-cena-cuerpo { padding: 12px 2px 0; }
+.hoy-cena h2 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; margin: 4px 0 4px; }
+.hoy-cena-datos { color: var(--suave); font-size: 14px; margin: 0 0 12px; }
+.hoy-comida { color: var(--tenue) !important; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.hoy-cena .hoy-botones { margin-top: 0; }
+.hoy-cena .hoy-botones .boton { flex: 1; min-height: 46px; font-size: 15px; }
+.hoy-plan { border: 0; padding: 0; margin: 0 0 18px; background: none; }
+.hoy-tit { font-size: 19px; font-weight: 700; margin: 0 0 4px; }
+.hoy-fila { grid-template-columns: 64px 1fr auto; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--linea); }
+.hoy-mini { width: 64px; height: 64px; border-radius: 12px; }
+.hoy-plato { font-size: 15.5px; font-weight: 500; }
+.hoy-fila .flecha { color: var(--tenue); font-size: 22px; }
+.hoy-fila.ahora .hoy-plato { font-weight: 600; }
+.hoy-enlaces { gap: 22px; margin-top: 12px; font-size: 14.5px; }
+.ficha-foto { margin: -6px -4px 12px; }
+.ficha-foto .foto { width: 100%; aspect-ratio: 16 / 10; border-radius: 16px; }
+.portada-hoja { background: none !important; padding: 0 !important; }
+
+/* Semana: miniatura a la izquierda de cada comida */
+.comida { border-left: 1px solid var(--linea); display: flex; align-items: center; gap: 14px; }
+.comida-foto { width: 72px; height: 72px; border-radius: 12px; flex: none; }
+.doble-foto { width: 44px; height: 44px; border-radius: 10px; flex: none; }
+.comida .momento { color: var(--tenue); }
+.creditos { margin: 14px 4px 0; font-size: 12.5px; color: var(--tenue); }
+
+/* ——— NutriHome 3.3 (24/10/2026): letra y orden. Una escala fija (30 título · 22 hoja · 17 apartado · 16 texto · 14 secundario ·
+   12 etiqueta), negrita solo en títulos (700) y nombres (500–600), listas agrupadas en gris sin bordes y apartados con aire ——— */
+:root { --fondo: #ffffff; --gris: #f5f5f3; --gris-2: #ececea; --linea: #e8e8e6; --texto: #1c1c1e; --suave: #6e6e73; --tenue: #a1a1a6; --tarjeta-2: #f5f5f3; }
+body { font-size: 16px; line-height: 1.42; -webkit-font-smoothing: antialiased; }
+b, strong { font-weight: 600; }
+.cabecera { padding-bottom: 2px; }
+.cabecera h1 { font-size: 30px; font-weight: 700; letter-spacing: -.025em; margin-top: 12px; }
+.cabecera .sub { font-size: 15px; font-weight: 400; color: var(--suave); margin-top: 2px; }
+.marca { font-size: 15px; font-weight: 600; }
+.marca .fecha-chip { font-size: 14px; font-weight: 400; }
+.pestanas button { font-size: 11px; font-weight: 500; }
+
+/* Apartados: etiqueta pequeña en gris, el número al lado sin pastilla */
+.cat { margin: 30px 4px 8px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); }
+.cat .num { background: none !important; border: 0 !important; padding: 0; margin-left: 0; font-size: 13px; font-weight: 400; color: var(--tenue); }
+.cat .cat-accion { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+
+/* Listas agrupadas: fondo gris, filas sin cajas, separador fino */
+.lista { background: var(--gris); border: 0 !important; border-radius: 14px; box-shadow: none !important; }
+.producto { background: transparent; padding: 10px 14px; gap: 12px; border-bottom: 1px solid var(--gris-2); }
+.producto img, .producto .sinfoto { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 10px; border: 0; background: #fff; }
+.producto .pn { font-size: 16px; font-weight: 500; line-height: 1.3; }
+.producto .pc { font-size: 13.5px; font-weight: 400; color: var(--suave); }
+.producto .pp { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.producto .icono, .casa-fila .icono { background: none; }
+
+/* Tarjetas y avisos: sin borde ni sombra, gris claro */
+.tarjeta, .aviso, .por-que, .hoy-plan .aviso { background: var(--gris); border: 0 !important; box-shadow: none !important; border-radius: 14px; }
+.aviso { font-size: 14.5px; line-height: 1.42; padding: 12px 14px; }
+.aviso b { font-weight: 600; }
+.tarjeta h2, .tarjeta h3, .tarjeta > b, .tarjeta .cocina-cab b { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.tarjeta .nota, .nota { font-size: 14px; color: var(--suave); font-weight: 400; }
+.tarjeta + .tarjeta { margin-top: 12px; }
+
+/* Campos: blancos dentro de lo gris, sin negrita */
+.campo-texto, .campos input, .tarjeta textarea, .tarjeta input[type="text"], .tarjeta input[type="number"] { background: #fff; border: 1px solid var(--linea); border-radius: 12px; font-weight: 400; font-size: 16px; }
+.campos label { font-size: 12px; font-weight: 500; color: var(--suave); }
+.buscador, .buscador-lista { background: var(--gris); border: 0; box-shadow: none; border-radius: 12px; }
+.buscador-lista { padding-left: 38px; background: var(--gris) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='M20 20l-4.2-4.2'/%3E%3C/svg%3E") 12px center / 18px no-repeat; }
+
+/* Botones y pastillas: peso medio */
+.boton, .accion { font-weight: 600; font-size: 15px; }
+.chip { font-weight: 500; font-size: 14.5px; }
+.pill { font-weight: 500; font-size: 12.5px; }
+.ver-todo { font-weight: 500; }
+
+/* Hojas */
+.hoja h2 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; }
+.hoja h3 { font-size: 17px; font-weight: 600; margin: 22px 0 8px; }
+.acciones-cab { font-size: 14px; color: var(--suave); }
+
+/* Compra: el total como dato, sin caja; accesos en una fila gris */
+.hero { background: none !important; border: 0; box-shadow: none !important; padding: 2px 2px 6px; border-radius: 0; }
+.hero .grande { font-size: 34px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--texto); }
+.hero .sub { font-size: 14px; font-weight: 400; color: var(--suave) !important; }
+.rapidas { gap: 8px; margin: 8px 0 16px; }
+.rapida { background: var(--gris) !important; border-radius: 12px; padding: 11px 4px; font-size: 14px; font-weight: 500; color: var(--texto); }
+
+/* Semana: comidas como bloques grises, días sin bordes */
+.dia-btn { border: 0 !important; background: var(--gris); }
+.dia-btn .ds { font-size: 11px; font-weight: 600; }
+.dia-btn .dn { font-weight: 600; }
+.tarjeta.anillos .quien { font-weight: 600; }
+.tarjeta.anillos .meta { font-weight: 400; }
+.comida { background: var(--gris) !important; border: 0 !important; box-shadow: none !important; border-radius: 14px; }
+.comida .momento { font-size: 12px; font-weight: 600; }
+.comida .nombre { font-size: 16px; font-weight: 500; }
+.fila-doble { background: transparent !important; padding: 8px 0; border-radius: 0; }
+.fila-doble + .fila-doble { border-top: 1px solid var(--gris-2); }
+.fila-doble .nombre-s { font-size: 15.5px; font-weight: 500; }
+.ahora-pill, .hecho-pill { font-weight: 600; }
+
+/* Hoy */
+.hoy-cena h2 { font-weight: 700; }
+.hoy-tit { font-size: 17px; font-weight: 600; }
+.hoy-plato { font-weight: 500; }
+.hoy-fila.ahora .hoy-plato { font-weight: 600; }
+.burbuja { font-size: 15.5px; }
+
+/* Ficha de receta */
+.macros .m .k { font-weight: 700; }
+.ing-fila { font-size: 15px; }
+.ing-fila.cab { font-size: 12px; font-weight: 600; }
+.pasos li { font-size: 15.5px; line-height: 1.5; }
+.ficha-foto { position: relative; }
+.ficha-cambiar { position: absolute; right: 10px; bottom: 10px; border: 0; border-radius: 999px; padding: 7px 12px; background: rgba(255, 255, 255, .92); font: inherit; font-size: 13.5px; font-weight: 500; color: var(--texto); }
+.fotos-elegir { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.fotos-elegir button { padding: 0; border: 3px solid transparent; border-radius: 12px; overflow: hidden; background: none; }
+.fotos-elegir button[aria-pressed="true"] { border-color: var(--acento); }
+.fotos-elegir img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.lista .producto { background: var(--gris); }   /* tapa el fondo rojo de «deslizar para quitar» */
+.chip.si { background: #fff; color: var(--acento); border: 1px solid var(--linea); font-weight: 500; }
+.dia-btn.hoy .ds { color: var(--acento); } .dia-btn[aria-pressed="true"] .ds, .dia-btn.hoy[aria-pressed="true"] .ds { color: #fff; }
+.ing-fila .c { font-weight: 500; font-variant-numeric: tabular-nums; }
