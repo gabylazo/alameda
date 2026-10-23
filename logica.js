@@ -196,10 +196,12 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
   return pen + rnd() * 2.5;
 }
 
+// El almuerzo de cada uno (casa de origen): «almuerzo: 'G' | 'P'» en la receta = solo para esa persona en ese hueco.
+const paraQuien = (r, comida, quien) => !(comida === 'comida' && quien && typeof r.almuerzo === 'string' && r.almuerzo !== quien);
 export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
   const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
-    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida)))
+    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida)) && paraQuien(r, comida, quien))
     .map(r => ({ r, pen: puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) }))
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
@@ -252,11 +254,11 @@ export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.no
     for (const c of COMIDAS) if (toca(d, c) && (nd[c] === null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
     return nd;
   }) };
-  const mejor = (i, c, salvo) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c)))
+  const mejor = (i, c, salvo, q = null) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c)) && paraQuien(r, c, q))
     .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
-  for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda']) {
+  for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda'].filter(x => COMIDAS.includes(x))) {
     if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
-    if (DOBLES.includes(c)) { const g = mejor(i, c); nuevo.dias[i][c] = { G: g }; if (QUIEN.includes('P')) nuevo.dias[i][c].P = mejor(i, c, g); }
+    if (DOBLES.includes(c)) { const g = mejor(i, c, null, 'G'); nuevo.dias[i][c] = { G: g }; if (QUIEN.includes('P')) nuevo.dias[i][c].P = mejor(i, c, g, 'P'); }
     else nuevo.dias[i][c] = mejor(i, c);
   }
   return nuevo;

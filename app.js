@@ -47,6 +47,7 @@ const capital = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 // ——— Iconos y dibujos ———
 const ic = d => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
 const SVG = {
+  hoy: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>',
   semana: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   compra: '<svg viewBox="0 0 24 24"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
   casa: '<svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
@@ -69,9 +70,9 @@ const I = {
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
 const NOMBRE_AGENTE = 'Chef';   // el nombre de la pestaña 💬 lo elige la casa
-const PESTANAS = [['semana', 'Semana'], ['compra', 'Compra'], ['claude', NOMBRE_AGENTE], ['casa', 'En casa'], ['recetas', 'Recetas']];
+const PESTANAS = [['hoy', 'Hoy'], ['compra', 'Compra'], ['casa', 'Nevera']];   // la semana y las recetas se abren desde Hoy
 // «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
-const VISTAS = { semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
+const VISTAS = { hoy: vClaude, semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
 const APARATO = { airfryer: 'Air fryer', horno: 'Horno', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
 const APARATO_EMO = { airfryer: '🌀', horno: '🔥', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤', olla: '♨️' };
 // Lo que hay en la cocina de cada casa (sin elegir: todo). Las recetas de air fryer también se pueden hacer en el horno, unos minutos más.
@@ -84,6 +85,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'nutrihome3', fecha: '2026-10-23', emo: '', titulo: 'NutriHome, más sencilla', texto: 'Tres pantallas: Hoy (lo que toca hoy y el Chef en la misma pantalla), Compra y Nevera. «Cómo se hace» te explica la cena paso a paso al momento. Desayuno, almuerzo con Huel y cena sólida con ensalada. La semana y las recetas, desde Hoy.', ir: 'hoy', origen: true },
   { id: 'legumbres', fecha: '2026-10-22', emo: '🫘', titulo: 'Platos de legumbres', texto: 'Cinco platos calientes con garbanzos y lentejas: salteado con atún, lentejas guisadas, lentejas con arroz y cebolla, bol de quinoa con garbanzos crujientes y curry de garbanzos. El menú los usa cuando están en casa.', ir: 'recetas' },
   { id: 'chef-notas', fecha: '2026-10-22', emo: '📝', titulo: 'El Chef recuerda vuestras costumbres', texto: 'Lo que le contéis (horarios, comidas ligeras, cenas más elaboradas…) se queda apuntado en Nosotros y lo tiene en cuenta siempre. Y ya solo propone platos que salen con lo de casa, salvo que le pidáis comprar.', ir: 'nosotros', foco: '#f-nota' },
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
@@ -279,7 +281,22 @@ function perfiles() {
 }
 function recalcula() { const p = perfiles(); fac = L.factores(p, D.base || null); obj = {}; NOM = {}; for (const q of L.QUIEN) { obj[q] = L.objetivos(p[q]); NOM[q] = p[q].nombre || q; } }
 const todasRecetas = () => [...(E.propias || []), ...D.recetas];
-function reconstruyeRecetas() { const fav = new Set(E.favRecetas || []); recetas = Object.fromEntries(todasRecetas().map(r => { r.fav = fav.has(r.id); return [r.id, r]; })); }
+// Casa de origen (desde el 23/10/2026): desayuno, almuerzo con Huel (cada uno el suyo) y cena sólida; sin merienda.
+// Las recetas con «almuerzo» son las del almuerzo; los platos de comida pasan a ser solo de cena.
+function ajustaPlanCasa() {
+  if (D.amiga) return;
+  if (!L.DOBLES.includes('comida')) L.DOBLES.push('comida');
+  const i = L.COMIDAS.indexOf('merienda'); if (i >= 0) L.COMIDAS.splice(i, 1);
+  L.NOMBRE_COMIDA.comida = 'Almuerzo';
+  for (const r of todasRecetas()) {
+    r.tipo0 ||= r.tipo;
+    const t = r.tipo0.filter(x => x !== 'comida' && x !== 'merienda');
+    if (r.almuerzo) t.push('comida');
+    if (r.tipo0.includes('merienda') && !t.length) t.push(r.bebida ? 'bebida' : 'desayuno');
+    r.tipo = t.length ? t : ['cena'];
+  }
+}
+function reconstruyeRecetas() { ajustaPlanCasa(); const fav = new Set(E.favRecetas || []); recetas = Object.fromEntries(todasRecetas().map(r => { r.fav = fav.has(r.id); return [r.id, r]; })); }
 const ini = q => esc((NOM[q] || q)[0]);
 
 // Planes: el que llega con los datos y los que se preparan en el móvil con «Preparar la siguiente semana».
@@ -368,11 +385,11 @@ async function inicio() {
   consumePasados();
   pintaMarco();
   window.addEventListener('hashchange', () => {
-    const n = (location.hash.slice(1) || 'semana').split('/')[0];
-    if (n === 'nosotros' && V.pestana !== 'nosotros') V.anterior = V.pestana;   // para el botón de volver
-    V.pestana = VISTAS[n] ? n : 'semana'; pinta();
+    const n = (location.hash.slice(1) || 'hoy').split('/')[0];
+    if (SUBVISTAS.includes(n) && !SUBVISTAS.includes(V.pestana)) V.anterior = V.pestana;   // para el botón de volver
+    V.pestana = VISTAS[n] ? n : 'hoy'; pinta();
   });
-  V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'semana';
+  V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'hoy';
   pinta();
   if (servidor() && !D.amiga) await sincroniza();   // primero lo de los otros móviles: los ajustes se hacen sobre lo de toda la casa
   if (limpiaDuplicados()) salva();
@@ -397,6 +414,7 @@ async function inicio() {
 let versionCargada = null;
 async function versionPublicada() { try { const r = await fetch('version.txt', { cache: 'no-store' }); return r.ok ? (await r.text()).trim() : null; } catch { return null; } }
 
+const SUBVISTAS = ['nosotros', 'semana', 'recetas'];   // se abren desde Hoy o el perfil y tienen botón de volver
 const marcaHTML = '<span class="nombre-app"><span class="nutri">Nutri</span><span class="home">Home</span></span>';
 function puerta(error = '') {
   document.body.innerHTML = `
@@ -423,31 +441,45 @@ function pintaMarco() {
     <div class="tostada" id="tostada" role="status"></div>
     <div class="deshacer" id="deshacer" role="status"><span id="deshacer-t"></span><button id="deshacer-b">Deshacer</button></div>`;
   $$('.pestanas button').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.p; }));
+  sinEmojis(document.body);
+  new MutationObserver(ms => { for (const m of ms) { if (m.type === 'characterData') sinEmojis(m.target); else m.addedNodes.forEach(sinEmojis); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+// Interfaz sobria (23/10/2026): fuera los emojis de todo lo que se ve. Los textos que se comparten o van al Chef no cambian.
+const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u200D(?:\p{Extended_Pictographic})\uFE0F?|[\u{1F3FB}-\u{1F3FF}])*\uFE0F?/gu;
+function sinEmojis(n) {
+  if (n.nodeType === 3) { if (EMOJI.test(n.data)) { EMOJI.lastIndex = 0; const t = n.data.replace(EMOJI, '').replace(/ {2,}/g, ' ').replace(/^ (?=\S)/, ''); if (t !== n.data) n.data = t; } EMOJI.lastIndex = 0; return; }
+  if (n.nodeType !== 1 || n.tagName === 'TEXTAREA' || n.tagName === 'INPUT') return;
+  const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); const ts = []; while (w.nextNode()) ts.push(w.currentNode); ts.forEach(sinEmojis);
+  if (n.placeholder) n.placeholder = n.placeholder.replace(EMOJI, '').trim();
 }
 
 let tEntra;
 function pinta() {
   const auto = autoMenu();   // el menú, siempre al día con lo que hay en casa
   if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que hay en casa: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
-  $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === V.pestana ? 'page' : 'false'));
-  const f = VISTAS[V.pestana] || vSemana;
+  const activa = V.pestana === 'claude' || SUBVISTAS.includes(V.pestana) && V.pestana !== 'nosotros' ? 'hoy' : V.pestana;
+  $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === activa ? 'page' : 'false'));
+  const f = VISTAS[V.pestana] || vClaude;
   document.body.classList.toggle('con-barra', V.pestana === 'compra');
-  document.body.classList.toggle('con-chat', V.pestana === 'claude');   // en Compra hay un botón fijo abajo
+  document.body.classList.toggle('con-chat', esChat());   // en Compra hay un botón fijo abajo
   const vista = $('#vista');
   vista.classList.add('entra');
   f();
   $$('#vista > *').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   clearTimeout(tEntra); tEntra = setTimeout(() => vista.classList.remove('entra'), 1100);
-  if (V.pestana !== 'claude') window.scrollTo({ top: 0 });
+  if (!esChat()) window.scrollTo({ top: 0 });
 }
+const esChat = () => V.pestana === 'claude' || V.pestana === 'hoy';
+const repinta = () => (VISTAS[V.pestana] || vClaude)();
 function cabecera(titulo, sub = '') {
-  const d = new Date(), perfil = V.pestana === 'nosotros';
-  $('#cab').innerHTML = `<div class="marca">${perfil ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : '<span class="logo-mini">🥗</span>'}${marcaHTML}
+  const d = new Date(), perfil = V.pestana === 'nosotros', sub2 = SUBVISTAS.includes(V.pestana);
+  $('#cab').innerHTML = `<div class="marca">${sub2 ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : ''}${marcaHTML}
       <span class="fecha-chip">${iconoSync()}${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span>
       <button class="perfil-btn${perfil ? ' activo' : ''}" id="b-perfil" aria-label="Vuestros datos">${L.QUIEN.map(q => `<span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span>`).join('')}</button></div>
     <h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}`;
   $('#b-perfil').addEventListener('click', () => { location.hash = perfil ? V.anterior : 'nosotros'; });
-  $('#b-volver')?.addEventListener('click', () => { location.hash = V.anterior; });
+  $('#b-volver')?.addEventListener('click', () => { location.hash = V.anterior && V.anterior !== V.pestana ? V.anterior : 'hoy'; });
 }
 
 let tTostada, tDeshacer;
@@ -509,7 +541,7 @@ function vSemana() {
   if (!V.dia || !p.dias.some(d => d.f === V.dia)) V.dia = p.dias.find(d => d.f === h)?.f || (h < p.dias[0].f ? p.dias[0].f : p.dias.at(-1).f);
   const i = pe.dias.findIndex(d => d.f === V.dia), d = pe.dias[i];
   const fd = fecha(d.f);
-  cabecera(d.f === h ? 'Hoy' : capital(DL[fd.getDay()]), `${fd.getDate()} de ${MES[fd.getMonth()]}`);
+  cabecera('La semana', `${d.f === h ? 'Hoy, ' : capital(DL[fd.getDay()]) + ', '}${fd.getDate()} de ${MES[fd.getMonth()]}`);
   const banners = [];
   if (h > ultimo) banners.push(`<div class="aviso"><span class="emo">🗓️</span><div><b>Semana terminada</b><div class="botones" style="margin-top:8px"><button class="boton principal" id="b-siguiente">${I.chispas}Preparar la siguiente</button></div></div></div>`);
   // Platos con cosas que no comprasteis (✕) o que no hay en casa: se ofrece cambiarlos por otros que sí podáis hacer.
@@ -849,13 +881,13 @@ function consejosDia(pe, i) {
 // Guarda cómo estaba un hueco del menú para poder deshacer el cambio.
 function recuerdaHueco(p, k) {
   const s = est(p.id), habia = k in s.cambios, antes = s.cambios[k];
-  return () => { if (habia) s.cambios[k] = antes; else delete s.cambios[k]; salva(); vSemana(); };
+  return () => { if (habia) s.cambios[k] = antes; else delete s.cambios[k]; salva(); repinta(); };
 }
 function alternaFuera(p, f, c) {
   const s = est(p.id), k = f + '|' + c, actual = efectivo(p).dias.find(d => d.f === f)[c], deshaz = recuerdaHueco(p, k);
   if (actual && actual.fuera) { const orig = p.dias.find(d => d.f === f)[c]; if (orig && orig.fuera) s.cambios[k] = null; else delete s.cambios[k]; }
   else s.cambios[k] = { fuera: true };
-  salva(); vSemana();
+  salva(); repinta();
   conDeshacer(actual && actual.fuera ? '↩️ Ya no coméis fuera' : '🍽️ Coméis fuera', deshaz);
 }
 function alternaHecho(p, f, c) {
@@ -864,16 +896,16 @@ function alternaHecho(p, f, c) {
   else {
     s.hechos[k] = 1;
     if (!E.consumidos[ck]) { E.consumidos[ck] = 1; descuentaHueco(efectivo(p).dias.find(d => d.f === f)[c]); }
-    tostada('✅ ¡Comido! Descontado de «En casa»');
+    tostada('Hecho: descontado de la nevera');
   }
-  salva(); vSemana();
+  salva(); repinta();
 }
 function siguienteSemana() {
   const ult = planActivo(), inicio = [masDias(ult.dias.at(-1).f, 1), hoy()].sort().at(-1);
-  if (planes().some(x => x.id === inicio)) { V.dia = inicio; vSemana(); return; }   // ya estaba preparada
+  if (planes().some(x => x.id === inicio)) { V.dia = inicio; repinta(); return; }   // ya estaba preparada
   const plan = creaPlan(inicio, 7);
   E.planes = [...E.planes.filter(x => x.id !== plan.id), plan];
-  V.dia = inicio; salva(); vSemana(); tostada('🗓️ Semana preparada');
+  V.dia = inicio; salva(); repinta(); tostada('Semana preparada');
 }
 
 // Pastillas con las kcal de cada persona (o solo de una).
@@ -897,7 +929,7 @@ function abrirCambiar(p, i, c, q) {
       const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
       else s.cambios[k] = id;
-      salva(); cierraHoja(); vSemana(); conDeshacer('🔄 Plato cambiado', deshaz);
+      salva(); cierraHoja(); repinta(); conDeshacer('Plato cambiado', deshaz);
     }));
   });
 }
@@ -934,7 +966,7 @@ function abrirReceta(id, ctx) {
     ${r.truco ? `<div class="aviso"><span class="emo">💡</span><div><b>Truco:</b> ${esc(r.truco)}</div></div>` : ''}
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
     <button class="boton suave ancho" id="b-duda-receta" style="margin-top:10px">💬 ¿Dudas? Pregúntale al Chef</button>
-    <div class="botones" style="margin-top:14px"><button class="boton" id="b-compartir-receta">📤 Compartir</button><button class="boton" id="b-fav-receta">${r.fav ? '❤️ Favorita' : '🤍 Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
+    <div class="botones" style="margin-top:14px"><button class="boton" id="b-compartir-receta">📤 Compartir</button><button class="boton" id="b-fav-receta">${r.fav ? 'Quitar de favoritas' : 'Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
       ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}Al Chef</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
       <select id="s-dia" class="boton">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
@@ -946,14 +978,14 @@ function abrirReceta(id, ctx) {
       const f = $('#s-dia', h).value, c = $('#s-com', h).value, q = $('#s-quien', h)?.value || '', s = est(plan.id), k = f + '|' + c;
       if (q) { const v = efectivo(plan).dias.find(d => d.f === f)[c]; const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[q] = r.id; s.cambios[k] = base; }
       else s.cambios[k] = r.id;
-      salva(); cierraHoja(); tostada('📅 Puesta en el menú'); if (V.pestana === 'semana') vSemana();
+      salva(); cierraHoja(); tostada('Puesta en el menú'); repinta();
     });
     $('#b-a-lista', h).addEventListener('click', () => elegirRaciones(r));
     $$('[data-modo]', h).forEach(b => b.addEventListener('click', () => { V.detalle = b.dataset.modo === 'detalle'; const y = h.scrollTop; abrirReceta(id, ctx); requestAnimationFrame(() => { const n = $('.hoja'); if (n) n.scrollTop = y; }); }));
     $('#b-duda-receta', h).addEventListener('click', () => irAClaude('', null, { receta: recetaParaChef(r) }));
     $('#b-fav-receta', h).addEventListener('click', e => {
       E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
-      reconstruyeRecetas(); salva(); e.currentTarget.textContent = r.fav ? '❤️ Favorita' : '🤍 Favorita'; e.currentTarget.classList.add('pop');
+      reconstruyeRecetas(); salva(); e.currentTarget.textContent = r.fav ? 'Quitar de favoritas' : 'Favorita'; e.currentTarget.classList.add('pop');
       tostada(r.fav ? '❤️ En vuestras favoritas' : 'Quitada de favoritas'); if (V.pestana === 'recetas') vRecetas();
     });
     $('#b-editar', h)?.addEventListener('click', () => editorReceta(r));
@@ -1927,6 +1959,10 @@ function abrirEscaner() {
       res.innerHTML = `<div class="producto-escaneado" style="margin-top:14px">${img ? `<img src="${esc(img)}" alt="">` : ''}<div><b>${esc(nombre)}</b></div></div>
         ${semaforoHTML(v)}
         <div class="tabla-n"><div><b>${v.kcal}</b><span>kcal</span></div><div><b>${r0(nut.p * 10) / 10} g</b><span>proteína</span></div><div><b>${nut.az != null ? r0(nut.az * 10) / 10 + ' g' : '—'}</b><span>azúcar</span></div><div><b>${r0(nut.g * 10) / 10} g</b><span>grasa</span></div></div>
+        <details class="por-que"><summary>Por qué esta nota</summary>
+          <p class="nota">Puntos: ${v.pts > 0 ? '+' : ''}${v.pts} (bueno con 2 o más, «mejor no» con −2 o menos). Por cada 100 g: ${[`${v.kcal} kcal`, `${r0(nut.p * 10) / 10} g de proteína`, nut.az != null && `${r0(nut.az * 10) / 10} g de azúcar`, nut.sat != null && `${r0(nut.sat * 10) / 10} g de grasa saturada`, nut.f != null && `${r0(nut.f * 10) / 10} g de fibra`, nut.sal != null && `${r0(nut.sal * 100) / 100} g de sal`, nut.nova && `NOVA ${nut.nova}`, nut.nutri && `Nutri-Score ${String(nut.nutri).toUpperCase()}`].filter(Boolean).join(' · ')}.</p>
+          <p class="nota">Suma: mucha proteína para sus calorías, fibra, poco procesado, Nutri-Score A o B. Resta: azúcar (7 g o más), grasa saturada (2,5 g o más), más de 400 kcal, sal (1,5 g o más), ultraprocesado (NOVA 4), Nutri-Score D o E.</p>
+          <p class="nota">Datos: ${local ? 'la ficha de Mercadona y Open Food Facts' : 'Open Food Facts'} · <a href="https://world.openfoodfacts.org/product/${esc(ean)}" target="_blank" rel="noopener">ver la ficha</a></p></details>
         <div class="botones" style="margin-top:12px"><button class="boton ${v.nivel === 'malo' ? '' : 'principal'}" id="b-escaneo-lista">${I.carro}${v.nivel === 'malo' ? 'Añadir igualmente' : 'A la lista'}</button></div>`;
       $('#b-escaneo-lista', h).addEventListener('click', () => { anadeALista([{ ...n, v: v.nivel, img, ean }]); cierraHoja(); if (V.pestana === 'compra') vCompra(); });
     };
@@ -2068,7 +2104,7 @@ function anadeACasa(items) {
 }
 
 // ——— Recetas ———
-const FILTROS = [['todas', '✨ Todas'], ['favoritas', '❤️ Favoritas'], ['vuestras', '⭐ Vuestras'], ['desayuno', '☀️ Desayunos'], ['comida', '🍽️ Comidas'], ['cena', '🌙 Cenas'], ['merienda', '🍎 Meriendas'], ['airfryer', '🌀 Air fryer'], ['plancha', '🍳 Plancha'], ['micro', '⚡ Micro'], ['rapidas', '⏱ 10 min'], ['bebida', '🥤 Bebidas']];
+const FILTROS = [['todas', 'Todas'], ['cena', 'Cenas'], ['desayuno', 'Desayunos'], ['comida', 'Almuerzos'], ['antojos', 'Smoothies y postres'], ['favoritas', 'Favoritas'], ['rapidas', 'En 10 min'], ['vuestras', 'Vuestras']];
 function vRecetas() {
   const todas = todasRecetas();
   cabecera('Recetas', `${todas.length} recetas`);
@@ -2080,7 +2116,7 @@ function vRecetas() {
     if (!V.verOcultas && !sePuedeHacer(r)) return false;   // lo que no se puede hacer con esta cocina, solo si se pide
     if (t && !L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n).join(' ') + ' ' + (r.otros || []).join(' ')).includes(t)) return false;
     const f = V.filtro;
-    return f === 'todas' || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
+    return f === 'todas' || (f === 'antojos' && (r.bebida || r.postre || r.batido)) || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
   });
   const esPregunta = /^(¿)?\s*(c[oó]mo|qu[eé]|puedo|se puede|receta)/i.test(pregunta) || (t && !lista.length);
   $('#vista').innerHTML = `
@@ -2266,7 +2302,7 @@ function aptaCasa(r, qs = L.QUIEN) {
   if (h.tiempo && r.min > h.tiempo) return false;
   return true;
 }
-const recetasAptas = () => Object.fromEntries(Object.entries(recetas).filter(([, r]) => aptaCasa(r)));
+const recetasAptas = () => Object.fromEntries(Object.entries(recetas).filter(([, r]) => aptaCasa(r) || (typeof r.almuerzo === 'string' && aptaCasa(r, [r.almuerzo]))));   // el almuerzo de uno solo: basta con que le guste a él
 const alergenosReceta = r => [...new Set(r.ing.flatMap(i => D.productos[i[0]]?.al || []))];
 function alergiaDe(r, x) {
   if (!x) return [];
@@ -2433,39 +2469,42 @@ function abrirPendientes() {
 // Hoy el mensaje sale por Telegram (compartir); cuando esté el servidor, contestará aquí mismo.
 function irAClaude(texto = '', fichero = null, datos = null) {
   V.borrador = texto; V.adjunto = fichero; V.datos = datos; cierraHoja();
-  if (V.pestana === 'claude') pinta(); else location.hash = 'claude';
+  if (esChat()) pinta(); else location.hash = 'hoy';
 }
 function vClaude() {
-  cabecera(NOMBRE_AGENTE, 'Pregúntale lo que quieras de cocina');
-  const conServidor = !!servidor(), charla = (E.charla || []).slice(-20), adj = V.datos?.receta;
+  const fh = new Date();
+  cabecera('Hoy', `${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}`);
+  const conServidor = !!servidor(), adj = V.datos?.receta, h0 = hoy();
+  // La conversación de hoy a la vista; lo anterior, plegado.
+  const todo = (E.charla || []).slice(-20), deHoy = todo.filter(c => (c.t || '').slice(0, 10) >= h0 || !c.r);
+  const charla = V.verAntes ? todo : deHoy, antes = todo.length - deHoy.length;
   const p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
-  const rec = c => d && !L.esDoble(d[c]) ? recetas[L.idDe(d[c])] : null, cena = rec('cena'), comida = rec('comida');
+  const rec = c => d && !L.esDoble(d[c]) ? recetas[L.idDe(d[c])] : null, cena = rec('cena'), comida = L.DOBLES.includes('comida') ? null : rec('comida');
   // Preguntas de un toque: se envían solas (con la receta adjunta cuando toca).
   const rapidas = adj ? [
     ['👩‍🍳', 'Explícamela paso a paso', `Explícame paso a paso «${adj.nombre}», que no sé cocinar.`],
     ['🔁', '¿Qué puedo cambiar?', `¿Qué ingrediente de «${adj.nombre}» puedo cambiar por algo que tengamos en casa?`],
     ['❄️', '¿Se puede guardar?', `¿Cuánto aguanta «${adj.nombre}» en la nevera? ¿Se puede congelar?`],
   ] : [
-    cena && ['🌙', '¿Cómo hago la cena?', `Explícame paso a paso cómo hago la cena de hoy: ${cena.n}.`, { receta: recetaParaChef(cena) }],
-    comida && ['🍽️', '¿Cómo hago la comida?', `Explícame paso a paso cómo hago la comida de hoy: ${comida.n}.`, { receta: recetaParaChef(comida) }],
-    ['🥘', '¿Qué hago con lo que hay?', '¿Qué puedo cocinar ahora con lo que tenemos en casa?'],
-    cena && ['🔄', 'Cambia la cena', `Cámbiame la cena de hoy (${cena.n}) por otra que podamos hacer con lo que hay en casa.`],
-    ['🏠', 'Apuntar algo en casa', null, null, 'Tengo '],
-    ['🔎', '¿Es buena compra?', null, null, null, abrirEscaner],
-    ['🧾', 'Compras y tickets', null, null, null, abrirHistorial],
+    cena && ['', '¿Qué hay para cenar?', null, null, null, () => explicaAqui(cena, '¿Qué hay hoy para cenar?')],
+    ['', '¿Qué hago con lo que hay?', '¿Qué puedo cocinar ahora con lo que tenemos en casa?'],
+    ['', 'Un antojo sano', 'Propónme un smoothie, una limonada o un postre sano que pueda hacer ahora con lo que hay en casa.'],
+    ['', 'Se ha acabado…', null, null, 'Se ha acabado '],
+    ['', '¿Es buena compra?', null, null, null, abrirEscaner],
   ].filter(Boolean);
   const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="1">ver todo</button>' : esc(q);
   const burbujas = charla.map(c => { const { texto: rt, acciones } = separaAcciones(c.r || '');
     return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${esc(rt).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}${acciones.map((a, i) => `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${(c.hechas || []).includes(i) ? ' disabled' : ''}>${(c.hechas || []).includes(i) ? '✓ Hecho' : esc(textoAccion(a))}</button>`).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">El Chef está escribiendo…</div>`}`; }).join('');
   $('#vista').innerHTML = `
-    <div class="chat" id="hilo">${charla.length ? `<button class="ver-todo" id="b-borrar-charla" style="align-self:center">Borrar la conversación</button>${burbujas}`
-      : `<div class="chat-hola"><span class="emo">👨‍🍳</span><b>Hola, soy el Chef.</b><span class="nota">Pregúntame cómo se hace un plato, qué cocinar con lo que tienes o pídeme que apunte algo. Toca una pregunta de abajo o escribe.</span></div>`}</div>
+    ${bloqueHoy(p, d)}
+    <div class="chat" id="hilo">${antes && !V.verAntes ? `<button class="ver-todo" id="b-ver-antes" style="align-self:center">Ver la conversación anterior (${antes})</button>` : ''}${charla.length ? `${burbujas}<button class="ver-todo" id="b-borrar-charla" style="align-self:center">Borrar la conversación</button>`
+      : `<div class="chat-hola"><b>Pregúntale al Chef</b><span class="nota">«¿Qué hay hoy para cenar?», «hoy cenamos fuera», «no tengo pepino, ¿qué uso?», «apunta detergente en la compra»…</span></div>`}</div>
     <div class="chat-barra"><div class="dentro">
       ${adj ? `<div class="adjunto"><span>📖 ${esc(adj.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
       <div class="sugerencias">${rapidas.map((a, i) => `<button class="chip" data-rapida="${i}">${a[0]} ${esc(a[1])}</button>`).join('')}</div>
-      <form class="chat-form" id="f-chat">${D.perfiles.bot ? '<label class="icono" for="i-foto-claude" aria-label="Foto">📷</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">' : ''}
+      <form class="chat-form" id="f-chat">${D.perfiles.bot ? '<label class="icono" for="i-foto-claude" aria-label="Foto">' + ic('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>') + '</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">' : ''}
         <textarea id="t-claude" rows="1" placeholder="Escribe al Chef…" enterkeyhint="send">${esc(V.borrador || '')}</textarea>
         <button class="enviar-chat" aria-label="Enviar">${I.enviar}</button></form>
     </div></div>`;
@@ -2505,7 +2544,53 @@ function vClaude() {
   $$('[data-ver]').forEach(b => b.addEventListener('click', e => { const c = (E.charla || []).find(x => x.id === e.target.closest('.burbuja').dataset.q); if (c) hoja(`<h2>Tu mensaje</h2><p style="white-space:pre-wrap">${esc(c.q)}</p>`); }));
   $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef?')) { E.charla = []; salva(); vClaude(); } });
   $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
-  requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight));   // lo último, a la vista
+  $('#b-ver-antes')?.addEventListener('click', () => { V.verAntes = true; vClaude(); });
+  activaHoy(p, d);
+  // Lo último, a la vista, si hoy ya se ha hablado; si no, arriba, con lo que toca hoy.
+  requestAnimationFrame(() => window.scrollTo(0, charla.length ? document.documentElement.scrollHeight : 0));
+}
+// Lo que toca hoy, arriba del Chef: una línea por comida; la cena, con sus botones.
+function bloqueHoy(p, d) {
+  if (!d && hoy() > p.dias.at(-1).f && !D.amiga) { if (!V.preparando) { V.preparando = true; setTimeout(() => { siguienteSemana(); V.preparando = false; }, 0); } return ''; }   // se acabó la semana: la siguiente, sola
+  if (!d) return `<div class="hoy-plan"><div class="hoy-vacio">Hoy no hay menú. <button class="ver-todo" data-ir="semana">Ver la semana</button></div></div>`;
+  const s = est(p.id), i = efectivo(p).dias.findIndex(x => x.f === d.f), ahora = horaComida();
+  const fila = c => {
+    const v = d[c], hecho = !!s.hechos[d.f + '|' + c];
+    if (v === undefined || v === null) return '';
+    const nombre = v.fuera ? 'Fuera' : L.esDoble(v) ? L.QUIEN.map(q => `<span class="quien-ini ${q.toLowerCase()}">${ini(q)}</span>${esc(recetas[v[q]]?.n || '—')}`).join('<br>') : esc(recetas[L.idDe(v)]?.n || v.libre || '—');
+    return `<button class="hoy-fila${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}</span><span class="hoy-plato">${nombre}</span><span class="hoy-estado">${hecho ? 'hecho' : ''}</span></button>`;
+  };
+  const vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, cenaHecha = !!s.hechos[d.f + '|cena'];
+  const falta = rc && !cenaHecha ? faltaEnCasa(rc) : [];
+  return `<section class="hoy-plan">
+    ${L.COMIDAS.map(fila).join('')}
+    ${rc ? `${falta.length ? `<p class="hoy-falta">Para la cena falta ${esc(enumera(falta.map(nombreFalta), 3))}.</p>` : ''}
+      <div class="hoy-botones">${cenaHecha ? `<button class="boton" data-hoy-acc="hecho">Desmarcar la cena</button>` : `<button class="boton principal" data-hoy-acc="como">Cómo se hace</button><button class="boton" data-hoy-acc="hecho">Ya hemos cenado</button>`}<button class="boton" data-hoy-acc="cambiar">Cambiar</button><button class="boton" data-hoy-acc="fuera">Cenamos fuera</button></div>`
+      : vc?.fuera ? `<div class="hoy-botones"><button class="boton" data-hoy-acc="fuera">Al final cenamos en casa</button></div>` : ''}
+    <div class="hoy-enlaces"><button class="ver-todo" data-ir="semana">La semana</button><button class="ver-todo" data-ir="recetas">Recetas</button></div>
+  </section>`;
+}
+function activaHoy(p, d) {
+  $$('[data-ir]').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.ir; }));
+  if (!d) return;
+  const i = efectivo(p).dias.findIndex(x => x.f === d.f);
+  $$('[data-hoy]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.hoy, null)));
+  const rc = recetas[L.idDe(d.cena)];
+  $$('[data-hoy-acc]').forEach(b => b.addEventListener('click', () => {
+    const a = b.dataset.hoyAcc;
+    if (a === 'como' && rc) explicaAqui(rc, '¿Cómo se hace la cena?');
+    if (a === 'hecho') alternaHecho(p, d.f, 'cena');
+    if (a === 'fuera') alternaFuera(p, d.f, 'cena');
+    if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);
+  }));
+}
+// La receta explicada en el chat al momento (sin esperar al Chef): cantidades de cada uno y el paso a paso.
+function explicaAqui(r, pregunta) {
+  const ing = r.ing.filter(x => !infinito(x[0]) || L.gramos(x, L.QUIEN[0], fac) >= 5).map(x => `· ${nombreCorto(D.productos[x[0]] || { n: x[0] })}: ${L.QUIEN.map(q => { const g = L.gramos(x, q, fac); return g ? (L.QUIEN.length > 1 ? `${NOM[q]} ` : '') + L.cantidadTexto(x[0], g, D.productos) : null; }).filter(Boolean).join(' · ')}`);
+  const pasos = (r.detalle?.length ? r.detalle : r.pasos).map((x, n) => `${n + 1}. ${x}`);
+  const texto = [`${r.n} · ${r.min} min · ${APARATO[r.ap] || 'cocina'}`, '', 'Ingredientes', ...ing, ...(r.prep?.length ? ['', 'Antes de empezar', ...r.prep.map(x => '· ' + x)] : []), '', 'Paso a paso', ...pasos, ...(r.truco ? ['', 'Truco: ' + r.truco] : []), '', 'Si te atascas en algún paso, pregúntame.'].join('\n');
+  E.charla = [...(E.charla || []), { id: uid(), q: pregunta, r: texto, t: new Date().toISOString(), local: true }].slice(-40);
+  salva(); if (esChat()) vClaude(); else location.hash = 'hoy';
 }
 // Recetas que el Chef necesita ver enteras: las de ayer, hoy y mañana, y las que se nombran en la pregunta o en lo último hablado.
 function recetasParaPregunta(texto, pe, h) {
@@ -2564,7 +2649,10 @@ function textoAccion(a) {
   if (a.tipo === 'receta') return `💾 Guardar la receta «${a.nombre || 'nueva'}»${a.poner?.length ? ' y ponerla en el menú' : ''}`;
   if (a.tipo === 'menu') return `🔄 Cambiar ${(a.cambios || []).length} plato${(a.cambios || []).length === 1 ? '' : 's'} del menú`;
   if (a.tipo === 'rehacer') return '🔄 Rehacer el menú con lo que hay en casa';
-  if (a.tipo === 'nota') return `📝 Recordar: «${a.texto}»`;
+  if (a.tipo === 'nota') return `Recordar: «${a.texto}»`;
+  if (a.tipo === 'acabado') return `Se ha acabado «${a.producto}»: quitarlo de la nevera y apuntarlo en la compra`;
+  if (a.tipo === 'apuntar') return `Apuntar «${a.producto}» en la compra`;
+  if (a.tipo === 'fuera') return `${L.NOMBRE_COMIDA[a.comida] || a.comida} fuera (${a.dia})`;
   if (a.tipo === 'cambiar') return `🔄 Poner «${recetas[a.receta]?.n || a.receta}» (${L.NOMBRE_COMIDA[a.comida] || a.comida}, ${a.dia})`;
   return 'Hacerlo';
 }
@@ -2597,6 +2685,14 @@ function haceAccion(a) {
     if (k) (E.casa[k] = (E.casa[k] || 0) + (a.gramos || D.productos[k].util), alta(k)); else E.casaExtra = [...(E.casaExtra || []), { id: uid(), n: capital(a.producto), cat: a.seccion || 'Otros' }];
     salva(); return `${a.producto}: en «En casa»`;
   }
+  if (a.tipo === 'acabado' && a.producto) {   // «se ha acabado»: fuera de la nevera y a la próxima compra
+    const k = productoDe(a.producto);
+    if (k) { delete E.casa[k]; baja(k); apuntaProxima({ k, n: nombreCorto(D.productos[k]) }); } else apuntaProxima({ texto: capital(a.producto), n: capital(a.producto) });
+    E.casaExtra = (E.casaExtra || []).filter(x => L.parecido(x.n, a.producto) < 0.6);
+    salva(); autoMenu(); return `${a.producto}: a la próxima compra`;
+  }
+  if (a.tipo === 'apuntar' && a.producto) { const k = productoDe(a.producto); apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]) } : { texto: capital(a.producto), n: capital(a.producto) }); salva(); return `${a.producto}: en la compra`; }
+  if (a.tipo === 'fuera' && a.dia && a.comida) { const pl = planes().find(x => x.dias.some(d => d.f === a.dia)); if (!pl) return null; const v = efectivo(pl).dias.find(d => d.f === a.dia)[a.comida]; if (!(v && v.fuera)) alternaFuera(pl, a.dia, a.comida); return `${L.NOMBRE_COMIDA[a.comida] || a.comida}: fuera`; }
   if (a.tipo === 'nota' && a.texto) {   // una costumbre de la casa: el Chef la tiene en cuenta siempre
     E.notasChef = [...(E.notasChef || []).filter(t => L.parecido(t, a.texto) < 0.8), String(a.texto).slice(0, 200)].slice(-20);
     salva(); return 'Apuntado: el Chef lo tendrá en cuenta';

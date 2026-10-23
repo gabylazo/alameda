@@ -666,3 +666,119 @@ body.con-chat main { padding-bottom: 210px; }
 .segmento.dos { grid-template-columns: 1fr 1.4fr; margin: 16px 0 6px; }
 
 .buscador-lista { width: 100%; margin: 4px 0 12px; }
+
+/* ——— NutriHome 3 (23/10/2026): interfaz sobria. Blanco, grises cálidos y un solo acento; sin emojis, degradados ni sombras de color ——— */
+:root {
+  --fondo: #f7f7f5; --tarjeta: #ffffff; --tarjeta-2: #f3f3f1; --texto: #1b1b1a; --suave: #5f5e5a; --tenue: #9b9a95; --linea: #e6e5e1;
+  --acento: #2f5d50; --acento-vivo: #2f5d50; --acento-suave: #e8efec; --acento-texto: #fff;
+  --coral: #2f5d50; --coral-2: #2f5d50; --coral-suave: #e8efec;
+  --persona-g: #8c4a5a; --persona-g-suave: #f3ecee; --persona-p: #3d5a80; --persona-p-suave: #ecf0f5;
+  --desayuno: #5f5e5a; --desayuno-suave: #f3f3f1; --comida: #5f5e5a; --comida-suave: #f3f3f1; --merienda: #5f5e5a; --merienda-suave: #f3f3f1; --cena: #5f5e5a; --cena-suave: #f3f3f1;
+  --bueno: #2f6b4f; --bueno-suave: #e8f0eb; --regular: #8a6d2b; --regular-suave: #f5f0e4; --malo: #a3423a; --malo-suave: #f6e9e7;
+  --aviso: #1b1b1a; --aviso-suave: #f3f3f1; --hielo: #3d5a80; --hielo-suave: #ecf0f5; --peligro: #a3423a;
+  --sombra: none; --sombra-fuerte: 0 8px 28px rgba(0, 0, 0, .12); --radio: 14px;
+}
+html, body { background: var(--fondo); }
+body { background-image: none; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; letter-spacing: -.005em; }
+.entra > * { animation: none; }
+h1, h2, h3 { letter-spacing: -.015em; }
+[class*="c-"] { --color-comida: var(--suave); --color-comida-suave: var(--tarjeta-2); }
+.emo, .tile, .mini-tile, .logo-mini, .sinfoto, .hero-emo, .portada, .corazon, .propia, .chat-hola .emo, .novedad .emo, .vacio .emo, .cat .emo { display: none !important; }
+
+/* Cabecera */
+.cabecera { background: transparent; color: var(--texto); border-radius: 0; padding: calc(14px + env(safe-area-inset-top)) 16px 6px; margin: 0 auto 6px; }
+.cabecera h1 { color: var(--texto); font-size: 28px; font-weight: 700; margin-top: 14px; }
+.cabecera .sub { color: var(--suave); font-size: 14.5px; font-weight: 400; }
+.marca { font-weight: 600; font-size: 14px; }
+.marca .nutri, .marca .home { color: var(--texto); }
+.marca .fecha-chip { background: none; border: 0; color: var(--tenue); font-weight: 500; padding: 0; }
+.marca .volver { background: var(--tarjeta); border: 1px solid var(--linea); box-shadow: none; color: var(--texto); }
+.avatar.g, .avatar.p { background: var(--tarjeta-2); color: var(--texto); box-shadow: none !important; border: 1px solid var(--linea); }
+.avatar.g { color: var(--persona-g); } .avatar.p { color: var(--persona-p); }
+
+/* Superficies */
+.tarjeta, .lista, .comida, .hero, .hoja, .burbuja.el { border: 1px solid var(--linea); box-shadow: none; border-radius: var(--radio); }
+.tarjeta, .lista { background: var(--tarjeta); }
+.comida, .comida.doble, .comida.hecha, .comida.fuera { background: var(--tarjeta); }
+.comida.ahora { box-shadow: inset 3px 0 0 var(--acento); }
+.comida .nombre { font-weight: 600; font-size: 16px; }
+.comida .pill, .fila-doble { background: var(--tarjeta-2); }
+.hero { background: var(--tarjeta); color: var(--texto); }
+.hero .sub { color: var(--suave); } .hero::after { display: none; }
+.hoja { border-radius: 18px 18px 0 0; border-bottom: 0; }
+.aviso, .aviso.hielo, .aviso.verde { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: var(--radio); }
+.aviso b, .aviso.hielo b, .aviso.verde b { color: var(--texto); }
+.portada-hoja, .acciones-cab { background: transparent; }
+.objetivos .o1, .objetivos .o2, .objetivos .o3, .objetivos .o4 { background: var(--tarjeta-2); }
+.ticket-ok, .escanear-grande, .rapida, .atajo { background: var(--tarjeta); border-color: var(--linea); box-shadow: none; }
+.clave-casa b { background: var(--tarjeta-2); }
+
+/* Botones y pastillas */
+.boton { border: 1px solid var(--linea); background: var(--tarjeta); box-shadow: none; font-weight: 600; border-radius: 10px; min-height: 42px; }
+.boton.principal, .accion.primaria, .pregunta .boton.principal, .enviar-chat, .cantidad button.mas, .deshacer button, .chip.si { background: var(--texto); color: #fff; border-color: var(--texto); box-shadow: none; }
+.boton.coral, .nueva-receta, .nueva-receta.verde { background: var(--tarjeta); color: var(--texto); border: 1px solid var(--linea); box-shadow: none; }
+.boton.suave { background: var(--tarjeta-2); color: var(--texto); }
+.barra-accion .boton { box-shadow: none; }
+.accion { border: 1px solid var(--linea); background: var(--tarjeta); font-weight: 600; }
+.chip { border: 1px solid var(--linea); font-weight: 500; color: var(--suave); }
+.chip[aria-pressed="true"] { background: var(--texto); color: #fff; border-color: var(--texto); }
+.pill { font-weight: 600; background: var(--tarjeta-2); color: var(--suave); }
+.pill.g, .pill.p, .pill.verde { background: var(--tarjeta-2); }
+.nuevo { background: var(--texto); }
+.cat .num { box-shadow: none; border: 1px solid var(--linea); }
+.ver-todo, .cat .cat-accion { color: var(--texto); font-weight: 600; }
+a { color: var(--texto); }
+
+/* Pestañas */
+.pestanas { background: rgba(255, 255, 255, .96); border-top: 1px solid var(--linea); }
+.pestanas button { font-weight: 600; color: var(--tenue); }
+.pestanas button[aria-current="page"] { color: var(--texto); }
+.pestanas button[aria-current="page"] .ic { background: none; transform: none; }
+.pestanas button svg { stroke-width: 1.6; }
+
+/* Semana */
+.dia-btn { border: 1px solid var(--linea); box-shadow: none; border-radius: 12px; }
+.dia-btn.hoy .ds { color: var(--texto); }
+.dia-btn[aria-pressed="true"] { background: var(--texto); box-shadow: none; transform: none; }
+.dia-btn[aria-pressed="true"] .ds, .dia-btn[aria-pressed="true"] .dn { color: #fff; }
+.dia-btn[aria-pressed="true"] .puntos i { background: rgba(255, 255, 255, .35); } .dia-btn[aria-pressed="true"] .puntos i.h { background: #fff; }
+.dia-btn .puntos i.h { background: var(--acento); }
+.ahora-pill, .hecho-pill { background: var(--tarjeta-2) !important; color: var(--suave) !important; font-weight: 600; }
+
+/* Recetas: tarjetas de texto */
+.receta-tarjeta { border: 1px solid var(--linea); box-shadow: none; background: var(--tarjeta); }
+.receta-tarjeta .nombre { font-weight: 600; }
+.pasos li::before { background: var(--tarjeta-2) !important; color: var(--texto) !important; font-weight: 600; box-shadow: none !important; }
+.ing-fila .hay.si { color: var(--bueno); } .ing-fila .hay.no { color: var(--malo); }
+
+/* Chat */
+.burbuja { border-radius: 14px; font-size: 15px; line-height: 1.45; }
+.burbuja.yo { background: var(--texto); color: #fff; }
+.burbuja .borrar { color: rgba(255, 255, 255, .6); }
+.sugerencias .chip { background: var(--tarjeta); border-color: var(--linea); color: var(--texto); }
+.chat-barra { background: rgba(247, 247, 245, .97); border-top: 1px solid var(--linea); }
+.chat-form textarea { border: 1px solid var(--linea); border-radius: 12px; }
+.chat-form textarea:focus { border-color: var(--texto); }
+.enviar-chat { border-radius: 12px; }
+.chat-hola { align-items: flex-start; text-align: left; padding: 18px 2px 8px; }
+.chat-hola b { font-size: 16px; font-weight: 600; }
+
+/* Hoy: lo que toca, arriba del Chef */
+.hoy-plan { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: var(--radio); padding: 4px 14px 12px; margin: 4px 0 14px; }
+.hoy-fila { display: grid; grid-template-columns: 82px 1fr auto; gap: 10px; align-items: baseline; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--linea); background: none; padding: 12px 0; font: inherit; color: inherit; }
+.hoy-fila:last-of-type { border-bottom: 0; }
+.hoy-comida { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--tenue); }
+.hoy-fila.ahora .hoy-comida { color: var(--texto); }
+.hoy-plato { font-size: 15.5px; font-weight: 500; line-height: 1.35; }
+.hoy-fila.hecha .hoy-plato { color: var(--tenue); }
+.hoy-estado { font-size: 12.5px; color: var(--tenue); }
+.quien-ini { display: inline-block; width: 16px; font-size: 12px; font-weight: 700; }
+.quien-ini.g { color: var(--persona-g); } .quien-ini.p { color: var(--persona-p); }
+.hoy-falta { font-size: 13.5px; color: var(--malo); margin: 4px 0 0; }
+.hoy-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.hoy-botones .boton { min-height: 38px; padding: 8px 12px; font-size: 14px; }
+.hoy-enlaces { display: flex; gap: 18px; margin-top: 12px; }
+.hoy-vacio { padding: 12px 0; color: var(--suave); }
+.por-que { margin: 12px 0 0; border: 1px solid var(--linea); border-radius: var(--radio); padding: 10px 12px; background: var(--tarjeta); }
+.por-que summary { font-weight: 600; cursor: pointer; }
+.por-que .nota { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; }
