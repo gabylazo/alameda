@@ -1062,3 +1062,26 @@ b, strong { font-weight: 600; }
 :root[data-theme="dark"] .hoja { background: var(--tarjeta); color: var(--texto); }
 :root[data-theme="dark"] .tostada, :root[data-theme="dark"] .deshacer { background: #f2f2f2; color: #121212; }
 :root[data-theme="dark"] .deshacer button { color: #1f6b49; }
+
+/* ——— Ajustes (24/10/2026): pestaña propia con lista por grupos, como los ajustes del iPhone. Cada fila abre su página ——— */
+.ajustes-lista { background: var(--gris); border-radius: 14px; overflow: hidden; margin: 0 0 22px; }
+.ajuste-fila { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 10px 14px; background: none; border: 0; border-radius: 0; text-align: left; font: inherit; color: var(--texto); cursor: pointer; }
+.ajuste-fila + .ajuste-fila, .af-seg + .ajuste-fila { border-top: 1px solid var(--linea); }
+.ajuste-fila.estatica { cursor: default; padding-bottom: 4px; }
+.ajuste-fila:active:not(.estatica) { background: var(--gris-2); }
+.ajuste-fila .avatar { width: 32px; height: 32px; font-size: 14px; flex: none; }
+.af-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--acento-suave); color: var(--acento); }
+.af-ic svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.af-t { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.af-t b { font-size: 16px; font-weight: 500; }
+.af-t span { font-size: 14px; color: var(--suave); }
+.af-v { font-size: 15px; color: var(--suave); white-space: nowrap; }
+.af-flecha { flex: none; display: grid; color: var(--tenue); }
+.af-flecha svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.af-seg { padding: 4px 14px 12px 58px; }
+.af-seg .segmento { margin: 0; background: var(--gris-2); }
+.creditos { margin-top: 4px; }
+.ajuste-pagina .tarjeta.perfil > h3:first-child { display: none; }   /* el título ya está arriba */
+.ajuste-pagina .tarjeta.perfil > h3:first-child + .nota { margin-top: 0 !important; }
+.af-t .nuevo { color: #fff; }
+:root[data-theme="dark"] .af-t .nuevo { color: var(--acento-texto); }

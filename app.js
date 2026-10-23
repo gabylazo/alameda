@@ -67,6 +67,15 @@ const SVG = {
   mas: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   claude: '<svg viewBox="0 0 24 24"><path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6.5L6 20v-4.2A3 3 0 0 1 4 13V7Z"/><path d="M8.5 8.5h7M8.5 11.5h4.5"/></svg>',
   volver: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  ajustes: '<svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>',
+  flecha: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+  tienda: '<svg viewBox="0 0 24 24"><path d="M4 9l1.5-5h13L20 9M4 9h16M4 9v11h16V9M9 20v-6h6v6"/></svg>',
+  pesa: '<svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
+  tema: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17Z" fill="currentColor"/></svg>',
+  estrella: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8Z"/></svg>',
+  nube: '<svg viewBox="0 0 24 24"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.3 9.6 4.5 4.5 0 0 0 7 18.5Z"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
+  llave: '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2.5 2.5"/></svg>',
 };
 const I = {
   corazon: ic('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>'),
@@ -80,8 +89,8 @@ const I = {
   calendario: ic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 };
 const NOMBRE_AGENTE = 'Chef';   // el nombre de la pestaña 💬 lo elige la casa
-const PESTANAS = [['hoy', 'Hoy'], ['compra', 'Compra'], ['casa', 'Nevera']];   // la semana y las recetas se abren desde Hoy
-// «Nosotros» ya no es pestaña: se abre con el icono de perfil de la cabecera.
+const PESTANAS = [['hoy', 'Hoy'], ['compra', 'Compra'], ['casa', 'Nevera'], ['nosotros', 'Ajustes']];   // la semana y las recetas se abren desde Hoy
+// «Ajustes» (hash nosotros) es pestaña desde el 24/10: antes se abría con los avatares de la cabecera y se perdía.
 const VISTAS = { hoy: vClaude, semana: vSemana, compra: vCompra, claude: vClaude, casa: vCasa, recetas: vRecetas, nosotros: vNosotros };
 const APARATO = { airfryer: 'Air fryer', horno: 'Horno', plancha: 'Plancha', micro: 'Micro', sin: 'Sin fuego', batidora: 'Batidora', olla: 'Olla' };
 const APARATO_EMO = { airfryer: '🌀', horno: '🔥', plancha: '🍳', micro: '⚡', sin: '🥄', batidora: '🥤', olla: '♨️' };
@@ -95,11 +104,11 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
-  { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Modo oscuro', texto: 'En vuestro perfil, «Apariencia»: claro, oscuro o automático (como tengáis el móvil). Se elige en cada móvil.', ir: 'nosotros', foco: '[data-tema]' },
+  { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Ajustes y modo oscuro', texto: 'Ajustes, la pestaña nueva de abajo, reúne vuestros datos, el súper, lo que sabe el Chef y la apariencia: claro, oscuro o automático (como tengáis el móvil).', ir: 'nosotros', foco: '[data-tema]' },
   { id: 'fotos', fecha: '2026-10-24', emo: '', titulo: 'Fotos y letra nueva', texto: 'Cada receta tiene su foto, también las que creéis vosotros o con el Chef (se elige sola y se puede cambiar en la receta). Letra más limpia y listas más ordenadas.', ir: 'recetas' },
   { id: 'nutrihome3', fecha: '2026-10-23', emo: '', titulo: 'NutriHome, más sencilla', texto: 'Tres pantallas: Hoy (lo que toca hoy y el Chef en la misma pantalla), Compra y Nevera. «Cómo se hace» te explica la cena paso a paso al momento. Desayuno, almuerzo con Huel y cena sólida con ensalada. La semana y las recetas, desde Hoy.', ir: 'hoy', origen: true },
   { id: 'legumbres', fecha: '2026-10-22', emo: '🫘', titulo: 'Platos de legumbres', texto: 'Cinco platos calientes con garbanzos y lentejas: salteado con atún, lentejas guisadas, lentejas con arroz y cebolla, bol de quinoa con garbanzos crujientes y curry de garbanzos. El menú los usa cuando están en casa.', ir: 'recetas' },
-  { id: 'chef-notas', fecha: '2026-10-22', emo: '📝', titulo: 'El Chef recuerda vuestras costumbres', texto: 'Lo que le contéis (horarios, comidas ligeras, cenas más elaboradas…) se queda apuntado en Nosotros y lo tiene en cuenta siempre. Y ya solo propone platos que salen con lo de casa, salvo que le pidáis comprar.', ir: 'nosotros', foco: '#f-nota' },
+  { id: 'chef-notas', fecha: '2026-10-22', emo: '📝', titulo: 'El Chef recuerda vuestras costumbres', texto: 'Lo que le contéis (horarios, comidas ligeras, cenas más elaboradas…) se queda apuntado en Nosotros y lo tiene en cuenta siempre. Y ya solo propone platos que salen con lo de casa, salvo que le pidáis comprar.', ir: 'nosotros', ajuste: 'chef', foco: '#f-nota' },
   { id: 'menu-casa', fecha: '2026-10-19', emo: '🔄', titulo: 'El menú sigue a lo que hay en casa', texto: 'Si falta lo principal de un plato (o no llega la cantidad), se cambia solo por otro que podáis hacer. En cada receta, ✓ o ✕ al lado de cada ingrediente.', ir: 'semana' },
   { id: 'aviso-noche', fecha: '2026-10-20', emo: '🌙', titulo: 'Aviso la noche antes', texto: 'Si mañana toca algo que se prepara la noche antes (como la avena de la noche), desde las 17:00 te sale en Semana «Esta noche, 5 minutos».', ir: 'semana' },
   { id: 'compartir-receta', fecha: '2026-10-20', emo: '📤', titulo: 'Compartir recetas', texto: 'En cada receta, «📤 Compartir»: la mandas por WhatsApp (o donde quieras) con los ingredientes y el paso a paso.', ir: 'recetas', foco: '.receta-tarjeta' },
@@ -121,7 +130,7 @@ const NOVEDADES = [   // la más nueva, arriba
   { id: 'vaciar-compra', fecha: '2026-10-18', emo: '🧹', titulo: 'Compra sin acumular', texto: '«Quitados», «¿Os queda?» y «Pendiente de otro súper» se vacían u ocultan desde su título, con «Deshacer». Los pendientes salen plegados.', ir: 'compra', foco: '.cat-accion' },
   { id: 'cocina', fecha: '2026-10-18', emo: '🍳', titulo: 'Lo que tenéis en la cocina', texto: 'En Recetas, marca los aparatos que tienes: solo verás lo que puedes hacer y el menú se adapta.', ir: 'recetas', foco: '.cocina' },
   { id: 'se-acabo', fecha: '2026-10-18', emo: '🛒', titulo: '«Se acabó»', texto: 'En «En casa», toca el carrito cuando algo se termine: pasa solo a la próxima compra.', ir: 'casa', foco: '.casa-fila .icono' },
-  { id: 'amigos', fecha: '2026-10-18', emo: '👥', titulo: 'Invita a tus amigos', texto: 'Desde el perfil, arriba a la derecha: cada casa tiene su menú, su compra y su Chef.', ir: 'nosotros', foco: '#f-invitar', origen: true },
+  { id: 'amigos', fecha: '2026-10-18', emo: '👥', titulo: 'Invita a tus amigos', texto: 'En Ajustes, «Invitar a amigos»: cada casa tiene su menú, su compra y su Chef.', ir: 'nosotros', ajuste: 'amigos', foco: '#f-invitar', origen: true },
   { id: 'chef', fecha: '2026-10-18', emo: '💬', titulo: 'El Chef contesta aquí', texto: 'Pregúntale en la pestaña Chef: responde dentro de la app en un minuto.', ir: 'claude', foco: '.charla' },
   { id: 'sincro', fecha: '2026-10-18', emo: '☁️', titulo: 'Todos los móviles a la vez', texto: 'Lo que marca uno lo ven los demás de la casa al momento.' },
 ];
@@ -147,6 +156,7 @@ function hojaNovedades(todas = false) {
 function llevaA(n) {
   if (!n?.ir) return;
   const brilla = () => { const el = $(n.foco); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('destaca'); setTimeout(() => el.classList.remove('destaca'), 3500); };
+  if (n.ir === 'nosotros') { V.ajuste = n.ajuste || null; if (V.pestana === 'nosotros') { vNosotros(); return setTimeout(brilla, 100); } }
   if (V.pestana === n.ir) brilla(); else { location.hash = n.ir; setTimeout(brilla, 700); }
 }
 const pillAparato = r => !r ? '' : !sePuedeHacer(r) ? `<span class="pill malo">⚠️ necesita ${esc(nombreAparato(r.ap))}</span>` : conHorno(r) ? '<span class="pill">🔥 en horno</span>' : '';
@@ -477,7 +487,7 @@ async function inicio() {
 let versionCargada = null;
 async function versionPublicada() { try { const r = await fetch('version.txt', { cache: 'no-store' }); return r.ok ? (await r.text()).trim() : null; } catch { return null; } }
 
-const SUBVISTAS = ['nosotros', 'semana', 'recetas'];   // se abren desde Hoy o el perfil y tienen botón de volver
+const SUBVISTAS = ['semana', 'recetas'];   // se abren desde Hoy o Ajustes y tienen botón de volver
 const marcaHTML = '<span class="nombre-app"><span class="nutri">Nutri</span><span class="home">Home</span></span>';
 function puerta(error = '') {
   document.body.innerHTML = `
@@ -499,11 +509,11 @@ function pintaMarco() {
     <header class="cabecera" id="cab"></header>
     <main id="vista"></main>
     <nav class="pestanas" aria-label="Secciones"><div class="dentro">
-      ${PESTANAS.map(([k, t]) => `<button data-p="${k}"><span class="ic">${SVG[k]}</span><span>${t}</span></button>`).join('')}
+      ${PESTANAS.map(([k, t]) => `<button data-p="${k}"><span class="ic">${SVG[k === 'nosotros' ? 'ajustes' : k]}</span><span>${t}</span></button>`).join('')}
     </div></nav>
     <div class="tostada" id="tostada" role="status"></div>
     <div class="deshacer" id="deshacer" role="status"><span id="deshacer-t"></span><button id="deshacer-b">Deshacer</button></div>`;
-  $$('.pestanas button').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.p; }));
+  $$('.pestanas button').forEach(b => b.addEventListener('click', () => { if (b.dataset.p === 'nosotros') { V.ajuste = null; if (V.pestana === 'nosotros') { vNosotros(); window.scrollTo({ top: 0 }); } } location.hash = b.dataset.p; }));
   sinEmojis(document.body);
   new MutationObserver(ms => { for (const m of ms) { if (m.type === 'characterData') sinEmojis(m.target); else m.addedNodes.forEach(sinEmojis); } })
     .observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -521,7 +531,7 @@ let tEntra;
 function pinta() {
   const auto = autoMenu();   // el menú, siempre al día con lo que hay en casa
   if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que hay en casa: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
-  const activa = V.pestana === 'claude' || SUBVISTAS.includes(V.pestana) && V.pestana !== 'nosotros' ? 'hoy' : V.pestana;
+  const activa = V.pestana === 'claude' || SUBVISTAS.includes(V.pestana) ? 'hoy' : V.pestana;
   $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === activa ? 'page' : 'false'));
   const f = VISTAS[V.pestana] || vClaude;
   document.body.classList.toggle('con-barra', V.pestana === 'compra');
@@ -536,13 +546,11 @@ function pinta() {
 const esChat = () => V.pestana === 'claude' || V.pestana === 'hoy';
 const repinta = () => (VISTAS[V.pestana] || vClaude)();
 function cabecera(titulo, sub = '') {
-  const d = new Date(), perfil = V.pestana === 'nosotros', sub2 = SUBVISTAS.includes(V.pestana);
+  const d = new Date(), enAjuste = V.pestana === 'nosotros' && !!V.ajuste, sub2 = SUBVISTAS.includes(V.pestana) || enAjuste;
   $('#cab').innerHTML = `<div class="marca">${sub2 ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : ''}${marcaHTML}
-      <span class="fecha-chip">${iconoSync()}${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span>
-      <button class="perfil-btn${perfil ? ' activo' : ''}" id="b-perfil" aria-label="Vuestros datos">${L.QUIEN.map(q => `<span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span>`).join('')}</button></div>
+      <span class="fecha-chip">${iconoSync()}${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span></div>
     <h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}`;
-  $('#b-perfil').addEventListener('click', () => { location.hash = perfil ? V.anterior : 'nosotros'; });
-  $('#b-volver')?.addEventListener('click', () => { location.hash = V.anterior && V.anterior !== V.pestana ? V.anterior : 'hoy'; });
+  $('#b-volver')?.addEventListener('click', () => { if (enAjuste) { V.ajuste = null; vNosotros(); window.scrollTo({ top: 0 }); return; } location.hash = V.anterior && V.anterior !== V.pestana ? V.anterior : 'hoy'; });
 }
 
 let tTostada, tDeshacer;
@@ -2229,7 +2237,6 @@ const enlaceCasa = c => `${location.origin}${location.pathname}#casa=${c}`;
 const textoInvitacion = x => `Te invito a NutriHome, nuestra app de menús y lista de la compra, con un chef al que preguntar: ${enlaceCasa(x.clave)}\nÁbrela en el móvil y contesta unas preguntas. Si algún día te pide la clave de casa, es esta: ${x.clave}`;
 function vNosotros() {
   const p = perfiles(), h = hoy(), cr = E.creatina[h] || {}, sup = E.super || 'mercadona', amiga = !!D.amiga, varios = L.QUIEN.length > 1;
-  cabecera(varios ? 'Nosotros' : 'Mis datos', varios ? 'Vuestros datos, gustos y súper' : 'Tus datos, gustos y súper');
   const alergiasTxt = x => [...new Set([...(x.alergias || []).map(a => (ALERGIAS.find(([v]) => v.split(',').includes(a)) || [a, a])[1]), x.otrasAlergias].filter(Boolean))];
   const tarjeta = q => {
     const x = p[q], o = obj[q], al = alergiasTxt(x);
@@ -2245,33 +2252,66 @@ function vNosotros() {
   };
   const gym = E.gimnasio ?? p.gimnasio, conSuple = !amiga && D.perfiles.suplementos;
   const fmt = v => String(v).replace('.', ',');
-  $('#vista').innerHTML = `
-    ${L.QUIEN.map(tarjeta).join('')}
-    ${amiga ? `<button class="boton ancho" id="b-cambiar-datos" style="margin:4px 0 8px">✏️ Cambiar ${varios ? 'nuestros' : 'mis'} datos y rehacer el menú</button>` : ''}
-    <div class="tarjeta perfil"><h3>🏪 ${varios ? 'Vuestro' : 'Tu'} súper</h3>
+  // Ajustes: una lista por grupos y cada fila abre su página (V.ajuste); Apariencia se elige ahí mismo.
+  const tema = leeTexto(TEMA) || 'claro', nNotas = (E.notasChef || []).length, nAp = APARATOS_CASA.filter(([k]) => aparatosCasa().includes(k)).length;
+  const paginas = {
+    ...Object.fromEntries(L.QUIEN.map(q => [q, [esc(p[q].nombre), tarjeta(q) + (amiga ? `<button class="boton ancho" id="b-cambiar-datos" style="margin:4px 0 8px">Cambiar ${varios ? 'nuestros' : 'mis'} datos y rehacer el menú</button>` : '')]])),
+    super: [varios ? 'Vuestro súper' : 'Tu súper', `    <div class="tarjeta perfil"><h3>🏪 ${varios ? 'Vuestro' : 'Tu'} súper</h3>
       <div class="botones" style="margin-top:10px">${SUPERS.map(([k, n]) => `<button class="chip" data-super="${k}" aria-pressed="${sup === k}">${n}</button>`).join('')}</div>
       <p class="nota" style="margin:10px 0 0">${sup === 'mercadona' ? 'Productos, precios y ticket digital de Mercadona.' : 'Por ahora, los productos y los precios son los de Mercadona, como referencia.'}${amiga && E.hogar?.presupuesto ? ` Presupuesto: ${euros(E.hogar.presupuesto)} a la semana.` : ''}</p></div>
-    ${conSuple ? `<div class="tarjeta perfil"><h3>💊 Creatina de hoy</h3>
+`],
+    salud: [conSuple ? 'Creatina y gimnasio' : 'Cómo lo calculo', `    ${conSuple ? `<div class="tarjeta perfil"><h3>💊 Creatina de hoy</h3>
       <div class="botones" style="margin-top:10px">${L.QUIEN.map(q => `<button class="chip" data-crea="${q}" aria-pressed="${!!cr[q]}">${cr[q] ? '✅' : '⬜'} ${esc(NOM[q])}</button>`).join('')}</div></div>
     <div class="tarjeta perfil"><button class="interruptor" id="b-gym" aria-pressed="${!!gym}"><span class="sw"></span><span>🏋️ ${gym ? 'Vamos al gimnasio' : 'Todavía sin gimnasio'}</span></button></div>` : ''}
-    <details class="tarjeta perfil"><summary><b>🧮 Cómo lo calculo</b></summary><p class="nota">Gasto en reposo (Mifflin-St Jeor) × actividad${amiga ? ', y según el objetivo de cada uno: perder grasa, un 20 % menos; mantenerse, igual; ganar músculo, un 10 % más' : ' (×1,3; ×1,45 con gimnasio), menos un 20 %'}. Nunca por debajo de 1.200 kcal (mujeres) o 1.500 (hombres). Proteína: ${L.QUIEN.map(q => `${fmt(p[q].protKg)} g/kg ${esc(NOM[q])}`).join(' y ')}. Grasa: ${fmt(p.G.grasaKg)} g/kg. Lo demás, hidratos.</p>
+    <details class="tarjeta perfil" open><summary><b>🧮 Cómo lo calculo</b></summary><p class="nota">Gasto en reposo (Mifflin-St Jeor) × actividad${amiga ? ', y según el objetivo de cada uno: perder grasa, un 20 % menos; mantenerse, igual; ganar músculo, un 10 % más' : ' (×1,3; ×1,45 con gimnasio), menos un 20 %'}. Nunca por debajo de 1.200 kcal (mujeres) o 1.500 (hombres). Proteína: ${L.QUIEN.map(q => `${fmt(p[q].protKg)} g/kg ${esc(NOM[q])}`).join(' y ')}. Grasa: ${fmt(p.G.grasaKg)} g/kg. Lo demás, hidratos.</p>
       ${conSuple ? `<p class="nota">💊 ${esc(D.perfiles.suplementos.creatina)}<br>🥤 ${esc(D.perfiles.suplementos.huel)}</p>` : ''}<p class="nota">NutriHome no da consejos médicos: si tienes una enfermedad o estás embarazada, consulta antes a un profesional.</p></details>
-    ${amiga ? `<div class="tarjeta perfil"><h3>🔑 ${varios ? 'Vuestra' : 'Tu'} clave de casa</h3>
+`],
+    chef: ['Lo que sabe el Chef', `    <div class="tarjeta perfil"><h3>📝 Lo que el Chef sabe de ${varios ? 'vosotros' : 'ti'}${etiquetaNuevo('chef-notas')}</h3><p class="nota" style="margin:6px 0 10px">Costumbres que le habéis contado (horarios, lo que preferís en cada comida…). Las tiene en cuenta siempre.</p>
+      ${(E.notasChef || []).length ? `<div class="lista">${E.notasChef.map((t, i) => `<div class="producto fila-simple"><div class="sinfoto">📝</div><div class="info"><div class="pn">${esc(t)}</div></div><button class="icono" data-nota-quitar="${i}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
+      <form class="anadir" id="f-nota" style="margin-top:10px"><div class="caja"><input id="i-nota" placeholder="Desayunamos tarde y casi nunca comemos" autocomplete="off" enterkeyhint="send"><button class="icono mas" aria-label="Apuntar">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form></div>
+`],
+    amigos: [amiga ? 'Clave de casa' : 'Invitar a amigos', `    ${amiga ? `<div class="tarjeta perfil"><h3>🔑 ${varios ? 'Vuestra' : 'Tu'} clave de casa</h3>
       <p class="nota" style="margin:6px 0 10px">Te la pedirá si instalas la app en la pantalla de inicio o la abres en otro móvil.</p>
       <div class="clave-casa"><b>${esc(leeTexto(CLAVE))}</b><button class="chip" id="b-copiar-clave">Copiar</button><button class="chip" id="b-enviar-clave">📤 Enviar</button></div></div>`
     : `<div class="tarjeta perfil"><h3>👥 Invitar a amigos${etiquetaNuevo('amigos')}</h3>
       <p class="nota" style="margin:6px 0 10px">Cada casa invitada tiene su menú, su compra y su Chef. Sus datos van aparte, cifrados con su propia clave.</p>
       ${E.invitaciones.length ? `<div class="lista">${E.invitaciones.map(x => `<div class="producto fila-simple"><div class="sinfoto">🏠</div><div class="info"><div class="pn">${esc(x.nombre)}</div><div class="pc" data-estado-inv="${esc(x.id)}">invitada el ${fechaCorta(x.creada)}</div></div><button class="chip" data-inv-enviar="${esc(x.id)}">📤 Enviar</button><button class="icono" data-inv-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
       <form class="anadir" id="f-invitar" style="margin-top:10px"><div class="caja"><input id="i-invitar" placeholder="¿A quién invitas? Laura y Dani" autocomplete="off" enterkeyhint="send"><button class="icono mas" aria-label="Crear invitación">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form></div>`}
-    <div class="tarjeta perfil"><h3>📝 Lo que el Chef sabe de ${varios ? 'vosotros' : 'ti'}${etiquetaNuevo('chef-notas')}</h3><p class="nota" style="margin:6px 0 10px">Costumbres que le habéis contado (horarios, lo que preferís en cada comida…). Las tiene en cuenta siempre.</p>
-      ${(E.notasChef || []).length ? `<div class="lista">${E.notasChef.map((t, i) => `<div class="producto fila-simple"><div class="sinfoto">📝</div><div class="info"><div class="pn">${esc(t)}</div></div><button class="icono" data-nota-quitar="${i}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>` : ''}
-      <form class="anadir" id="f-nota" style="margin-top:10px"><div class="caja"><input id="i-nota" placeholder="Desayunamos tarde y casi nunca comemos" autocomplete="off" enterkeyhint="send"><button class="icono mas" aria-label="Apuntar">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form></div>
-    <div class="tarjeta perfil"><h3>✨ Novedades</h3><p class="nota" style="margin:6px 0 10px">Lo último que ha llegado a la app, por si te lo perdiste.</p><button class="boton" id="b-novedades">Ver las novedades</button></div>
-    <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Todos los móviles de casa comparten lo mismo a través del servidor. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
-    <div class="tarjeta perfil"><h3>Apariencia${etiquetaNuevo('oscuro')}</h3><p class="nota" style="margin:6px 0 10px">Solo en este móvil.</p>
-      <div class="segmento" role="tablist">${[['claro', 'Claro'], ['oscuro', 'Oscuro'], ['auto', 'Automático']].map(([k, n]) => `<button data-tema="${k}" aria-selected="${(leeTexto(TEMA) || 'claro') === k}">${n}</button>`).join('')}</div></div>
+`],
+    movil: ['Sincronización', `    <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Todos los móviles de casa comparten lo mismo a través del servidor. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
-      <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div><p class="nota creditos">Fotos de los platos: Pexels (fotos libres). Pueden no ser exactamente vuestra receta.</p>`;
+      <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div>`],
+  };
+  const fila = (k, ic, t, sub = '', val = '') => `<button class="ajuste-fila" data-ajuste="${k}">${ic}<span class="af-t"><b>${t}</b>${sub ? `<span>${sub}</span>` : ''}</span>${val ? `<span class="af-v">${val}</span>` : ''}<span class="af-flecha">${SVG.flecha}</span></button>`;
+  const icono = (svg, cls = '') => `<span class="af-ic ${cls}">${svg}</span>`;
+  const estadoSync = !servidor() ? 'Solo este móvil' : V.sync === 'ok' ? 'Al día' : V.sync === 'error' ? 'Sin conexión' : 'Conectando…';
+  if (V.ajuste && !paginas[V.ajuste]) V.ajuste = null;
+  if (V.ajuste) { cabecera(paginas[V.ajuste][0]); $('#vista').innerHTML = `<div class="ajuste-pagina">${paginas[V.ajuste][1]}</div>`; }
+  else {
+    cabecera('Ajustes');
+    $('#vista').innerHTML = `
+    <h2 class="cat">${varios ? 'Vosotros' : 'Tus datos'}</h2>
+    <div class="ajustes-lista">${L.QUIEN.map(q => fila(q, `<span class="avatar ${q.toLowerCase()}">${ini(q)}</span>`, esc(p[q].nombre), `${p[q].edad} años · ${p[q].altura} cm · ${fmt(p[q].peso)} kg`, `${obj[q].kcal} kcal`)).join('')}</div>
+    <h2 class="cat">Casa</h2>
+    <div class="ajustes-lista">
+      ${fila('super', icono(SVG.tienda), varios ? 'Vuestro súper' : 'Tu súper', '', (SUPERS.find(([k]) => k === sup) || SUPERS[0])[1])}
+      <button class="ajuste-fila" data-ir-cocina>${icono(SVG.recetas)}<span class="af-t"><b>Cocina</b></span><span class="af-v">${nAp} aparatos</span><span class="af-flecha">${SVG.flecha}</span></button>
+      ${fila('chef', icono(SVG.claude), 'Lo que sabe el Chef', 'Vuestras costumbres', nNotas ? String(nNotas) : '')}
+      ${conSuple ? fila('salud', icono(SVG.pesa), 'Creatina y gimnasio', 'Y cómo se calculan las calorías') : ''}
+      ${fila('amigos', icono(amiga ? SVG.llave : SVG.nosotros), amiga ? 'Clave de casa' : 'Invitar a amigos', '', !amiga && E.invitaciones.length ? String(E.invitaciones.length) : '')}
+    </div>
+    <h2 class="cat">App</h2>
+    <div class="ajustes-lista">
+      <div class="ajuste-fila estatica">${icono(SVG.tema)}<span class="af-t"><b>Apariencia${etiquetaNuevo('oscuro')}</b><span>Solo en este móvil</span></span></div>
+      <div class="af-seg"><div class="segmento" role="tablist">${[['claro', 'Claro'], ['oscuro', 'Oscuro'], ['auto', 'Automático']].map(([k, n]) => `<button data-tema="${k}" aria-selected="${tema === k}">${n}</button>`).join('')}</div></div>
+      <button class="ajuste-fila" id="b-novedades">${icono(SVG.estrella)}<span class="af-t"><b>Novedades</b><span>Lo último que ha llegado</span></span><span class="af-flecha">${SVG.flecha}</span></button>
+      ${fila('movil', icono(SVG.nube), 'Sincronización y este móvil', '', estadoSync)}
+      ${conSuple ? '' : fila('salud', icono(SVG.info), 'Cómo lo calculo')}
+    </div>
+    <p class="nota creditos">Fotos de los platos: Pexels (fotos libres). Pueden no ser exactamente vuestra receta.</p>`;
+  }
+  $$('[data-ajuste]').forEach(b => b.addEventListener('click', () => { V.ajuste = b.dataset.ajuste; vNosotros(); window.scrollTo({ top: 0 }); }));
+  $('[data-ir-cocina]')?.addEventListener('click', () => { V.verCocina = true; location.hash = 'recetas'; });
   $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(i.value.replace(',', '.'));
     if (!isFinite(v) || v <= 0) return;
