@@ -1019,3 +1019,46 @@ b, strong { font-weight: 600; }
 .chip.si { background: #fff; color: var(--acento); border: 1px solid var(--linea); font-weight: 500; }
 .dia-btn.hoy .ds { color: var(--acento); } .dia-btn[aria-pressed="true"] .ds, .dia-btn.hoy[aria-pressed="true"] .ds { color: #fff; }
 .ing-fila .c { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ——— Modo oscuro (24/10/2026): la misma 3.3 en oscuro, solo con html[data-theme="dark"] (Nosotros → Apariencia).
+   Fondo casi negro, grupos en gris oscuro, acento verde más claro (con texto oscuro encima) y las fotos sin cambiar ——— */
+.segmento:has([data-tema]) { grid-template-columns: repeat(3, 1fr); }
+:root[data-theme="dark"] { color-scheme: dark;
+  --fondo: #121212; --tarjeta: #1c1c1e; --tarjeta-2: #1f1f21; --gris: #1f1f21; --gris-2: #2a2a2d; --linea: #2c2c2e;
+  --texto: #f2f2f2; --suave: #a1a1a6; --tenue: #6e6e73;
+  --acento: #5cc08f; --acento-vivo: #5cc08f; --acento-suave: #1b3226; --acento-texto: #0c1a12;
+  --coral: #7fb8a6; --coral-2: #7fb8a6; --coral-suave: #1d2a26;
+  --persona-g: #ec93b0; --persona-g-suave: #3a2029; --persona-p: #8fb2e6; --persona-p-suave: #1c2738;
+  --desayuno: #a1a1a6; --desayuno-suave: #232325; --comida: #a1a1a6; --comida-suave: #232325; --merienda: #a1a1a6; --merienda-suave: #232325; --cena: #a1a1a6; --cena-suave: #232325;
+  --bueno: #5cc08f; --bueno-suave: #1b3226; --regular: #e2ac52; --regular-suave: #362914; --malo: #ec8576; --malo-suave: #3a1e1a;
+  --aviso: #ece8df; --aviso-suave: #2a261c; --hielo: #9db8dc; --hielo-suave: #1c2534; --peligro: #ec8576;
+  --tomate: #ef8473; --tomate-suave: #3a201c; --sombra-fuerte: 0 8px 28px rgba(0, 0, 0, .55); }
+:root[data-theme="dark"] html, :root[data-theme="dark"] body, :root[data-theme="dark"] { background: var(--fondo); color: var(--texto); }
+/* lo que en claro era blanco fijo */
+:root[data-theme="dark"] :is(.boton:not(.principal, .coral, .suave), .atajo, .cat .num, .comida .tile, .fila-doble, .cantidad button, .mini-cant button, .segmento button[aria-selected="true"],
+  .chip.si, .semaforo .luz, .acciones-cab .emo, .portada-hoja .emo, .receta-tarjeta .portada .propia, .producto .sino button, .marca .fecha-chip, .marca .volver) { background: var(--gris-2); color: var(--texto); }
+:root[data-theme="dark"] :is(.campo-texto, .campos input, .tarjeta textarea, .tarjeta input, .chat-form textarea, .perfil .campo-largo textarea, .hoja input, .hoja textarea, input, textarea, select) { background-color: var(--tarjeta); color: var(--texto); border-color: var(--linea); }
+:root[data-theme="dark"] :is(.campo-texto:focus, .perfil .campo-largo textarea:focus, textarea:focus, input:focus) { background-color: var(--gris-2); }
+:root[data-theme="dark"] .buscador-lista { background-color: var(--gris); }
+:root[data-theme="dark"] :is(.producto img, .producto .sinfoto, .res img, .res .sinfoto, .fav img, .fav .sinfoto, .casa-item img, .casa-item .sinfoto, .producto-escaneado img) { background: #e9e9e7; }
+:root[data-theme="dark"] .segmento { background: var(--gris); }
+:root[data-theme="dark"] :is(.pestanas, .chat-barra) { background: rgba(18, 18, 18, .96); border-color: var(--linea); }
+:root[data-theme="dark"] .barra-accion { background: linear-gradient(to top, var(--fondo) 55%, rgba(18, 18, 18, 0)); }
+:root[data-theme="dark"] :is(.rt-fav, .ficha-cambiar) { background: rgba(28, 28, 30, .9); color: var(--texto); }
+:root[data-theme="dark"] :is(.boton.principal, .accion.primaria, .pregunta .boton.principal, .envia, .barra-accion .boton, .chip[aria-pressed="true"], .fila-chips .chip[aria-pressed="true"], .burbuja.yo, .anadir .icono.mas, .res .icono.mas, .cantidad button.mas, .nuevo) { color: var(--acento-texto); }
+:root[data-theme="dark"] .burbuja .borrar { color: rgba(12, 26, 18, .6); }
+:root[data-theme="dark"] .dia-btn[aria-pressed="true"] :is(.ds, .dn) { color: var(--acento-texto); }
+:root[data-theme="dark"] :is(.producto.si, .res.anadido, .comida.hecha) { background: var(--bueno-suave); }
+:root[data-theme="dark"] .producto.no { background: var(--malo-suave); }
+:root[data-theme="dark"] :is(.comida.fuera, .producto.marcado, .barra-accion .boton:disabled) { background: var(--gris); }
+:root[data-theme="dark"] :is(.ticket-ok, .escanear-grande, .aviso.verde) { background: var(--acento-suave); border-color: transparent; }
+:root[data-theme="dark"] .aviso { background: var(--aviso-suave); border-color: transparent; }
+:root[data-theme="dark"] .aviso.hielo { background: var(--hielo-suave); }
+:root[data-theme="dark"] :is(.interruptor .sw, .producto .check, .producto .sino button) { border-color: #48484a; }
+:root[data-theme="dark"] .interruptor .sw:not([aria-pressed="true"] .sw) { background: #3a3a3c; }
+:root[data-theme="dark"] .objetivos :is(.o1, .o2, .o3, .o4) { background: var(--gris); }
+:root[data-theme="dark"] .clave-casa b { background: var(--regular-suave); }
+:root[data-theme="dark"] .cargando { background: linear-gradient(90deg, var(--gris) 0, var(--gris-2) 50%, var(--gris) 100%); background-size: 200% 100%; }
+:root[data-theme="dark"] .hoja { background: var(--tarjeta); color: var(--texto); }
+:root[data-theme="dark"] .tostada, :root[data-theme="dark"] .deshacer { background: #f2f2f2; color: #121212; }
+:root[data-theme="dark"] .deshacer button { color: #1f6b49; }

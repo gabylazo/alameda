@@ -13,6 +13,15 @@ const lee = (k, d) => { try { const v = localStorage.getItem(k); return v == nul
 const guarda = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento: se pierde al cerrar */ } };
 const leeTexto = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const guardaTexto = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* nada */ } };
+// Apariencia de este móvil (24/10): claro (lo de siempre), oscuro o automático (la del sistema). No se sincroniza.
+const TEMA = 'nutrihome.tema', mqOscuro = matchMedia('(prefers-color-scheme: dark)');
+function aplicaTema() {
+  const t = leeTexto(TEMA) || 'claro', oscuro = t === 'oscuro' || (t === 'auto' && mqOscuro.matches);
+  document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
+  document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', oscuro ? 'dark' : 'light');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', oscuro ? '#121212' : '#ffffff');
+}
+aplicaTema(); mqOscuro.addEventListener?.('change', aplicaTema);
 const r0 = n => Math.round(n);
 const euros = n => n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -86,6 +95,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Modo oscuro', texto: 'En vuestro perfil, «Apariencia»: claro, oscuro o automático (como tengáis el móvil). Se elige en cada móvil.', ir: 'nosotros', foco: '[data-tema]' },
   { id: 'fotos', fecha: '2026-10-24', emo: '', titulo: 'Fotos y letra nueva', texto: 'Cada receta tiene su foto, también las que creéis vosotros o con el Chef (se elige sola y se puede cambiar en la receta). Letra más limpia y listas más ordenadas.', ir: 'recetas' },
   { id: 'nutrihome3', fecha: '2026-10-23', emo: '', titulo: 'NutriHome, más sencilla', texto: 'Tres pantallas: Hoy (lo que toca hoy y el Chef en la misma pantalla), Compra y Nevera. «Cómo se hace» te explica la cena paso a paso al momento. Desayuno, almuerzo con Huel y cena sólida con ensalada. La semana y las recetas, desde Hoy.', ir: 'hoy', origen: true },
   { id: 'legumbres', fecha: '2026-10-22', emo: '🫘', titulo: 'Platos de legumbres', texto: 'Cinco platos calientes con garbanzos y lentejas: salteado con atún, lentejas guisadas, lentejas con arroz y cebolla, bol de quinoa con garbanzos crujientes y curry de garbanzos. El menú los usa cuando están en casa.', ir: 'recetas' },
@@ -277,6 +287,20 @@ function limpiaDuplicados() {
   E.invitaciones = uniq(E.invitaciones, x => x.clave); E.casaOtros = [...new Set(E.casaOtros || [])];
   return antes !== JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros]);
 }
+// Historial con tope, para que el estado no crezca sin fin (24/10): Chef 30 mensajes y 30 días (y no más de ~20 KB),
+// 10 compras (las 3 últimas con los renglones del ticket), comidas marcadas y semanas de los últimos 60 días.
+function podaHistorial() {
+  const antes = JSON.stringify([E.charla, E.compras, E.consumidos, Object.keys(E.semanas || {}), (E.planes || []).length]);
+  const limite = iso(new Date(Date.now() - 60 * 864e5)), mes = new Date(Date.now() - 30 * 864e5).toISOString();
+  let ch = (E.charla || []).filter(c => !c.r || (c.t || '') >= mes).slice(-30);
+  while (ch.length > 5 && JSON.stringify(ch).length > 20000) ch = ch.slice(1);
+  E.charla = ch;
+  E.compras = (E.compras || []).slice(0, 10).map((c, i) => i < 3 || !c.ticket?.lineas ? c : { ...c, ticket: { ...c.ticket, lineas: undefined } });
+  for (const k of Object.keys(E.consumidos || {})) if ((k.split('|')[1] || '') < limite) delete E.consumidos[k];
+  for (const k of Object.keys(E.semanas || {})) if (k < limite && k !== D.semana?.id) delete E.semanas[k];
+  if (E.planes) E.planes = E.planes.filter(pl => pl.id >= limite || pl.id === D.semana?.id || pl.dias?.some(d => d.f >= limite));
+  return antes !== JSON.stringify([E.charla, E.compras, E.consumidos, Object.keys(E.semanas || {}), (E.planes || []).length]);
+}
 function aplicaRemoto() {
   if (limpiaDuplicados()) guarda(ESTADO, E);
   if (!V.montada) return;   // todavía arrancando
@@ -431,7 +455,7 @@ async function inicio() {
   V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'hoy';
   pinta();
   if (servidor() && !D.amiga) await sincroniza();   // primero lo de los otros móviles: los ajustes se hacen sobre lo de toda la casa
-  if (limpiaDuplicados()) salva();
+  if (limpiaDuplicados() | podaHistorial()) salva();
   const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
   if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
   else if (novedadesNuevas().length) setTimeout(() => { if (!$('.hoja')) hojaNovedades(); }, 1200);   // lo nuevo de esta versión, una vez
@@ -2244,6 +2268,8 @@ function vNosotros() {
       <form class="anadir" id="f-nota" style="margin-top:10px"><div class="caja"><input id="i-nota" placeholder="Desayunamos tarde y casi nunca comemos" autocomplete="off" enterkeyhint="send"><button class="icono mas" aria-label="Apuntar">${SVG.mas.replace('<svg', '<svg class="i"')}</button></div></form></div>
     <div class="tarjeta perfil"><h3>✨ Novedades</h3><p class="nota" style="margin:6px 0 10px">Lo último que ha llegado a la app, por si te lo perdiste.</p><button class="boton" id="b-novedades">Ver las novedades</button></div>
     <div class="tarjeta perfil"><h3>☁️ Sincronización</h3><p class="nota" style="margin:8px 0 0">${servidor() ? (V.sync === 'ok' ? `Todos los móviles de casa comparten lo mismo a través del servidor. Última vez: ${V.syncHora ? V.syncHora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}.` : V.sync === 'error' ? `No llego al servidor (${esc(V.syncError)}). Lo guardado se sube en cuanto vuelva la conexión.` : 'Conectando con el servidor de casa…') : 'Sin servidor todavía: lo guardado está solo en este móvil.'}</p></div>
+    <div class="tarjeta perfil"><h3>Apariencia${etiquetaNuevo('oscuro')}</h3><p class="nota" style="margin:6px 0 10px">Solo en este móvil.</p>
+      <div class="segmento" role="tablist">${[['claro', 'Claro'], ['oscuro', 'Oscuro'], ['auto', 'Automático']].map(([k, n]) => `<button data-tema="${k}" aria-selected="${(leeTexto(TEMA) || 'claro') === k}">${n}</button>`).join('')}</div></div>
     <div class="tarjeta perfil"><h3>📱 Este móvil</h3>
       <div class="botones">${servidor() ? `<button class="boton" id="b-rebajar">🔄 Volver a bajar los datos de casa</button><button class="boton" id="b-salir">🚪 Salir en este móvil</button>` : `<button class="boton peligro" id="b-borrar">${I.papelera}Borrar lo de este móvil</button>`}</div></div><p class="nota creditos">Fotos de los platos: Pexels (fotos libres). Pueden no ser exactamente vuestra receta.</p>`;
   $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
@@ -2258,6 +2284,7 @@ function vNosotros() {
   $$('[data-crea]').forEach(b => b.addEventListener('click', () => { const x = (E.creatina[h] ||= {}); x[b.dataset.crea] = !x[b.dataset.crea]; salva(); vNosotros(); if (x[b.dataset.crea]) tostada('💊 Apuntada'); }));
   $('#b-cambiar-datos')?.addEventListener('click', () => bienvenida(true));
   $('#b-novedades')?.addEventListener('click', () => hojaNovedades(true));
+  $$('[data-tema]').forEach(b => b.addEventListener('click', () => { guardaTexto(TEMA, b.dataset.tema); aplicaTema(); vNosotros(); }));
   $$('[data-nota-quitar]').forEach(b => b.addEventListener('click', () => { E.notasChef.splice(+b.dataset.notaQuitar, 1); salva(); vNosotros(); }));
   $('#f-nota')?.addEventListener('submit', e => { e.preventDefault(); const t = $('#i-nota').value.trim(); if (!t) return; haceAccion({ tipo: 'nota', texto: t }); vNosotros(); tostada('📝 Apuntado'); });
   $('#b-copiar-clave')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(leeTexto(CLAVE)); tostada('Clave copiada'); } catch { tostada('No he podido copiarla'); } });
