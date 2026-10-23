@@ -950,7 +950,7 @@ function abrirReceta(id, ctx) {
     const o = obj[q], color = q === 'G' ? 'var(--persona-g)' : 'var(--persona-p)';
     const bm = (e, v, max) => `<div class="bm"><span>${e}</span>${miniBarra(v / max * 100, color)}<span>${r0(v)} g</span></div>`;
     return `<div class="m ${q.toLowerCase()}"><b class="persona-${q.toLowerCase()}">${esc(NOM[q])}</b><span class="k">${r0(x.kcal)} <small style="font-size:13px">kcal</small></span>
-      <div class="barras">${bm('💪', x.p, o.prot * 0.4)}${bm('🍞', x.hc, o.hc * 0.4)}${bm('🥑', x.g, o.grasa * 0.4)}</div></div>`;
+      <div class="barras">${bm('Prot.', x.p, o.prot * 0.4)}${bm('Hidr.', x.hc, o.hc * 0.4)}${bm('Grasa', x.g, o.grasa * 0.4)}</div></div>`;
   };
   const plan = planActivo();
   const tipoPrincipal = r.tipo?.[0] || 'comida';
@@ -2550,6 +2550,11 @@ function vClaude() {
   requestAnimationFrame(() => window.scrollTo(0, charla.length ? document.documentElement.scrollHeight : 0));
 }
 // Lo que toca hoy, arriba del Chef: una línea por comida; la cena, con sus botones.
+// Un icono de línea por comida (desayuno: sol; almuerzo: bol; cena: luna).
+const ICONO_COMIDA = { desayuno: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>',
+  comida: '<svg viewBox="0 0 24 24"><path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M8 7c0-1.5 1-2 1-3M12 7c0-1.5 1-2 1-3M16 7c0-1.5 1-2 1-3"/></svg>',
+  merienda: '<svg viewBox="0 0 24 24"><path d="M12 7c-4-2-7 1-7 5 0 4 3 8 7 8s7-4 7-8c0-4-3-7-7-5Z"/><path d="M12 7c0-2 1-3 2-4"/></svg>',
+  cena: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>' };
 function bloqueHoy(p, d) {
   if (!d && hoy() > p.dias.at(-1).f && !D.amiga) { if (!V.preparando) { V.preparando = true; setTimeout(() => { siguienteSemana(); V.preparando = false; }, 0); } return ''; }   // se acabó la semana: la siguiente, sola
   if (!d) return `<div class="hoy-plan"><div class="hoy-vacio">Hoy no hay menú. <button class="ver-todo" data-ir="semana">Ver la semana</button></div></div>`;
@@ -2558,7 +2563,7 @@ function bloqueHoy(p, d) {
     const v = d[c], hecho = !!s.hechos[d.f + '|' + c];
     if (v === undefined || v === null) return '';
     const nombre = v.fuera ? 'Fuera' : L.esDoble(v) ? L.QUIEN.map(q => `<span class="quien-ini ${q.toLowerCase()}">${ini(q)}</span>${esc(recetas[v[q]]?.n || '—')}`).join('<br>') : esc(recetas[L.idDe(v)]?.n || v.libre || '—');
-    return `<button class="hoy-fila${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}</span><span class="hoy-plato">${nombre}</span><span class="hoy-estado">${hecho ? 'hecho' : ''}</span></button>`;
+    return `<button class="hoy-fila c-${c}${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}"><span class="hoy-ic">${ICONO_COMIDA[c] || ''}</span><span class="hoy-txt"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}</span><span class="hoy-plato">${nombre}</span></span><span class="hoy-estado">${hecho ? 'hecho' : ''}</span></button>`;
   };
   const vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, cenaHecha = !!s.hechos[d.f + '|cena'];
   const falta = rc && !cenaHecha ? faltaEnCasa(rc) : [];

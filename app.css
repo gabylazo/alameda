@@ -782,3 +782,77 @@ a { color: var(--texto); }
 .por-que { margin: 12px 0 0; border: 1px solid var(--linea); border-radius: var(--radio); padding: 10px 12px; background: var(--tarjeta); }
 .por-que summary { font-weight: 600; cursor: pointer; }
 .por-que .nota { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; }
+
+/* ——— NutriHome 3.1 (23/10/2026): minimalista pero con color, como las apps de comida. Crema, verde hierba, un toque tomate
+   y un tono suave por comida (desayuno miel, almuerzo salvia, cena lavanda). Iconos de línea solo donde ayudan ——— */
+:root {
+  --fondo: #fbf8f3; --tarjeta: #ffffff; --tarjeta-2: #f4efe7; --texto: #23302a; --suave: #5f6b64; --tenue: #9aa39d; --linea: #ece6dc;
+  --acento: #2e7d5b; --acento-vivo: #3a9a6f; --acento-suave: #e3f1e9; --tomate: #e2674a; --tomate-suave: #fcebe5;
+  --persona-g: #c0567a; --persona-g-suave: #fbe9ef; --persona-p: #3f6fb0; --persona-p-suave: #e7eef8;
+  --desayuno: #a86f0e; --desayuno-suave: #fdf1d8; --comida: #4f7a3a; --comida-suave: #e8f2df; --cena: #5b4f9a; --cena-suave: #ece9f8;
+  --bueno: #2e7d5b; --bueno-suave: #e3f1e9; --regular: #a86f0e; --regular-suave: #fdf1d8; --malo: #c4473a; --malo-suave: #fbe7e3;
+  --aviso: #23302a; --aviso-suave: #fdf6ea; --radio: 18px;
+}
+body { color: var(--texto); }
+.c-desayuno { --color-comida: var(--desayuno); --color-comida-suave: var(--desayuno-suave); }
+.c-comida { --color-comida: var(--comida); --color-comida-suave: var(--comida-suave); }
+.c-cena { --color-comida: var(--cena); --color-comida-suave: var(--cena-suave); }
+.c-bebida { --color-comida: #1f8a8a; --color-comida-suave: #e0f3f2; }
+.cabecera h1 { font-size: 30px; font-weight: 750; }
+.marca .nutri { color: var(--acento); } .marca .home { color: var(--tomate); }
+.avatar.g { background: var(--persona-g-suave); color: var(--persona-g); border-color: transparent; }
+.avatar.p { background: var(--persona-p-suave); color: var(--persona-p); border-color: transparent; }
+.tarjeta, .lista, .comida, .hero, .hoy-plan, .receta-tarjeta, .burbuja.el, .aviso, .por-que { border-color: var(--linea); box-shadow: 0 1px 2px rgba(60, 50, 30, .04), 0 4px 14px rgba(60, 50, 30, .04); }
+.hoja { border-radius: 24px 24px 0 0; }
+
+/* Botones: verde para lo principal, tomate para lo que llama la atención */
+.boton { border-radius: 12px; }
+.boton.principal, .accion.primaria, .pregunta .boton.principal, .enviar-chat, .cantidad button.mas, .chip.si { background: var(--acento); border-color: var(--acento); color: #fff; }
+.boton.suave { background: var(--acento-suave); color: var(--acento); border-color: transparent; }
+.deshacer button { background: var(--acento-vivo); color: #fff; }
+.chip[aria-pressed="true"] { background: var(--acento); border-color: var(--acento); color: #fff; }
+.nuevo { background: var(--tomate); }
+.ver-todo, .cat .cat-accion, a { color: var(--acento); }
+.barra-accion .boton { background: var(--acento); border-color: var(--acento); color: #fff; }
+.pestanas button[aria-current="page"] { color: var(--acento); }
+.pestanas button[aria-current="page"] .ic { background: var(--acento-suave); border-radius: 999px; }
+.pill.g { background: var(--persona-g-suave); color: var(--persona-g); } .pill.p { background: var(--persona-p-suave); color: var(--persona-p); }
+.pill.verde { background: var(--acento-suave); color: var(--acento); }
+.pill.bueno { background: var(--bueno-suave); color: var(--bueno); } .pill.regular { background: var(--regular-suave); color: var(--regular); } .pill.malo { background: var(--malo-suave); color: var(--malo); }
+.hero { background: var(--acento-suave); border-color: transparent; }
+.hero .sub { color: var(--acento); }
+
+/* Semana y recetas: el color de cada comida, suave */
+.dia-btn[aria-pressed="true"] { background: var(--acento); }
+.dia-btn.hoy .ds { color: var(--tomate); }
+.comida { border-left: 4px solid var(--color-comida-suave); }
+.comida .momento { color: var(--color-comida); }
+.receta-tarjeta { border-top: 4px solid var(--color-comida-suave, var(--linea)); }
+.receta-tarjeta .pill { background: var(--color-comida-suave, var(--tarjeta-2)); color: var(--color-comida, var(--suave)); }
+.portada-hoja { background: var(--color-comida-suave, transparent); border-radius: 18px; margin: 0 0 12px; padding: 16px; }
+.pasos li::before { background: var(--acento-suave) !important; color: var(--acento) !important; }
+.objetivos .o1 { background: var(--tomate-suave); } .objetivos .o2 { background: var(--acento-suave); } .objetivos .o3 { background: var(--desayuno-suave); } .objetivos .o4 { background: var(--persona-p-suave); }
+
+/* Hoy */
+.hoy-plan { padding: 6px 14px 14px; }
+.hoy-fila { grid-template-columns: 36px 1fr auto; align-items: center; }
+.hoy-ic { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--color-comida-suave); color: var(--color-comida); }
+.hoy-ic svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hoy-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hoy-comida { color: var(--color-comida); font-size: 11.5px; }
+.hoy-fila.ahora .hoy-comida { color: var(--color-comida); }
+.hoy-fila.ahora .hoy-plato { font-weight: 650; }
+.hoy-estado { color: var(--acento); font-weight: 600; }
+.hoy-falta { color: var(--tomate); }
+.hoy-botones .boton.principal { background: var(--tomate); border-color: var(--tomate); }
+
+/* Chat */
+.burbuja.yo { background: var(--acento); color: #fff; }
+.burbuja.el { background: var(--tarjeta); }
+.sugerencias .chip { background: var(--acento-suave); border-color: transparent; color: var(--acento); font-weight: 600; }
+.chat-barra { background: rgba(251, 248, 243, .97); }
+.chat-form textarea:focus { border-color: var(--acento); }
+.chat-hola b { color: var(--acento); }
+.receta-tarjeta { border-top: 1px solid var(--linea); }
+.bm { grid-template-columns: 42px 1fr auto !important; }
+.bm > span:first-child { font-size: 12px; font-weight: 600; color: var(--suave); }
