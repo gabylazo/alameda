@@ -104,6 +104,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'habituales', fecha: '2026-10-26', emo: '', titulo: 'Solo lo que compráis', texto: 'El menú, «Cambiar» y el Chef solo usan recetas con lo que sale en vuestros tickets o tenéis en casa: nada de merluza ni cosas que no compráis. Las demás siguen en Recetas, aparte. En Compra, «Lo que soléis comprar» os recuerda lo de siempre que no está en la lista.', ir: 'compra', origen: true },
   { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Ajustes y modo oscuro', texto: 'Ajustes, la pestaña nueva de abajo, reúne vuestros datos, el súper, lo que sabe el Chef y la apariencia: claro, oscuro o automático (como tengáis el móvil).', ir: 'nosotros', foco: '[data-tema]' },
   { id: 'fotos', fecha: '2026-10-24', emo: '', titulo: 'Fotos y letra nueva', texto: 'Cada receta tiene su foto, también las que creéis vosotros o con el Chef (se elige sola y se puede cambiar en la receta). Letra más limpia y listas más ordenadas.', ir: 'recetas' },
   { id: 'nutrihome3', fecha: '2026-10-23', emo: '', titulo: 'NutriHome, más sencilla', texto: 'Tres pantallas: Hoy (lo que toca hoy y el Chef en la misma pantalla), Compra y Nevera. «Cómo se hace» te explica la cena paso a paso al momento. Desayuno, almuerzo con Huel y cena sólida con ensalada. La semana y las recetas, desde Hoy.', ir: 'hoy', origen: true },
@@ -299,6 +300,14 @@ function limpiaDuplicados() {
 }
 // Historial con tope, para que el estado no crezca sin fin (24/10): Chef 30 mensajes y 30 días (y no más de ~20 KB),
 // 10 compras (las 3 últimas con los renglones del ticket), comidas marcadas y semanas de los últimos 60 días.
+// Una vez (26/10/2026): fuera de «Pendiente de otro súper» lo que apuntó el primer menú y no compráis nunca (salmón, boniato, claras…).
+function pendientesRaros() {
+  const h = habituales();
+  if (E.pendRaros || !h || !D.habituales) return false;
+  E.pendientes = (E.pendientes || []).filter(x => !x.k || !D.productos[x.k] || h.has(x.k));
+  E.pendRaros = true;
+  return true;
+}
 function podaHistorial() {
   const antes = JSON.stringify([E.charla, E.compras, E.consumidos, Object.keys(E.semanas || {}), (E.planes || []).length]);
   const limite = iso(new Date(Date.now() - 60 * 864e5)), mes = new Date(Date.now() - 30 * 864e5).toISOString();
@@ -465,7 +474,7 @@ async function inicio() {
   V.pestana = VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'hoy';
   pinta();
   if (servidor() && !D.amiga) await sincroniza();   // primero lo de los otros móviles: los ajustes se hacen sobre lo de toda la casa
-  if (limpiaDuplicados() | podaHistorial()) salva();
+  if (limpiaDuplicados() | podaHistorial() | pendientesRaros()) salva();
   const ajuste = ajusteAutomatico();   // lo marcado con ✕ (o el ticket ya subido) cambia los platos sin que haya que pedirlo
   if (ajuste.length) setTimeout(() => hojaCambiosMenu(ajuste), 700);
   else if (novedadesNuevas().length) setTimeout(() => { if (!$('.hoja')) hojaNovedades(); }, 1200);   // lo nuevo de esta versión, una vez
@@ -530,7 +539,7 @@ function sinEmojis(n) {
 let tEntra;
 function pinta() {
   const auto = autoMenu();   // el menú, siempre al día con lo que hay en casa
-  if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que hay en casa: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
+  if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que ${auto.every(x => x.raro) ? 'soléis comprar' : 'hay en casa'}: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
   const activa = V.pestana === 'claude' || SUBVISTAS.includes(V.pestana) ? 'hoy' : V.pestana;
   $$('.pestanas button').forEach(b => b.setAttribute('aria-current', b.dataset.p === activa ? 'page' : 'false'));
   const f = VISTAS[V.pestana] || vClaude;
@@ -618,7 +627,7 @@ function vSemana() {
   // Platos con cosas que no comprasteis (✕) o que no hay en casa: se ofrece cambiarlos por otros que sí podáis hacer.
   V.tengo = loQueTenemos(p, s);
   const sinCosas = platosSinCosas(pe, s);
-  if (E.ultimosAuto && Date.now() - new Date(E.ultimosAuto.t) < 864e5) banners.push(letrero('auto:' + E.ultimosAuto.t, '🔄', `<b>Menú adaptado a lo que hay en casa</b>: ${E.ultimosAuto.cambios.length} plato${E.ultimosAuto.cambios.length > 1 ? 's' : ''}.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-auto">Ver cambios</button></div>`));
+  if (E.ultimosAuto && Date.now() - new Date(E.ultimosAuto.t) < 864e5) banners.push(letrero('auto:' + E.ultimosAuto.t, '🔄', `<b>Menú adaptado a lo que ${E.ultimosAuto.cambios.every(x => x.raro) ? 'soléis comprar' : 'hay en casa'}</b>: ${E.ultimosAuto.cambios.length} plato${E.ultimosAuto.cambios.length > 1 ? 's' : ''}.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-auto">Ver cambios</button></div>`));
   // Recetas que se preparan la noche antes (avena de la noche…): aviso desde las 17:00 del día anterior.
   const manana = masDias(h, 1), dm = planes().map(efectivo).flatMap(x => x.dias).find(x => x.f === manana);
   const deNoche = new Date().getHours() >= 17 && dm ? L.COMIDAS.flatMap(c => L.idsDe(dm[c]).filter(id => recetas[id]?.noche).map(id => ({ c, id }))) : [];
@@ -738,6 +747,33 @@ const infinito = k => { const x = D.productos[k]; return !x || x.despensa || x.e
 function necesita(r, qs, base = false) { const n = {}; for (const ing of r.ing) { if (base && !(['p', 'h'].includes(ing[2]) && ing[1] >= 30)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
 const alcanza = (n, hay) => Object.entries(n).filter(([k, g]) => (hay[k] || 0) < g * 0.7).map(([k]) => k);   // margen: lo de casa es aproximado
 const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);   // igual en todos los móviles: eligen lo mismo
+// Platos ya puestos que llevan algo que no compráis (menús hechos antes del 26/10/2026, cuando valía cualquier receta): se cambian por
+// otro con lo de siempre, primero los que salen con lo de casa y sin repetir receta en la semana. Misma semilla en todos los móviles.
+function cambiaRaras(h) {
+  const cambios = [];
+  for (const p of planes().filter(x => x.dias.at(-1).f >= h)) {
+    const s = est(p.id);
+    p.dias.forEach((d0, i) => {
+      if (d0.f < h) return;
+      for (const c of L.COMIDAS) {
+        const k = d0.f + '|' + c, v = efectivo(p).dias[i][c];
+        if (s.hechos[k] || !v || v.fuera || v.libre) continue;
+        for (const q of (L.esDoble(v) ? L.QUIEN : [null])) {
+          const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)], raro = noHabitual(r);
+          if (!r || !raro.length) continue;
+          const usadas = new Set(efectivo(p).dias.flatMap(d => L.COMIDAS.flatMap(cc => L.idsDe(d[cc]))));
+          const cand = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '') + 'habitual'), q).filter(x => aptaCasa(x, qs));
+          const conCasa = x => !alcanza(necesita(x, qs, true), E.casa || {}).length, propia = x => (x.tipo0 || x.tipo).includes(c);   // un desayuno de verdad, no una merienda de antes
+          const nueva = [x => propia(x) && !usadas.has(x.id) && conCasa(x), x => propia(x) && !usadas.has(x.id), x => !usadas.has(x.id) && conCasa(x), x => !usadas.has(x.id), () => true].reduce((n, f) => n || cand.find(f), null);
+          if (!nueva) continue;
+          if (q) { const base = L.esDoble(vv) ? { ...vv } : { G: L.idDe(vv), P: L.idDe(vv) }; base[q] = nueva.id; s.cambios[k] = base; } else s.cambios[k] = nueva.id;
+          cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: raro.map(nombreFalta), raro: true });
+        }
+      }
+    });
+  }
+  return cambios;
+}
 function autoMenu() {
   if (!D?.semana || !E?.casa) return [];
   respetaBajas();
@@ -748,8 +784,12 @@ function autoMenu() {
     if (E.casa[k] == null || Math.abs(E.casa[k] - si) >= 1) continue;
     E.casa[k] = si - g; if (E.casa[k] <= 0.5) delete E.casa[k]; salva();
   }
-  if (!s.compraHecha) return [];   // antes de comprar, lo que falta va a la lista
-  const hay = { ...E.casa }, cambios = [];
+  const raras = cambiaRaras(h);
+  if (!s.compraHecha) {   // antes de comprar, lo que falta va a la lista
+    if (raras.length) { E.ultimosAuto = { t: new Date().toISOString(), cambios: raras }; salva(); }
+    return raras;
+  }
+  const hay = { ...E.casa }, cambios = [...raras];
   const principal = x => x.ing.filter(ing => ['p', 'h'].includes(ing[2]) && ing[1] >= 30 && !infinito(ing[0])).map(ing => ing[0]);
   let previo = [];   // lo principal de la comida o cena anterior (para no repetirlo seguido)
   p.dias.forEach((d0, i) => {
@@ -840,7 +880,7 @@ function ajusteAutomatico() {
   return adaptaMenu(p);
 }
 function htmlCambiosMenu(cambios) {
-  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · ${x.sola ? 'solo era ensalada' : x.seguido ? 'repetía lo anterior' : x.porComprar ? 'había que comprar ' + esc(enumera(x.falta, 3)) : 'sin ' + esc(enumera(x.falta, 3))}</div>
+  return cambios.map(x => `<div class="cambio-menu"><div class="nota">${COMIDA_EMO[x.c]} ${DS[fecha(x.f).getDay()]} ${fecha(x.f).getDate()} · ${L.NOMBRE_COMIDA[x.c]}${x.q ? ' · ' + esc(NOM[x.q]) : ''} · ${x.raro ? 'llevaba ' + esc(enumera(x.falta, 3)) + ', que no soléis comprar' : x.sola ? 'solo era ensalada' : x.seguido ? 'repetía lo anterior' : x.porComprar ? 'había que comprar ' + esc(enumera(x.falta, 3)) : 'sin ' + esc(enumera(x.falta, 3))}</div>
     <div><s>${esc(x.de)}</s><br>${x.a ? `<b>${esc(x.a)}</b>` : '<b class="persona-g">Sin alternativa con lo que tenéis</b>'}${x.comprar?.length ? `<div class="nota">🛒 Para este hay que comprar ${esc(enumera(x.comprar, 3))}: está en «Pendiente» de Compra.</div>` : ''}</div></div>`).join('');
 }
 // Platos pendientes (desde hoy, sin comer) que necesitan un aparato que la casa no tiene.
@@ -874,7 +914,8 @@ function ajustaPorAparatos(p) {
 }
 function hojaCambiosMenu(cambios) {
   const n = cambios.filter(x => x.a).length;
-  hoja(`<h2>🔄 Menú ajustado</h2><p class="nota">${cambios.length ? `${n} plato${n === 1 ? '' : 's'} cambiado${n === 1 ? '' : 's'} por otros que podéis hacer con lo que tenéis.${n < cambios.length ? ' Para alguno no he encontrado alternativa: cámbialo a mano o pregúntame.' : ''}` : 'Todos los platos se pueden hacer con lo que tenéis.'}</p>
+  const raros = cambios.length && cambios.every(x => x.raro);
+  hoja(`<h2>🔄 Menú ajustado</h2><p class="nota">${cambios.length ? `${n} plato${n === 1 ? '' : 's'} cambiado${n === 1 ? '' : 's'} por otros ${raros ? 'con lo que soléis comprar' : 'que podéis hacer con lo que tenéis'}.${n < cambios.length ? ' Para alguno no he encontrado alternativa: cámbialo a mano o pregúntame.' : ''}` : 'Todos los platos se pueden hacer con lo que tenéis.'}</p>
     ${htmlCambiosMenu(cambios)}`);
 }
 
@@ -1038,6 +1079,7 @@ function abrirReceta(id, ctx) {
   const tipoPrincipal = r.tipo?.[0] || 'comida';
   hoja(`${urlFoto(r) ? `<div class="ficha-foto">${fotoPlato(r, 900, 'foto')}${r.propia ? '<button class="ficha-cambiar" id="b-foto">Cambiar foto</button>' : ''}</div>` : ''}<div class="portada-hoja c-${tipoPrincipal}"><span class="emo">${emojiReceta(r)}</span><div><h2>${esc(r.n)}</h2>
       <div class="botones" style="margin-top:8px"><span class="pill verde">${APARATO_EMO[r.ap] || '🍴'} ${APARATO[r.ap] || 'Cocina'}</span><span class="pill">⏱ ${r.min}′</span>${r.propia ? '<span class="pill">⭐ vuestra</span>' : ''}</div></div></div>
+    ${noHabitual(r).length ? `<div class="aviso"><span class="emo">🛒</span><div><b>Lleva ${esc(enumera(noHabitual(r).map(nombreFalta), 3))}</b>, que no ${L.QUIEN.length > 1 ? 'soléis' : 'sueles'} comprar: no sale en ${L.QUIEN.length > 1 ? 'vuestros' : 'tus'} menús.</div></div>` : ''}
     ${!sePuedeHacer(r) ? `<div class="aviso"><span class="emo">🍳</span><div><b>Necesita ${esc(nombreAparato(r.ap))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.</div></div>` : conHorno(r) ? '<div class="aviso"><span class="emo">🔥</span><div><b>Sin air fryer, en el horno:</b> a 200 °C con ventilador, unos 5 o 10 minutos más que en la receta y dándole la vuelta a mitad.</div></div>' : ''}
     <div class="macros${una ? ' una' : ''}">${quienes.map(q => m(q, mac[q])).join('')}</div>
     <h3>🥕 Ingredientes</h3>
@@ -1291,6 +1333,13 @@ function activaBuscador() {
   i.addEventListener('input', filtra); if (i.value) filtra();
 }
 
+// Lo que compráis casi siempre (en dos tickets o más) y no está ni en la lista ni en casa: un toque y a la lista (26/10/2026).
+function soleisComprar(filas, s) {
+  const en = new Set(filas.map(f => f.k).filter(Boolean));
+  return Object.entries(D.habituales || {}).filter(([k, fs]) => D.productos[k] && !infinito(k) && fs.filter(f => /^\d{4}-\d\d-\d\d$/.test(f)).length >= 2
+    && !en.has(k) && !(E.casa[k] > 0) && !s.quitados[k] && !(E.noHay || {})[k]).map(([k]) => k)
+    .sort((a, b) => (D.productos[a].cat || '').localeCompare(D.productos[b].cat || '') || D.productos[a].n.localeCompare(D.productos[b].n));
+}
 function vCompra() {
   const { p, s, filas, despensa, total, quitados } = lineaCompra();
   const comprados = filas.filter(f => s.marcados[f.clave]), noHabia = filas.filter(f => s.noComprado[f.clave]), porComprar = filas.filter(f => !s.marcados[f.clave] && !s.noComprado[f.clave]);
@@ -1317,6 +1366,7 @@ function vCompra() {
   const noFilas = noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
+  const soleis = s.compraHecha || s.soleisOculto ? [] : soleisComprar(filas, s);
   $('#vista').innerHTML = `
     <div class="hero"><div><div class="grande">${euros(total)}</div><div class="sub">${esc(p.titulo || 'Esta semana')}</div>${tope ? `<div class="sub">${total > tope ? '⚠️ Te pasas del presupuesto' : '✓ Dentro del presupuesto'}: ${euros(tope)}</div>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto" style="margin-top:8px">💶 Ajustar al presupuesto</button>' : ''}` : ''}</div><span class="hero-emo">🛒</span></div>
     <div class="rapidas">
@@ -1334,6 +1384,7 @@ function vCompra() {
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
     ${porComprar.length ? porSecciones(porComprar) : !comprados.length && !noHabia.length ? '<div class="vacio"><span class="emo">🎉</span>No falta nada para el menú.</div>' : ''}
+    ${soleis.length ? `<div class="cat"><span class="emo">🔁</span>Lo que soléis comprar<span class="num">${soleis.length}</span><button class="cat-accion" id="b-ocultar-soleis">Ocultar</button></div><p class="nota" style="margin:-2px 0 8px">Está en vuestros tickets y no en la lista ni en casa.</p><div class="lista">${soleis.map(k => `<div class="producto fila-simple">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(D.productos[k].cat)}</div>`}<div class="info"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="pc">${euros(D.productos[k].precio)}</div></div><button class="chip" data-soleis="${k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
     ${comprados.length ? `<details class="tarjeta comprados"><summary>✓ Comprado · ${comprados.length}</summary><div class="lista" style="margin-top:8px">${comprados.map(filaHTML).join('')}</div></details>` : ''}
     ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button></div>`).join('')}</div>` : ''}
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista<span class="num">${quitados.length}</span><button class="cat-accion" id="b-vaciar-quitados">Vaciar</button></div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver</button><button class="icono" data-olvidar="${k}" aria-label="Quitar de aquí">${I.papelera}</button></div>`).join('')}</div>` : ''}
@@ -1342,6 +1393,7 @@ function vCompra() {
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
   $$('[data-fila]').forEach(fila => deslizaParaQuitar(fila, () => quitaDeLista(filas.find(f => f.clave === fila.dataset.fila))));
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
+  $$('[data-soleis]').forEach(b => b.addEventListener('click', () => { s.extra.push({ id: uid(), k: b.dataset.soleis, n: 1 }); salva(); const y = window.scrollY; vCompra(); window.scrollTo(0, y); tostada('Añadido a la lista'); }));
   $$('[data-volver]').forEach(b => b.addEventListener('click', () => { delete s.quitados[b.dataset.volver]; salva(); vCompra(); }));
   // Vaciar lo que se acumula (con «Deshacer»): quitados (siguen fuera de la lista), «¿Os queda?» y pendientes de otro súper.
   const conVuelta = (txt, hacer) => {
@@ -1351,6 +1403,7 @@ function vCompra() {
   };
   $('#b-vaciar-quitados')?.addEventListener('click', () => conVuelta('🧹 Quitados vaciados', () => { for (const k of quitados) s.quitados[k] = 'oculto'; }));
   $$('[data-olvidar]').forEach(b => b.addEventListener('click', () => conVuelta('🧹 Fuera de «Quitados»', () => { s.quitados[b.dataset.olvidar] = 'oculto'; })));
+  $('#b-ocultar-soleis')?.addEventListener('click', () => conVuelta('🧹 «Lo que soléis comprar» oculto esta semana', () => { s.soleisOculto = true; }));
   $('#b-ocultar-despensa')?.addEventListener('click', () => conVuelta('🧹 «¿Os queda?» oculto esta semana', () => { s.despensaOculta = true; }));
   $$('[data-queda]').forEach(b => b.addEventListener('click', () => conVuelta('✓ Apuntado: queda', () => { (s.despensaVista ||= {})[b.dataset.queda] = true; })));
   $('#b-ver-pend')?.addEventListener('click', () => { V.verPend = !V.verPend; const y = window.scrollY; vCompra(); window.scrollTo(0, y); });
@@ -2195,9 +2248,11 @@ function vRecetas() {
   const pregunta = V.busca.trim();
   const t = L.normaliza(pregunta).replace(/^(como se hace|como hago|como preparo|como se prepara|receta de|receta)\s+/, '').replace(/^(un|una|el|la|los|las)\s+/, '');
   const ocultas = todas.filter(r => !sePuedeHacer(r)).length, sinAp = platosSinAparato(planActivo()).length, vos = L.QUIEN.length > 1;
+  const raras = todas.filter(r => noHabitual(r).length);
   const lista = todas.filter(r => {
     if (D.amiga && L.QUIEN.some(q => alergiaDe(r, perfiles()[q]).length)) return false;   // alergias: nunca
     if (!V.verOcultas && !sePuedeHacer(r)) return false;   // lo que no se puede hacer con esta cocina, solo si se pide
+    if (!V.verRaras && !t && noHabitual(r).length) return false;   // lo que lleva cosas que no compráis: si se pide o se busca
     if (t && !L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n).join(' ') + ' ' + (r.otros || []).join(' ')).includes(t)) return false;
     const f = V.filtro;
     return f === 'todas' || (f === 'antojos' && (r.bebida || r.postre || r.batido)) || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
@@ -2207,14 +2262,16 @@ function vRecetas() {
     <div class="buscador">${I.buscar}<input id="i-busca" type="search" placeholder="Busca o pregunta: ¿cómo se hace…?" value="${esc(V.busca)}" enterkeyhint="search"></div>
     ${esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : ''}
     <div class="rec-linea"><button class="ver-todo" id="b-cocina">${V.verCocina ? 'Listo' : `${vos ? 'Vuestra' : 'Tu'} cocina · ${APARATOS_CASA.filter(([k]) => aparatosCasa().includes(k)).length} aparatos`}</button><button class="ver-todo" id="b-nueva">+ Nueva receta</button></div>
+    ${raras.length ? `<p class="nota rec-raras">${raras.length} receta${raras.length > 1 ? 's llevan' : ' lleva'} cosas que no ${vos ? 'soléis' : 'sueles'} comprar (${esc([...new Set(raras.flatMap(noHabitual))].map(nombreFalta).slice(0, 3).join(', '))}…) y no ${raras.length > 1 ? 'salen' : 'sale'} en el menú. <button class="ver-todo" id="b-ver-raras">${V.verRaras ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
     <div class="tarjeta cocina"${V.verCocina || ocultas && V.verOcultas || sinAp ? '' : ' hidden'}><div class="cocina-cab"><b>Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina</b><span class="nota">toca para quitar o poner</span></div>
       <div class="botones">${APARATOS_CASA.map(([k, n]) => `<button class="chip" data-aparato="${k}" aria-pressed="${aparatosCasa().includes(k)}">${n}</button>`).join('')}</div>
       ${ocultas ? `<p class="nota" style="margin:10px 0 0">${ocultas} receta${ocultas > 1 ? 's necesitan' : ' necesita'} algo que no ${vos ? 'tenéis' : 'tienes'}. <button class="ver-todo" id="b-ver-ocultas">${V.verOcultas ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
       ${sinAp ? `<p class="nota" style="margin:8px 0 0">⚠️ ${sinAp} plato${sinAp > 1 ? 's' : ''} de esta semana no se ${sinAp > 1 ? 'pueden' : 'puede'} hacer. <button class="ver-todo" id="b-cambiar-sinap">Cambiar${sinAp > 1 ? 'los' : 'lo'}</button></p>` : ''}</div>
     <div class="fila-chips">${FILTROS.map(([k, n]) => `<button class="chip" data-filtro="${k}" aria-pressed="${V.filtro === k}">${n}</button>`).join('')}</div>
     <div class="recetas-rejilla">${lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
-      return `<button class="rt${sePuedeHacer(r) ? '' : ' no-puedo'}" data-receta="${r.id}">${fotoPlato(r, 400, 'rt-foto')}${r.fav ? `<span class="rt-fav" aria-label="Favorita">${I.corazon}</span>` : ''}
-        <span class="rt-nombre">${esc(r.n)}</span><span class="rt-datos">${r.min} min · ${r0(g.kcal)} kcal${r.propia ? ' · vuestra' : ''}</span></button>`; }).join('')}</div>
+      const nh = noHabitual(r);
+      return `<button class="rt${sePuedeHacer(r) && !nh.length ? '' : ' no-puedo'}" data-receta="${r.id}">${fotoPlato(r, 400, 'rt-foto')}${r.fav ? `<span class="rt-fav" aria-label="Favorita">${I.corazon}</span>` : ''}
+        <span class="rt-nombre">${esc(r.n)}</span><span class="rt-datos">${nh.length ? `Lleva ${esc(enumera(nh.map(nombreFalta), 2))}` : `${r.min} min · ${r0(g.kcal)} kcal${r.propia ? ' · vuestra' : ''}`}</span></button>`; }).join('')}</div>
     ${lista.length ? '' : `<div class="vacio"><span class="emo">${V.filtro === 'favoritas' ? '❤️' : '🔍'}</span>${V.filtro === 'favoritas' ? 'Toca 🤍 en una receta para guardarla aquí.' : 'No hay recetas con ese filtro.'}</div>`}`;
   $('#b-nueva').addEventListener('click', () => editorReceta(null));
   $('#b-cocina').addEventListener('click', () => { V.verCocina = !V.verCocina; vRecetas(); });
@@ -2228,6 +2285,7 @@ function vRecetas() {
     salva(); vRecetas();
   }));
   $('#b-ver-ocultas')?.addEventListener('click', () => { V.verOcultas = !V.verOcultas; vRecetas(); });
+  $('#b-ver-raras')?.addEventListener('click', () => { V.verRaras = !V.verRaras; vRecetas(); });
   $('#b-cambiar-sinap')?.addEventListener('click', () => { const c = ajustaPorAparatos(planActivo()); vRecetas(); hojaCambiosMenu(c); });
 }
 
@@ -2415,6 +2473,7 @@ function creaPlan(inicio, n) {
 // con los aparatos que tienen y en el tiempo que tienen.
 function aptaCasa(r, qs = L.QUIEN) {
   if (!gustaA(r, qs) || !sePuedeHacer(r)) return false;   // lo que no gusta y lo que no se puede hacer con la cocina de casa
+  if (noHabitual(r).length) return false;   // lleva algo que no compráis (merluza, claras…)
   if (!D.amiga) return true;
   const per = perfiles();
   for (const q of qs) { const x = per[q]; if (x && (alergiaDe(r, x).length || !dietaOk(r, x.dieta))) return false; }
@@ -2422,6 +2481,29 @@ function aptaCasa(r, qs = L.QUIEN) {
   if (h.tiempo && r.min > h.tiempo) return false;
   return true;
 }
+// Lo que compráis de verdad (26/10/2026, «pone recetas con merluza y eso nunca estuvo en la lista de la compra»): lo de vuestros tickets
+// (habituales.json, hasta su último ticket), lo que hay o se añadió a casa, lo de siempre y lo de las compras cerradas después en la app.
+// Las propuestas (menú, Cambiar, ajustes, Chef) solo usan recetas con esto; las demás siguen en Recetas, aparte. Sin nada (casa amiga nueva), vale todo.
+let habCache = null;
+function habituales() {
+  const firma = [E.compras.length, Object.keys(E.casa || {}).length, (E.fijos || []).length, Object.keys(E.casaAlta || {}).length].join('|');
+  if (habCache?.firma === firma && habCache.D === D) return habCache.set;
+  const set = new Set(Object.keys(D.habituales || {}));
+  for (const [k, g] of Object.entries(E.casa || {})) if (g > 0) set.add(k);
+  for (const k of Object.keys(E.casaAlta || {})) set.add(k);
+  for (const f of E.fijos || []) if (f.k) set.add(f.k);
+  // Las compras cerradas en la app después del último ticket de habituales.json (las anteriores ya están ahí, y mejor emparejadas).
+  const hasta = Object.values(D.habituales || {}).flat().filter(f => /^\d{4}-\d\d-\d\d$/.test(f)).sort().at(-1) || '';
+  const nuevas = E.compras.filter(c => (c.f || '').slice(0, 10) > hasta);
+  if (nuevas.length) {
+    const porNombre = new Map(Object.entries(D.productos).flatMap(([k, x]) => [[L.normaliza(x.n), k], [L.normaliza(nombreCorto(x)), k]]));
+    for (const c of nuevas) for (const n of [...(c.si || []), ...(c.extra || [])]) { const k = porNombre.get(L.normaliza(n)); if (k) set.add(k); }
+  }
+  habCache = { firma, D, set: set.size ? set : null };
+  return habCache.set;
+}
+// Lo que lleva una receta y no soléis comprar (sin contar especias, aceite ni adornos fijos de 15 g o menos). Las vuestras, siempre valen.
+const noHabitual = r => { const h = habituales(); return !h || !r || r.propia ? [] : r.ing.filter(i => !h.has(i[0]) && !infinito(i[0]) && !(i[2] === '1' && i[1] <= 15)).map(i => i[0]); };
 const recetasAptas = () => Object.fromEntries(Object.entries(recetas).filter(([, r]) => aptaCasa(r) || (typeof r.almuerzo === 'string' && aptaCasa(r, [r.almuerzo]))));   // el almuerzo de uno solo: basta con que le guste a él
 const alergenosReceta = r => [...new Set(r.ing.flatMap(i => D.productos[i[0]]?.al || []))];
 function alergiaDe(r, x) {
@@ -2764,7 +2846,8 @@ function contextoParaClaude(texto = '') {
     menuSemanaEntera: pe.dias.map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
     recetasCompletas: recetasParaPregunta(texto, pe, h).map(recetaParaChef),
     notasDeLaCasa: E.notasChef || [],   // lo que nos han dicho de sus costumbres: vale siempre
-    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}`),
+    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}${noHabitual(r).length ? ` [NO LO COMPRAN: ${noHabitual(r).map(nombreFalta).join(', ')}]` : ''}`),
+    loQueSuelenComprar: habituales() ? [...habituales()].filter(k => D.productos[k] && !infinito(k)).map(k => nombreCorto(D.productos[k])) : null,   // de sus tickets: el menú y la lista, con esto
     productosDeLaApp: Object.values(D.productos).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
     conversacionReciente: (E.charla || []).filter(c => c.r).slice(-5).map(c => ({ pregunta: c.q.slice(0, 400), respuesta: c.r.slice(0, 600) })),
   };
