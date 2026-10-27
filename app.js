@@ -45,7 +45,8 @@ const esMercadona = () => !E.super || E.super === 'mercadona';
 
 // ——— Fechas ———
 const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const hoy = () => iso(new Date());
+const CORTE = 5;   // el día de la casa acaba a las 5:00: a las 00:30 todavía es la cena de ayer (28/10: a medianoche dio la cena del martes por comida)
+const hoy = () => iso(new Date(Date.now() - CORTE * 3600e3));
 const fecha = f => new Date(f + 'T12:00:00');
 const masDias = (f, n) => { const d = fecha(f); d.setDate(d.getDate() + n); return iso(d); };
 const DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -104,6 +105,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'medianoche', fecha: '2026-10-28', emo: '', titulo: 'Cenas tarde', texto: 'Hasta las 5 de la mañana, Hoy sigue en el día anterior: si cenáis pasada la medianoche, veis la cena de ese día y no se da por comida antes de tiempo.', ir: 'hoy' },
   { id: 'habituales', fecha: '2026-10-26', emo: '', titulo: 'Solo lo que compráis', texto: 'El menú, «Cambiar» y el Chef solo usan recetas con lo que sale en vuestros tickets o tenéis en casa: nada de merluza ni cosas que no compráis. Las demás siguen en Recetas, aparte. En Compra, «Lo que soléis comprar» os recuerda lo de siempre que no está en la lista.', ir: 'compra', origen: true },
   { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Ajustes y modo oscuro', texto: 'Ajustes, la pestaña nueva de abajo, reúne vuestros datos, el súper, lo que sabe el Chef y la apariencia: claro, oscuro o automático (como tengáis el móvil).', ir: 'nosotros', foco: '[data-tema]' },
   { id: 'fotos', fecha: '2026-10-24', emo: '', titulo: 'Fotos y letra nueva', texto: 'Cada receta tiene su foto, también las que creéis vosotros o con el Chef (se elige sola y se puede cambiar en la receta). Letra más limpia y listas más ordenadas.', ir: 'recetas' },
@@ -555,7 +557,7 @@ function pinta() {
 const esChat = () => V.pestana === 'claude' || V.pestana === 'hoy';
 const repinta = () => (VISTAS[V.pestana] || vClaude)();
 function cabecera(titulo, sub = '') {
-  const d = new Date(), enAjuste = V.pestana === 'nosotros' && !!V.ajuste, sub2 = SUBVISTAS.includes(V.pestana) || enAjuste;
+  const d = fecha(hoy()), enAjuste = V.pestana === 'nosotros' && !!V.ajuste, sub2 = SUBVISTAS.includes(V.pestana) || enAjuste;
   $('#cab').innerHTML = `<div class="marca">${sub2 ? `<button class="volver" id="b-volver" aria-label="Volver">${SVG.volver}</button>` : ''}${marcaHTML}
       <span class="fecha-chip">${iconoSync()}${DS[d.getDay()]} ${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}</span></div>
     <h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}`;
@@ -614,7 +616,7 @@ function cierraHoja(rapido) {
 }
 
 // ——— Semana ———
-function horaComida() { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < 11 ? 'desayuno' : h < 16.5 ? 'comida' : h < 19.5 ? 'merienda' : 'cena'; }
+function horaComida() { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < CORTE ? 'cena' : h < 11 ? 'desayuno' : h < 16.5 ? 'comida' : h < 19.5 ? 'merienda' : 'cena'; }
 function vSemana() {
   const p = planActivo(), pe = efectivo(p), s = est(p.id), h = hoy();
   const ultimo = p.dias.at(-1).f;
@@ -630,7 +632,7 @@ function vSemana() {
   if (E.ultimosAuto && Date.now() - new Date(E.ultimosAuto.t) < 864e5) banners.push(letrero('auto:' + E.ultimosAuto.t, '🔄', `<b>Menú adaptado a lo que ${E.ultimosAuto.cambios.every(x => x.raro) ? 'soléis comprar' : 'hay en casa'}</b>: ${E.ultimosAuto.cambios.length} plato${E.ultimosAuto.cambios.length > 1 ? 's' : ''}.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-auto">Ver cambios</button></div>`));
   // Recetas que se preparan la noche antes (avena de la noche…): aviso desde las 17:00 del día anterior.
   const manana = masDias(h, 1), dm = planes().map(efectivo).flatMap(x => x.dias).find(x => x.f === manana);
-  const deNoche = new Date().getHours() >= 17 && dm ? L.COMIDAS.flatMap(c => L.idsDe(dm[c]).filter(id => recetas[id]?.noche).map(id => ({ c, id }))) : [];
+  const deNoche = (new Date().getHours() >= 17 || new Date().getHours() < CORTE) && dm ? L.COMIDAS.flatMap(c => L.idsDe(dm[c]).filter(id => recetas[id]?.noche).map(id => ({ c, id }))) : [];
   if (deNoche.length) banners.unshift(letrero('noche:' + manana, '🌙', `<b>Esta noche, 5 minutos:</b> deja preparada ${deNoche.map(x => esc(recetas[x.id].n[0].toLowerCase() + recetas[x.id].n.slice(1))).join(' y ')} para el ${L.NOMBRE_COMIDA[deNoche[0].c].toLowerCase()} de mañana.<div class="botones" style="margin-top:8px"><button class="boton" id="b-ver-noche" data-receta-noche="${deNoche[0].id}">Ver cómo</button></div>`));
   const sinAparato = platosSinAparato(p);
   if (sinAparato.length) banners.push(letrero('aparatos:' + p.id + ':' + aparatosCasa().join(','), '🍳', `<b>${sinAparato.length} plato${sinAparato.length > 1 ? 's necesitan' : ' necesita'} ${esc(enumera([...new Set(sinAparato.map(x => nombreAparato(x.r.ap)))], 3))}</b>, que no ${L.QUIEN.length > 1 ? 'tenéis' : 'tienes'} marcado en Recetas.<div class="botones" style="margin-top:8px"><button class="boton principal" id="b-ajustar-aparatos">🔄 Cambiarlos</button></div>`));
@@ -2674,7 +2676,7 @@ function irAClaude(texto = '', fichero = null, datos = null) {
   if (esChat()) pinta(); else location.hash = 'hoy';
 }
 function vClaude() {
-  const fh = new Date();
+  const fh = fecha(hoy());
   cabecera('Hoy', `${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}`);
   const conServidor = !!servidor(), adj = V.datos?.receta, h0 = hoy();
   // La conversación de hoy a la vista; lo anterior, plegado.
