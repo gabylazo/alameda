@@ -105,6 +105,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'hoy-ayer', fecha: '2026-10-28', emo: '', titulo: 'Desayunos y ayer en Hoy', texto: 'En Hoy, el desayuno y el almuerzo salen uno por persona y al tocarlos se abre su receta. Debajo, «Ayer» os enseña lo que comisteis el día anterior.', ir: 'hoy' },
   { id: 'medianoche', fecha: '2026-10-28', emo: '', titulo: 'Cenas tarde', texto: 'Hasta las 5 de la mañana, Hoy sigue en el día anterior: si cenáis pasada la medianoche, veis la cena de ese día y no se da por comida antes de tiempo.', ir: 'hoy' },
   { id: 'habituales', fecha: '2026-10-26', emo: '', titulo: 'Solo lo que compráis', texto: 'El menú, «Cambiar» y el Chef solo usan recetas con lo que sale en vuestros tickets o tenéis en casa: nada de merluza ni cosas que no compráis. Las demás siguen en Recetas, aparte. En Compra, «Lo que soléis comprar» os recuerda lo de siempre que no está en la lista.', ir: 'compra', origen: true },
   { id: 'oscuro', fecha: '2026-10-24', emo: '', titulo: 'Ajustes y modo oscuro', texto: 'Ajustes, la pestaña nueva de abajo, reúne vuestros datos, el súper, lo que sabe el Chef y la apariencia: claro, oscuro o automático (como tengáis el móvil).', ir: 'nosotros', foco: '[data-tema]' },
@@ -944,6 +945,7 @@ function tarjetaComida(p, d, i, c, s, ahora) {
 // Al tocar una comida: qué se puede hacer con ella, con botones grandes y claros.
 function abrirAcciones(p, i, c, q) {
   const pe = efectivo(p), d = pe.dias[i], v = d[c], s = est(p.id), clave = d.f + '|' + c, hecho = !!s.hechos[clave];
+  if (!q && L.esDoble(v)) q = L.QUIEN.find(x => v[x]) || null;   // hueco doble sin persona: el de la primera
   const dia = `${capital(DL[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}`;
   const rid = q ? L.recetaDe(v, q) : L.idDe(v), r = recetas[rid];
   const quien = q ? `<span class="avatar mini ${q.toLowerCase()}">${ini(q)}</span> ${esc(NOM[q])} · ` : '';
@@ -2762,14 +2764,10 @@ const ICONO_COMIDA = { desayuno: '<svg viewBox="0 0 24 24"><circle cx="12" cy="1
 function bloqueHoy(p, d) {
   if (!d && hoy() > p.dias.at(-1).f && !D.amiga) { if (!V.preparando) { V.preparando = true; setTimeout(() => { siguienteSemana(); V.preparando = false; }, 0); } return ''; }   // se acabó la semana: la siguiente, sola
   if (!d) return `<div class="hoy-plan"><div class="hoy-vacio">Hoy no hay menú. <button class="ver-todo" data-ir="semana">Ver la semana</button></div></div>`;
-  const s = est(p.id), i = efectivo(p).dias.findIndex(x => x.f === d.f), ahora = horaComida();
-  const fila = c => {
-    const v = d[c], hecho = !!s.hechos[d.f + '|' + c];
-    if (v === undefined || v === null) return '';
-    const nombre = v.fuera ? 'Fuera' : L.esDoble(v) ? L.QUIEN.map(q => `<span class="quien-ini ${q.toLowerCase()}">${ini(q)}</span>${esc(recetas[v[q]]?.n || '—')}`).join('<br>') : esc(recetas[L.idDe(v)]?.n || v.libre || '—');
-    const r1 = v.fuera ? null : recetas[L.idsDe(v)[0]];
-    return `<button class="hoy-fila c-${c}${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}">${r1 ? fotoPlato(r1, 160, 'hoy-mini') : `<span class="hoy-mini sin-foto c-${c}">${ICONO_COMIDA[c] || ''}</span>`}<span class="hoy-txt"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}${hecho ? ' · hecho' : ''}</span><span class="hoy-plato">${nombre}</span></span><span class="flecha">›</span></button>`;
-  };
+  const s = est(p.id), ahora = horaComida();
+  // Ayer, a la vista (puede estar en la semana anterior).
+  const ay = masDias(d.f, -1), pa = planes().find(x => efectivo(x).dias.some(y => y.f === ay)), da = pa && efectivo(pa).dias.find(y => y.f === ay);
+  const ayer = da ? filasDia(pa, da, L.COMIDAS) : '';
   const vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, cenaHecha = !!s.hechos[d.f + '|cena'];
   const falta = rc && !cenaHecha ? faltaEnCasa(rc) : [];
   const kc = rc ? L.QUIEN.map(q => r0(L.macrosReceta(rc, q, D.productos, fac).kcal)).join(' / ') : '';
@@ -2782,16 +2780,30 @@ function bloqueHoy(p, d) {
         <div class="hoy-enlaces"><button class="ver-todo" data-hoy-acc="cambiar">Cambiar</button><button class="ver-todo" data-hoy-acc="fuera">Cenamos fuera</button></div></div>
     </section>` : ''}
     <section class="hoy-plan"><h3 class="hoy-tit">${rc ? 'El resto del día' : 'Hoy'}</h3>
-    ${L.COMIDAS.filter(c => !(rc && c === 'cena')).map(fila).join('')}
+    ${filasDia(p, d, L.COMIDAS.filter(c => !(rc && c === 'cena')), ahora)}
     ${vc?.fuera ? `<div class="hoy-botones"><button class="boton" data-hoy-acc="fuera">Al final cenamos en casa</button></div>` : ''}
     <div class="hoy-enlaces"><button class="ver-todo" data-ir="semana">La semana</button><button class="ver-todo" data-ir="recetas">Recetas</button></div>
-  </section>`;
+  </section>
+  ${ayer ? `<section class="hoy-plan hoy-ayer"><h3 class="hoy-tit">Ayer, ${DL[fecha(ay).getDay()]}</h3>${ayer}</section>` : ''}`;
+}
+// Filas de un día en Hoy: una por comida y, en el desayuno y el almuerzo (huecos dobles), una por persona con su receta
+// (28/10: al tocar el desayuno doble salía «Sin plato»).
+function filasDia(p, d, comidas, ahora = null) {
+  const s = est(p.id);
+  return comidas.flatMap(c => {
+    const v = d[c], hecho = !!s.hechos[d.f + '|' + c];
+    if (v === undefined || v === null) return [];
+    return (L.esDoble(v) ? L.QUIEN.filter(q => v[q]) : [null]).map(q => {
+      const r = v.fuera ? null : recetas[q ? L.recetaDe(v, q) : L.idDe(v)];
+      return `<button class="hoy-fila c-${c}${hecho ? ' hecha' : ''}${c === ahora ? ' ahora' : ''}" data-hoy="${c}" data-plan="${p.id}" data-f="${d.f}"${q ? ` data-q="${q}"` : ''}>${r ? fotoPlato(r, 160, 'hoy-mini') : `<span class="hoy-mini sin-foto c-${c}">${ICONO_COMIDA[c] || ''}</span>`}<span class="hoy-txt"><span class="hoy-comida">${L.NOMBRE_COMIDA[c]}${q && L.QUIEN.length > 1 ? ' · ' + esc(NOM[q]) : ''}${hecho ? ' · hecho' : ''}</span><span class="hoy-plato">${v.fuera ? 'Fuera' : esc(r?.n || v.libre || '—')}</span></span><span class="flecha">›</span></button>`;
+    });
+  }).join('');
 }
 function activaHoy(p, d) {
   $$('[data-ir]').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.ir; }));
   if (!d) return;
   const i = efectivo(p).dias.findIndex(x => x.f === d.f);
-  $$('[data-hoy]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.hoy, null)));
+  $$('[data-hoy]').forEach(b => b.addEventListener('click', () => { const pb = planes().find(x => x.id === b.dataset.plan) || p; abrirAcciones(pb, efectivo(pb).dias.findIndex(x => x.f === b.dataset.f), b.dataset.hoy, b.dataset.q || null); }));
   const rc = recetas[L.idDe(d.cena)];
   $$('[data-hoy-acc]').forEach(b => b.addEventListener('click', () => {
     const a = b.dataset.hoyAcc;

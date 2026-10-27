@@ -1085,3 +1085,8 @@ b, strong { font-weight: 600; }
 .ajuste-pagina .tarjeta.perfil > h3:first-child + .nota { margin-top: 0 !important; }
 .af-t .nuevo { color: #fff; }
 :root[data-theme="dark"] .af-t .nuevo { color: var(--acento-texto); }
+
+/* Hoy: lo que comisteis ayer, más pequeño (28/10/2026) */
+.hoy-ayer .hoy-fila { grid-template-columns: 48px 1fr auto; padding: 8px 0; }
+.hoy-ayer .hoy-mini { width: 48px; height: 48px; border-radius: 10px; }
+.hoy-ayer .hoy-plato { font-size: 14.5px; color: var(--tenue); }
