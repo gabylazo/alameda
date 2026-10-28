@@ -197,7 +197,9 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
 }
 
 // El almuerzo de cada uno (casa de origen): «almuerzo: 'G' | 'P'» en la receta = solo para esa persona en ese hueco.
-const paraQuien = (r, comida, quien) => !(comida === 'comida' && quien && typeof r.almuerzo === 'string' && r.almuerzo !== quien);
+// Y que a esa persona le toque algo de verdad (28/10: «Huel con agua», con el Huel solo para P, salía de desayuno para G: solo canela).
+const leToca = (r, quien) => !quien || r.ing.some(i => i[1] > 5 && !(i[3] && i[3].solo && i[3].solo !== quien));
+const paraQuien = (r, comida, quien) => !(comida === 'comida' && quien && typeof r.almuerzo === 'string' && r.almuerzo !== quien) && leToca(r, quien);
 export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
   const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
