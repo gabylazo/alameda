@@ -105,6 +105,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'chat-receta', fecha: '2026-10-30', emo: '', titulo: 'La receta, sin subir', texto: 'Mientras habláis con el Chef, la receta de la que se habla (o la cena de hoy) está fija encima de donde se escribe: tocadla y se abre encima del chat. Los nombres de receta de los mensajes también se pueden tocar, y «Otras» busca cualquier receta sin salir del chat.', ir: 'hoy' },
   { id: 'inventa', fecha: '2026-10-28', emo: '', titulo: 'La cena, con lo que hay', texto: 'Si la cena de hoy no sale con lo que tenéis en la Nevera, el Chef se inventa una solo con eso y la pone en el menú (con Deshacer). También se lo podéis pedir con «Otra con lo que hay», debajo de la cena. Y si la semana va sin compra, el menú se ajusta a la Nevera. Para que acierte, tened la Nevera al día.', ir: 'hoy' },
   { id: 'recetas-nuevas', fecha: '2026-10-28', emo: '', titulo: '12 recetas nuevas', texto: 'Lasaña de patata con jamón, pollo a la toscana, pechuga rellena, ñoquis con rulo de cabra, huevos turcos, baked oats… Casi todas en 20 minutos y solo con lo que compráis. Y 24 que nunca salían (llevaban claras, pimiento, lechuga…) ahora llevan lo vuestro.', ir: 'recetas', origen: true },
   { id: 'hoy-ayer', fecha: '2026-10-28', emo: '', titulo: 'Desayunos y ayer en Hoy', texto: 'En Hoy, el desayuno y el almuerzo salen uno por persona y al tocarlos se abre su receta. Debajo, «Ayer» os enseña lo que comisteis el día anterior.', ir: 'hoy' },
@@ -2721,6 +2722,55 @@ function irAClaude(texto = '', fichero = null, datos = null) {
   V.borrador = texto; V.adjunto = fichero; V.datos = datos; cierraHoja();
   if (esChat()) pinta(); else location.hash = 'hoy';
 }
+// Recetas sin salir del chat (30/10: «tengo que subir hasta arriba para ver la receta»): los nombres de receta de los mensajes
+// se pueden tocar, la barra lleva la receta de la que se habla y «Otras» busca cualquiera; todo se abre en una hoja encima.
+const palabrasReceta = s => L.normaliza(s).split(/[^a-z0-9ñ]+/).filter(w => w.length > 3);
+function recetaParecida(texto) {   // «Lomo al curry y lima con patata crujiente…» → la receta con casi las mismas palabras
+  const t = new Set(palabrasReceta(texto)); if (t.size < 2) return null;
+  let mejor = null, nota = 0;
+  for (const r of Object.values(recetas)) {
+    const w = palabrasReceta(r.n), comunes = w.filter(x => t.has(x)).length, n = comunes / Math.max(w.length, t.size);
+    if (comunes >= 2 && n > nota) { mejor = r; nota = n; }
+  }
+  return nota >= 0.6 ? mejor : null;
+}
+// Trozos del texto que nombran una receta: [inicio, fin, id, negrita]. Las negritas se comparan por parecido; el resto, por el nombre exacto.
+function marcasRecetas(t) {
+  const marcas = [...t.matchAll(/\*\*(.+?)\*\*/g)].map(m => [m.index, m.index + m[0].length, recetaParecida(m[1])?.id, m[1]]), bajo = t.toLowerCase();
+  for (const r of Object.values(recetas).filter(r => r.n.length >= 10).sort((a, b) => b.n.length - a.n.length)) {
+    for (let i = bajo.indexOf(r.n.toLowerCase()); i >= 0; i = bajo.indexOf(r.n.toLowerCase(), i + 1)) {
+      const f = i + r.n.length; if (!marcas.some(([a, b]) => i < b && f > a)) marcas.push([i, f, r.id, null]);
+    }
+  }
+  return marcas.sort((a, b) => a[0] - b[0]);
+}
+function conRecetas(t) {
+  let html = '', k = 0;
+  for (const [a, b, id, negrita] of marcasRecetas(t)) {
+    const dentro = negrita != null ? `<b>${esc(negrita)}</b>` : esc(t.slice(a, b));
+    html += esc(t.slice(k, a)) + (id ? `<button class="enlace-receta" data-receta="${esc(id)}">${dentro}</button>` : dentro); k = b;
+  }
+  return (html + esc(t.slice(k))).replace(/\n/g, '<br>');
+}
+// La receta de la que se está hablando: la del último mensaje que nombra alguna.
+function recetaDeLaCharla(charla) {
+  for (const c of [...charla].reverse()) {
+    const id = [...marcasRecetas(separaAcciones(c.r || '').texto), ...marcasRecetas(c.q || '')].find(m => m[2])?.[2];
+    if (id) return recetas[id];
+  }
+  return null;
+}
+const recetaGuardada = a => Object.values(recetas).filter(r => r.chef).reverse().find(r => r.n === capital(String(a.nombre || '').slice(0, 90))) || recetaParecida(a.nombre || '');
+function abrirOtrasRecetas() {
+  const h = hoy(), semana = new Set(efectivo(planActivo()).dias.filter(d => d.f >= masDias(h, -1)).flatMap(d => L.COMIDAS.flatMap(c => L.idsDe(d[c]))));
+  const todas = Object.values(recetas).filter(r => semana.has(r.id) || aptaCasa(r)).sort((a, b) => semana.has(b.id) - semana.has(a.id) || a.n.localeCompare(b.n, 'es'));
+  const fila = r => `<button class="hoy-fila" data-receta="${esc(r.id)}">${fotoPlato(r, 160, 'hoy-mini')}<span class="hoy-txt"><span class="hoy-comida">${semana.has(r.id) ? 'Esta semana · ' : ''}${r.min} min</span><span class="hoy-plato">${esc(r.n)}</span></span><span class="flecha">›</span></button>`;
+  hoja(`<h2>Recetas</h2><input class="campo-texto" id="i-busca-receta" type="search" placeholder="Busca por nombre o ingrediente" autocomplete="off"><div id="l-recetas" style="margin-top:6px"></div>`, hj => {
+    const lista = q => { const t = L.normaliza(q || ''); $('#l-recetas', hj).innerHTML = todas.filter(r => !t || L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n || '').join(' ')).includes(t)).slice(0, 60).map(fila).join('') || '<div class="vacio">Ninguna receta con eso.</div>'; };
+    lista(''); $('#i-busca-receta', hj).addEventListener('input', e => lista(e.target.value));
+    $('#l-recetas', hj).addEventListener('click', e => { const b = e.target.closest('[data-receta]'); if (b) abrirReceta(b.dataset.receta); });
+  });
+}
 function vClaude() {
   const fh = fecha(hoy());
   cabecera('Hoy', `${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}`);
@@ -2743,15 +2793,21 @@ function vClaude() {
     ['', 'Se ha acabado…', null, null, 'Se ha acabado '],
     ['', '¿Es buena compra?', null, null, null, abrirEscaner],
   ].filter(Boolean);
+  // En la barra, la receta de la que se habla: la adjunta, la última nombrada hoy o la cena de hoy (si no está hecha).
+  const ra = adj && recetas[adj.id], rh = !ra && recetaDeLaCharla(deHoy), rr = ra || rh || (d && !est(p.id).hechos[d.f + '|cena'] ? cena : null);
+  if (!rr) rapidas.push(['', 'Ver una receta', null, null, null, abrirOtrasRecetas]);
+  document.body.classList.toggle('con-receta', !!rr);
   const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="1">ver todo</button>' : esc(q);
   const burbujas = charla.map(c => { const { texto: rt, acciones } = separaAcciones(c.r || '');
-    return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${esc(rt).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}${acciones.map((a, i) => `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${(c.hechas || []).includes(i) ? ' disabled' : ''}>${(c.hechas || []).includes(i) ? '✓ Hecho' : esc(textoAccion(a))}</button>`).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">El Chef está escribiendo…</div>`}`; }).join('');
+    return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${conRecetas(rt)}${acciones.map((a, i) => { const hecha = (c.hechas || []).includes(i), rg = hecha && a.tipo === 'receta' && recetaGuardada(a);
+      return rg ? `<button class="boton accion-chef" data-receta="${esc(rg.id)}">✓ Guardada · Ver la receta</button>` : `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${hecha ? ' disabled' : ''}>${hecha ? '✓ Hecho' : esc(textoAccion(a))}</button>`; }).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">El Chef está escribiendo…</div>`}`; }).join('');
   $('#vista').innerHTML = `
     ${bloqueHoy(p, d)}
     <div class="chat" id="hilo">${antes && !V.verAntes ? `<button class="ver-todo" id="b-ver-antes" style="align-self:center">Ver la conversación anterior (${antes})</button>` : ''}${charla.length ? `${burbujas}<button class="ver-todo" id="b-borrar-charla" style="align-self:center">Borrar la conversación</button>`
       : `<div class="chat-hola"><b>Pregúntale al Chef</b><span class="nota">«¿Qué hay hoy para cenar?», «hoy cenamos fuera», «no tengo pepino, ¿qué uso?», «apunta detergente en la compra»…</span></div>`}</div>
     <div class="chat-barra"><div class="dentro">
-      ${adj ? `<div class="adjunto"><span>📖 ${esc(adj.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
+      ${rr ? `<div class="chat-receta"><button class="chat-receta-abre" data-receta="${esc(rr.id)}">${fotoPlato(rr, 160, 'chat-receta-foto')}<span class="txt"><small>${ra ? 'Va con tu mensaje' : rh ? 'En la conversación' : 'Cena de hoy'}</small><b>${esc(rr.n)}</b></span></button>${ra ? '<button class="quitar" id="b-quitar-datos" aria-label="Quitar">×</button>' : ''}<button class="chat-otras" id="b-otras-recetas">Otras</button></div>`
+        : adj ? `<div class="adjunto"><span>📖 ${esc(adj.nombre)}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.datos?.compra ? `<div class="adjunto"><span>🧾 Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}</span><button id="b-quitar-datos" aria-label="Quitar">×</button></div>` : ''}
       ${V.adjunto ? `<div class="adjunto"><span>📎 ${esc(V.adjunto.name || 'foto')}</span><button id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''}
       <div class="sugerencias">${rapidas.map((a, i) => `<button class="chip" data-rapida="${i}">${a[0]} ${esc(a[1])}</button>`).join('')}</div>
@@ -2785,6 +2841,8 @@ function vClaude() {
   $('#i-foto-claude')?.addEventListener('change', e => { V.adjunto = e.target.files[0] || null; vClaude(); });
   $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
   $('#b-quitar-datos')?.addEventListener('click', () => { V.datos = null; vClaude(); });
+  $$('#hilo [data-receta], .chat-barra [data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
+  $('#b-otras-recetas')?.addEventListener('click', abrirOtrasRecetas);
   $$('[data-accion]').forEach(b => b.addEventListener('click', () => {
     const [id, i] = b.dataset.accion.split('|'), c = (E.charla || []).find(x => x.id === id); if (!c) return;
     const a = separaAcciones(c.r).acciones[+i]; if (!a) return;
