@@ -107,6 +107,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'nevera-clasificada', fecha: '2026-11-04', emo: '', titulo: 'Todo en su sitio en la Nevera', texto: 'Lo del ticket que no es de la app (burrata, gazpacho, ternera…) ya no va a «Otras cosas»: sale en su sección, con su foto cuando Mercadona lo reconoce.', ir: 'casa' },
   { id: 'marcar-compra', fecha: '2026-11-04', emo: '', titulo: 'Marcar lo que vais comprando', texto: 'En Compra, toca el círculo de cada producto al meterlo en el carro: se tacha y baja a «Comprado». Al terminar, el ticket lo confirma y lo pasa a la Nevera.', ir: 'compra', foco: '.marca-compra' },
   { id: 'dia-compra', fecha: '2026-11-03', emo: '', titulo: 'Día de la compra', texto: 'En Compra, elige qué día vais a comprar y para cuántos días: la lista sale entera, con el menú, lo que se acabó en casa y lo que soléis comprar.', ir: 'compra', foco: '#b-dia-compra' },
   { id: 'privacidad', fecha: '2026-11-03', emo: '', titulo: 'Privacidad', texto: 'En Ajustes, qué guarda la app, dónde y quién lo ve.', ir: 'nosotros', ajuste: 'privacidad' },
@@ -290,7 +291,7 @@ async function sincroniza() {
       }
     }
     V.sync = 'ok'; V.syncHora = new Date(); V.syncError = '';
-    if (V.montada) inventaSiHaceFalta();   // con lo del otro móvil ya fundido
+    if (V.montada) { inventaSiHaceFalta(); clasificaOtros(); }   // con lo del otro móvil ya fundido
   } catch (e) { V.sync = 'error'; V.syncError = e.message; }
   finally { sincronizando = false; pintaSync(); if (otraVez) { otraVez = false; programaSync(); } for (const c of E.charla || []) if (!c.r && Date.now() - new Date(c.t) < 864e5) esperaRespuesta(c.id); }   // respuestas que queden por recoger
 }
@@ -304,11 +305,12 @@ async function sube(v) {
 function limpiaDuplicados() {
   const uniq = (l, clave) => { const vistos = new Set(); return (l || []).filter(x => { const c = clave(x); if (vistos.has(c)) return false; vistos.add(c); return true; }); };
   const porProducto = x => x.k || L.normaliza(x.n || x.texto || '');
-  const antes = JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros]);
+  const antes = JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros, E.casaExtra]);
   E.pendientes = uniq(E.pendientes, porProducto).filter(x => !(x.k && D?.productos?.[x.k] && (E.casa?.[x.k] || 0) >= (D.productos[x.k].util || 1) * 0.5));   // lo que ya está en casa no está pendiente
   E.proximaCompra = uniq(E.proximaCompra, porProducto);
   E.invitaciones = uniq(E.invitaciones, x => x.clave); E.casaOtros = [...new Set(E.casaOtros || [])];
-  return antes !== JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros]);
+  if (E.casaExtra) E.casaExtra = uniq(E.casaExtra, x => L.normaliza(x.n || ''));
+  return antes !== JSON.stringify([E.pendientes, E.proximaCompra, E.invitaciones, E.casaOtros, E.casaExtra]);
 }
 // Historial con tope, para que el estado no crezca sin fin (24/10): Chef 30 mensajes y 30 días (y no más de ~20 KB),
 // 10 compras (las 3 últimas con los renglones del ticket), comidas marcadas y semanas de los últimos 60 días.
@@ -1886,7 +1888,7 @@ function terminarCompra(filas, silencioso = false) {
       (E.casa[f.k] = (E.casa[f.k] || 0) + (c ? (c.kg ? c.kg * 1000 : c.n * x.util) : f.envases * x.util), alta(f.k)); n++;
       if (f.despensa) delete s.faltaDespensa[f.k];
     }
-    else if (f.m && !NO_COMIDA.has(f.m.cat)) { E.casaOtros = [...new Set([...E.casaOtros, f.m.n])]; }
+    else if (f.m && !NO_COMIDA.has(f.m.cat)) aExtraCasa(f.m.n, f.m.cat, f.m.foto, f.m.id);
     if (f.extra) s.extra = s.extra.filter(y => y.id !== f.extra);
     if (f.extras) s.extra = s.extra.filter(y => !f.extras.includes(y.id));
     if (f.fijo && !f.k) s.fijosHechos[f.clave] = true;
@@ -2073,6 +2075,33 @@ const nombreFuera = x => x.m?.n ? sinMarca(x.m.n) : capital(x.d.toLowerCase());
 const resumenTicket = (t, fuera) => ({ fecha: t.fecha, hora: t.hora, total: t.total ?? t.suma, cuadra: t.cuadra, lineas: t.items.map(it => [it.n, it.d, it.imp, it.kg]),
   fuera: fuera.map(it => ({ d: it.d, n: it.n, kg: it.kg, imp: it.imp, k: it.seguro?.k || null,
     m: it.seguro ? { id: it.seguro.id, n: it.seguro.n, cat: it.seguro.cat, foto: it.seguro.foto } : it.hits?.[0] ? { cat: it.hits[0].cat } : null })) });
+// Lo que no es producto de la app va a la Nevera en su sección de Mercadona, con foto si se sabe (4/11: «todo tiene que salir clasificado»).
+function aExtraCasa(n, cat, foto, m) {
+  if ((E.casaExtra || []).some(x => L.normaliza(x.n) === L.normaliza(n))) return;
+  E.casaExtra = [...(E.casaExtra || []), { id: uid(), n, cat: cat || 'Otros', ...(foto ? { foto } : {}), ...(m ? { m } : {}) }];
+}
+// «Otras cosas» (texto suelto, sin sección): se buscan en Mercadona y pasan a su sección. Si salen en un ticket, su precio confirma el producto
+// (nombre y foto de verdad, y si es de la app, a su producto con la cantidad comprada). Sin conexión se quedan donde están.
+let clasificando = false;
+async function clasificaOtros() {
+  const otros = [...new Set(E.casaOtros || [])];
+  if (!otros.length || clasificando || !navigator.onLine) return;
+  clasificando = true;
+  try {
+    const lineas = new Map();
+    for (const c of E.compras || []) for (const [n, d, imp, kg] of c.ticket?.lineas || []) if (!lineas.has(L.normaliza(d))) lineas.set(L.normaliza(d), { n, imp, kg });
+    const items = otros.map(t => { const l = lineas.get(L.normaliza(t)); return l ? { d: t, n: l.n, imp: l.imp, kg: l.kg, pu: +(l.imp / (l.kg || l.n || 1)).toFixed(2) } : { d: t, n: 1 }; });
+    await identificaTicket(items);
+    for (const it of items) {
+      const h = it.seguro, cat = (h || it.hits?.[0])?.cat || 'Otros';
+      if (NO_COMIDA.has(cat)) continue;
+      if (h?.k) { E.casa[h.k] = (E.casa[h.k] || 0) + (it.kg ? it.kg * 1000 : it.n * D.productos[h.k].util); alta(h.k); }
+      else aExtraCasa(h ? sinMarca(h.n) : it.d, cat, h?.foto, h?.id);
+    }
+    const hechos = new Set(otros); E.casaOtros = (E.casaOtros || []).filter(t => !hechos.has(t));
+    salva(); if (V.pestana === 'casa' && !$('.hoja')) vCasa();
+  } catch { /* sin Mercadona: se intenta en la próxima sincronización */ } finally { clasificando = false; }
+}
 // Lo de fuera de la lista pasa a «En casa» (lo que no es comida, no). Devuelve cuántos.
 function aCasaTicket(fuera = []) {
   let n = 0;
@@ -2080,7 +2109,7 @@ function aCasaTicket(fuera = []) {
     const cat = x.k ? D.productos[x.k].cat : x.m?.cat;
     if (!cat || NO_COMIDA.has(cat)) continue;
     if (x.k) (E.casa[x.k] = (E.casa[x.k] || 0) + (x.kg ? x.kg * 1000 : x.n * D.productos[x.k].util), alta(x.k));
-    else E.casaOtros = [...new Set([...E.casaOtros, nombreFuera(x)])];
+    else aExtraCasa(nombreFuera(x), cat, x.m?.foto, x.m?.id);
     n++;
   }
   return n;
@@ -2262,6 +2291,7 @@ const LUGAR = k => {
 };
 const LUGAR_EMO = { 'Nevera': '🧊', 'Fruta y verdura': '🥬', 'Congelador': '❄️', 'Despensa': '🫙' };
 function vCasa() {
+  if ((E.casaOtros || []).length) clasificaOtros();   // al abrir la Nevera, lo suelto se coloca en su sección
   const items = Object.entries(E.casa).filter(([k, g]) => D.productos[k] && g > 0), extra = E.casaExtra || [];
   cabecera('Nevera', `${items.length + extra.length + E.casaOtros.length} cosas`);
   const porSec = {};
@@ -2351,7 +2381,7 @@ function apuntaCasa(texto) {
     } else otros.push(capital(t));
   }
   E.casaOtros = [...new Set([...E.casaOtros, ...otros])];
-  salva(); vCasa();
+  salva(); vCasa(); clasificaOtros();
   const quitados = antes - lineaCompra().filas.length;
   tostada(`🏠 ${hechos.length + otros.length} apuntadas${quitados > 0 ? ` · ${quitados} fuera de la lista` : ''}`);
 }
