@@ -1122,3 +1122,11 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 .hoy-fila.hecha .hoy-plato, .hoy-ayer .hoy-plato, .chat-receta-abre small { color: var(--suave); }
 .sugerencias .chip { color: color-mix(in srgb, var(--acento) 85%, var(--texto)); }
 .hoy-falta .ver-todo { padding: 4px 0; }
+
+/* Compra: círculo para marcar lo que ya va en el carro (4/11). La fila es un div con dos botones: el círculo y el producto. */
+.producto .abre { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; background: none; border: 0; padding: 0; margin: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.marca-compra { flex: 0 0 44px; width: 44px; height: 44px; margin: -6px -6px -6px -10px; display: grid; place-items: center; background: none; border: 0; padding: 0; cursor: pointer; }
+.marca-compra .circulo { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--suave); display: grid; place-items: center; transition: background .15s, border-color .15s; }
+.marca-compra svg { width: 15px; height: 15px; stroke: var(--acento-texto); stroke-width: 3.2; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity .15s; }
+.marca-compra[aria-pressed="true"] .circulo { background: var(--acento); border-color: var(--acento); }
+.marca-compra[aria-pressed="true"] svg { opacity: 1; }

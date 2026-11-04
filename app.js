@@ -107,6 +107,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'marcar-compra', fecha: '2026-11-04', emo: '', titulo: 'Marcar lo que vais comprando', texto: 'En Compra, toca el círculo de cada producto al meterlo en el carro: se tacha y baja a «Comprado». Al terminar, el ticket lo confirma y lo pasa a la Nevera.', ir: 'compra', foco: '.marca-compra' },
   { id: 'dia-compra', fecha: '2026-11-03', emo: '', titulo: 'Día de la compra', texto: 'En Compra, elige qué día vais a comprar y para cuántos días: la lista sale entera, con el menú, lo que se acabó en casa y lo que soléis comprar.', ir: 'compra', foco: '#b-dia-compra' },
   { id: 'privacidad', fecha: '2026-11-03', emo: '', titulo: 'Privacidad', texto: 'En Ajustes, qué guarda la app, dónde y quién lo ve.', ir: 'nosotros', ajuste: 'privacidad' },
   { id: 'chat-receta', fecha: '2026-10-30', emo: '', titulo: 'La receta, sin subir', texto: 'Mientras habláis con el Chef, la receta de la que se habla (o la cena de hoy) está fija encima de donde se escribe: tocadla y se abre encima del chat. Los nombres de receta de los mensajes también se pueden tocar, y «Otras» busca cualquier receta sin salir del chat.', ir: 'hoy' },
@@ -899,7 +900,7 @@ function aplicaInvento(c) {
 function ajusteAutomatico() {
   const p = planActivo(), s = est(p.id), u = E.compras[0];
   // El ticket se subió otro día y la compra sigue sin cerrar: se cierra sola (lo comprado a «En casa», lo que no había a pendientes).
-  if (s.ticket && !s.compraHecha && hoy() > (s.ticket.fecha || hoy())) { const { filas } = lineaCompra(); const res = terminarCompra(filas, true); if (res?.menu?.length) return res.menu; }
+  if (s.ticket && !s.compraHecha && hoy() > (s.ticket.fecha || hoy()) && !recrucePendiente(s)) { const { filas } = lineaCompra(); const res = terminarCompra(filas, true); if (res?.menu?.length) return res.menu; }
   // El menú publicado se hizo sabiendo lo que hay (el ticket): lo que usa se da por tenido, aunque el lector no lo emparejara.
   const tienen = D.semana.id === p.id && D.semana.tienen, marcaTicket = D.semana.reconciliacion || 'ticket';
   if (tienen && /^\d{4}-\d\d-\d\dT/.test(s.reconciliado || '')) { s.reconciliado = marcaTicket; salva(); }   // marca antigua (la fecha de cada publicación): ya está hecho
@@ -1380,8 +1381,12 @@ function lineaCompra() {
   for (const v of vistas) v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros';
   vistas.sort((a, b) => (ordenSeccion(a.seccion) - ordenSeccion(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
   const quitar = Object.keys(s.quitados).filter(k => s.quitados[k] === true);   // los vaciados ('oculto') siguen fuera de la lista, pero ya no se enseñan
-  return { p, s, filas: vistas, despensa: s.despensaOculta ? [] : despensa.filter(f => !s.faltaDespensa[f.k] && !(s.despensaVista || {})[f.k]), total: vistas.reduce((t, f) => t + (f.precio || 0), 0), totalMenu: total, quitados: quitar };
+  // Lo que el menú pide y se quitó a mano: el ticket también lo busca ahí (4/11: lo deslizaban al meterlo en el carro y el ticket no encontraba nada).
+  const retiradas = filas.filter(f => s.quitados[f.k]).map(f => ({ ...f, clave: f.k, retirada: true, seccion: D.productos[f.k].cat }));
+  return { p, s, filas: vistas, retiradas, despensa: s.despensaOculta ? [] : despensa.filter(f => !s.faltaDespensa[f.k] && !(s.despensaVista || {})[f.k]), total: vistas.reduce((t, f) => t + (f.precio || 0), 0), totalMenu: total, quitados: quitar };
 }
+// Ticket aplicado sin nada marcado y con cosas quitadas a mano (antes del 4/11 no se buscaban ahí): hay que volver a cruzarlo, y mientras no se cierra solo.
+function recrucePendiente(s) { return !!s.ticket && !s.ticket.recruce && !Object.keys(s.marcados).length && !!s.ticket.lineas?.length && lineaCompra().retiradas.length > 0; }
 const nombreFila = f => f.k ? nombreCorto(D.productos[f.k]) : f.m ? f.m.n : f.texto;
 const nivelDe = f => f.k ? L.veredicto(L.nutrientesDe(D.productos[f.k])).nivel : f.nivel || null;
 const pillNivel = n => n ? `<span class="pill ${n}">${L.NIVEL[n].e}</span>` : '';
@@ -1462,10 +1467,13 @@ function vCompra() {
     const etiquetas = [f.fijo ? '<span class="pill">⭐</span>' : '', f.despensa ? '<span class="pill">🫙</span>' : '', f.otro ? `<span class="pill">📝 ${esc(f.para)}</span>` : '', f.manual ? pillNivel(nivelDe(f)) : '', f.manual ? '<span class="pill">✏️ añadido</span>' : '', f.proxima ? '<span class="pill">🛒 se acabó</span>' : '',
       estado === 'no' ? '<span class="pill malo">no había</span>' : estado === 'si' ? '<span class="pill bueno">comprado</span>' : ''].join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
-    return `<div class="fila-desliza" data-fila="${esc(f.clave)}"><button class="producto ${estado}" data-info="${esc(f.clave)}">
+    // El círculo marca lo que ya va en el carro (baja a «Comprado»); al terminar, el ticket lo confirma.
+    return `<div class="fila-desliza" data-fila="${esc(f.clave)}"><div class="producto ${estado}">
+      <button class="marca-compra" data-check="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="${estado === 'si' ? 'Comprado' : 'Marcar como comprado'}: ${esc(nombreFila(f))}"><span class="circulo">${SVG.check}</span></button>
+      <button class="abre" data-info="${esc(f.clave)}">
       ${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" width="50" height="50"${f.img ? ' style="object-fit:contain"' : ''}>` : `<div class="sinfoto">${f.otro ? '📝' : emojiSeccion(f.seccion)}</div>`}
       <span class="info"><span class="pn">${esc(nombreFila(f))}</span><span class="pc">${esc(cant)}${etiquetas}</span></span>
-      <span class="pp">${f.precio ? euros(f.precio) : ''}</span><span class="flecha">›</span></button></div>`;
+      <span class="pp">${f.precio ? euros(f.precio) : ''}</span><span class="flecha">›</span></button></div></div>`;
   };
   const porSecciones = lista => {
     let sec = '', html = ''; const cuenta = {};
@@ -1499,9 +1507,20 @@ function vCompra() {
     ${comprados.length ? `<details class="tarjeta comprados"><summary>✓ Comprado · ${comprados.length}</summary><div class="lista" style="margin-top:8px">${comprados.map(filaHTML).join('')}</div></details>` : ''}
     ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button></div>`).join('')}</div>` : ''}
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista<span class="num">${quitados.length}</span><button class="cat-accion" id="b-vaciar-quitados">Vaciar</button></div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver</button><button class="icono" data-olvidar="${k}" aria-label="Quitar de aquí">${I.papelera}</button></div>`).join('')}</div>` : ''}
-    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
+    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
   activaLetreros();
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
+  $$('[data-check]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.check, y = window.scrollY;
+    if (s.marcados[k]) delete s.marcados[k]; else { s.marcados[k] = true; delete s.noComprado[k]; }
+    salva(); vCompra(); window.scrollTo({ top: y });
+  }));
+  // Un ticket aplicado antes de que buscara también en lo quitado (4/11) no encontró nada: se vuelve a cruzar una vez.
+  if (conTicket && recrucePendiente(s)) {
+    s.ticket.recruce = true; salva();
+    const t = s.ticket;
+    setTimeout(() => muestraTicket({ fecha: t.fecha, hora: t.hora, total: t.total, cuadra: t.cuadra, items: t.lineas.map(([n, d, imp, kg]) => ({ n, d, imp, kg })) }), 300);
+  }
   $$('[data-fila]').forEach(fila => deslizaParaQuitar(fila, () => quitaDeLista(filas.find(f => f.clave === fila.dataset.fila))));
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
   $$('[data-soleis]').forEach(b => b.addEventListener('click', () => { s.extra.push({ id: uid(), k: b.dataset.soleis, n: 1 }); salva(); const y = window.scrollY; vCompra(); window.scrollTo(0, y); tostada('Añadido a la lista'); }));
@@ -1544,9 +1563,11 @@ function vCompra() {
 // Terminar sin ticket leído: subirlo ahora o dar por comprado todo lo de la lista.
 function hojaTerminar(filas) {
   if (!esMercadona()) { if (!confirm('¿Terminas la compra? Lo que queda en la lista pasa a «En casa».')) return; const { s } = lineaCompra(); for (const f of filas) if (!s.noComprado[f.clave]) s.marcados[f.clave] = true; salva(); terminarCompra(filas); return; }
-  hoja(`<h2>📦 Terminar la compra</h2><div class="nota">Con el ticket digital marco yo lo comprado y lo que no había. Sin ticket, doy por comprado todo lo que queda en la lista.</div>
-    <div class="acciones-grid" style="margin-top:12px"><button class="accion primaria" id="t-ticket"><span class="emo">🧾</span>Subir el ticket</button><button class="accion" id="t-sin"><span class="emo">✓</span>Sin ticket: todo comprado</button></div>`, h => {
+  const nm = filas.filter(f => lineaCompra().s.marcados[f.clave]).length;
+  hoja(`<h2>📦 Terminar la compra</h2><div class="nota">Con el ticket digital marco yo lo comprado y lo que no había. Sin ticket, doy por comprado ${nm ? 'lo marcado o todo lo que queda en la lista' : 'todo lo que queda en la lista'}.</div>
+    <div class="acciones-grid" style="margin-top:12px"><button class="accion primaria" id="t-ticket"><span class="emo">🧾</span>Subir el ticket</button>${nm ? `<button class="accion" id="t-marcado"><span class="emo">✓</span>Sin ticket: lo marcado (${nm})</button>` : ''}<button class="accion" id="t-sin"><span class="emo">✓</span>Sin ticket: todo comprado</button></div>`, h => {
     $('#t-ticket', h).addEventListener('click', () => { cierraHoja(); elegirTicket(); });
+    $('#t-marcado', h)?.addEventListener('click', () => { cierraHoja(); terminarCompra(filas); });
     $('#t-sin', h).addEventListener('click', () => { const { s } = lineaCompra(); for (const f of filas) if (!s.noComprado[f.clave]) s.marcados[f.clave] = true; salva(); cierraHoja(); terminarCompra(filas); });
   });
 }
@@ -2076,14 +2097,14 @@ async function muestraTicket(t) {
   hoja('<h2>🧾 Buscando cada producto…</h2><div class="cargando"></div><div class="cargando" style="width:70%"></div>');
   let sinRed = false;
   try { await identificaTicket(items); } catch { sinRed = true; }
-  const { p, s, filas } = lineaCompra();
-  const marcas = filas.some(f => s.marcados[f.clave] || s.noComprado[f.clave]);
+  const { p, s, filas: deLista, retiradas } = lineaCompra(), filas = [...deLista, ...retiradas];   // lo quitado a mano también cuenta como comprado si sale en el ticket
+  const marcas = deLista.some(f => s.marcados[f.clave] || s.noComprado[f.clave]);
   // ¿La compra ya se terminó sin ticket? Entonces se compara con lo que se marcó.
   const u = E.compras[0], fu = u && iso(new Date(u.f));
   if (!marcas && u && !u.ticket && t.fecha && t.fecha <= fu && fecha(fu) - fecha(t.fecha) <= 3 * 864e5) return ticketDeTerminada(t, items, u, sinRed);
   const pares = L.cruzaTicket(items, filas, puntuaTicket);
   const enFila = new Set(pares.map(([, j]) => j)), usados = new Set(pares.map(([i]) => i));
-  const faltan = filas.filter((_, j) => !enFila.has(j)), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
+  const faltan = deLista.filter((_, j) => !enFila.has(j)), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
   const fuera = items.filter((_, i) => !usados.has(i));
   const chips = l => listaSimple(l.map(nombreFila));
   hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
@@ -2095,7 +2116,7 @@ async function muestraTicket(t) {
     ${pares.length ? `<details class="emparejados"><summary>✓ Ver los ${pares.length} de la lista</summary>${pares.map(([i, j]) => `<div class="par"><span>${esc(nombreFila(filas[j]))}</span><span class="nota">${esc(items[i].d)}</span></div>`).join('')}</details>` : ''}
     <button class="boton principal ancho" id="b-aplicar-ticket" style="margin-top:14px">✅ Aplicar el ticket</button>`, h => {
     $('#b-aplicar-ticket', h).addEventListener('click', () => {
-      for (const [i, j] of pares) { const f = filas[j], it = items[i]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
+      for (const [i, j] of pares) { const f = filas[j], it = items[i]; if (f.retirada) delete s.quitados[f.k]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
       for (const f of noEstan) s.noComprado[f.clave] = true;
       s.ticket = resumenTicket(t, fuera); aprendePrecios(items, t.fecha || hoy());
       salva(); cierraHoja();
