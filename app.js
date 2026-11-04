@@ -1519,7 +1519,7 @@ function vCompra() {
   if (conTicket && recrucePendiente(s)) {
     s.ticket.recruce = true; salva();
     const t = s.ticket;
-    setTimeout(() => muestraTicket({ fecha: t.fecha, hora: t.hora, total: t.total, cuadra: t.cuadra, items: t.lineas.map(([n, d, imp, kg]) => ({ n, d, imp, kg })) }), 300);
+    setTimeout(() => muestraTicket({ fecha: t.fecha, hora: t.hora, total: t.total, cuadra: t.cuadra, items: t.lineas.map(([n, d, imp, kg]) => ({ n, d, imp, kg, pu: +(imp / (kg || n || 1)).toFixed(2) })) }), 300);   // con el precio unitario, Mercadona confirma cada producto
   }
   $$('[data-fila]').forEach(fila => deslizaParaQuitar(fila, () => quitaDeLista(filas.find(f => f.clave === fila.dataset.fila))));
   $$('[data-falta]').forEach(b => b.addEventListener('click', () => { s.faltaDespensa[b.dataset.falta] = true; salva(); vCompra(); tostada('Añadido a la lista'); }));
