@@ -535,6 +535,74 @@ export function parecido(ticket, nombre) {
   return ft.size && fp.size && ![...ft].some(f => fp.has(f)) ? p * 0.6 : p;
 }
 
+// Qué buscar en Mercadona por cada renglón del ticket: sin las abreviaturas de caja («T.CHERRY», «PI. CALABAZA», «S/SEM», «B. AVENA»)
+// ni el formato o el peso («BANDEJA», «1 KG», «500 GR»), que hacían salir pañales de «MANDARINA 1 KG». 5/11/2026.
+const ESPECIES_T = ['pavo', 'cerdo', 'vacuno', 'cordero', 'conejo', 'pato', 'salmon', 'atun', 'merluza'];
+const ABREV_T = { t: 'tomate', pi: 'pipas', m: 'molde', expr: 'exprimido', tost: 'tostada', deo: 'desodorante', invisibl: 'invisible', lam: 'laminados', grue: 'gruesos', familia: 'familiar',
+  fragan: 'fragancia', automa: 'automatico', int: 'integral', integ: 'integral', nat: 'natural', sem: 'semillas', rulito: 'rulo', limp: 'limpiador', amb: 'ambientador', rec: 'recambio', b: 'bebida',
+  prote: 'proteinas', palomit: 'palomitas', hierb: 'hierbas', extratierna: 'extra tierna', noquis: 'gnocchi', 'ñoquis': 'gnocchi', ternera: 'vacuno', az: 'azucar', esparrago: 'esparragos' };
+export function consultaTicket(d) {
+  let s = ' ' + String(d || '').toLowerCase() + ' ';
+  s = s.replace(/\bh\.\s*(?=s[aá]ndwich)/g, ' pan ').replace(/\brollos?\s+(?=cocina|hogar)/g, ' papel ').replace(/\bs\/\s*piel\b/g, ' pelada ').replace(/\bs\/\s*s(em)?\b/g, ' sin semillas ').replace(/\bs[\/.]\s*/g, ' sin ').replace(/\bc\/\s*/g, ' con ')
+    .replace(/\b\d+(?:[.,]\d+)?\s*(?:kg|gr?s?|ml|cl|l|uds?)\b/g, ' ').replace(/(\S\s+)(bandeja|malla|granel|pack|bolsa)\b/g, '$1').replace(/\b\d+\/\d+\b/g, ' ').replace(/(^|\s)\d+(?=\s)/g, ' ');
+  const ws = s.replace(/[.&]/g, ' ').split(/\s+/).filter(Boolean).map(w => ABREV_T[w] ?? w).filter(w => w && w !== 'h').join(' ').split(' ');
+  // «FILETE PECHUGA» o «CONTRAMUSLO» sin más es pollo: en el ticket, el pavo y lo demás sí lo dicen.
+  if (ws.some(w => /^(pechuga|contramuslo|muslo|alita|jamoncito)/.test(w)) && !ws.some(w => ESPECIES_T.includes(w) || w === 'pollo')) ws.push('pollo');
+  return ws.join(' ');
+}
+// De lo que encuentra Mercadona, cuál es el producto del renglón. hits: [{id, n, precio, ref, cat}].
+// 1) mismo precio (o €/kg); 2) sin el precio exacto, el nombre muy parecido y el precio poco distinto (lo que va al peso varía más), o un pack
+// de varios (6 bricks a 0,75 = 4,50); 3) si el nombre es casi igual, vale para el nombre, la foto y la sección, no para las cantidades.
+// Y siempre: la palabra principal del ticket tiene que ser la del producto («PIÑA S/AZ» no es «Fruta + leche piña y coco»),
+// y una carne que el ticket no dice resta («FILETE PECHUGA» es pollo, no pavo).
+// estricto: para buscar entre los productos de la app, donde casi nada tiene la palabra del renglón y un precio igual es casualidad.
+const PESO_T = /\b(bandeja|malla|granel)\b/i, AL_PESO_T = new Set(['Carne', 'Marisco y pescado', 'Fruta y verdura', 'Charcutería y quesos']);
+const NO_CABEZA_T = new Set(['filete', 'filetes', 'mix', 'mezcla']);
+// Lo que el producto dice y el ticket no: otra carne, o marinado, empanado… Solo sirve para ordenar, no para descartar.
+const SABORES_T = ['marinad', 'adobad', 'empanad', 'rellen', 'barbacoa', 'hierbas', 'picant', 'ajillo', 'kebab'];
+function deMas(qs, h) {
+  const ps = palabrasTicket(h.n);
+  return 0.1 * (ESPECIES_T.concat('pollo').filter(e => ps.includes(e) && !qs.includes(e)).length + SABORES_T.filter(e => ps.some(p => p.startsWith(e)) && !qs.some(w => w.startsWith(e))).length);
+}
+const precioIgual = (it, h) => it.kg ? h.ref && Math.abs(h.ref - it.pu) < 0.011 : it.pu && Math.abs(h.precio - it.pu) < 0.006;
+// ¿La palabra principal del renglón es una de las primeras n del producto? Con generico, «bebida» no cuenta («B. AVENA» es avena).
+function cabezaIgual(it, h, n = 2, generico = false) {
+  const q = palabrasTicket(consultaTicket(it.d)), c = q.find(w => !/^\d/.test(w) && !NO_CABEZA_T.has(w) && !(generico && w === 'bebida'));
+  if (!c) return true;
+  const ps = palabrasTicket(h.n).filter(w => !NO_CABEZA_T.has(w)).slice(0, n);
+  return ps.some(p => relT(c, p) === 1 || relT(p, c) === 1);
+}
+// Otro color: «UVA ROJA» no es la uva blanca, ni «ESPARRAGO VERDE» el blanco.
+const COLORES_T = ['blanc', 'roj', 'verde', 'negr', 'amarill', 'morad'];
+const colores = ws => new Set(COLORES_T.filter(c => ws.some(w => w.startsWith(c))));
+function otroColor(qs, h) { const a = colores(qs), b = colores(palabrasTicket(h.n)); return a.size > 0 && b.size > 0 && ![...a].some(c => b.has(c)); }
+export function eligeProducto(it, hits, estricto = false) {
+  const q = consultaTicket(it.d), qs = palabrasTicket(q);
+  const nombre = h => Math.max(parecido(it.d, h.n), parecido(q, h.n));
+  hits = hits.filter(h => !otroColor(qs, h));
+  // La palabra principal solo manda si algún producto la tiene («FILETE EXTRA-TIERNO» no la tiene en ninguno).
+  const conCabeza = estricto || hits.some(h => cabezaIgual(it, h)), cabeza = h => !conCabeza || (estricto ? cabezaIgual(it, h, 3, true) : cabezaIgual(it, h));
+  const exactos = hits.filter(h => precioIgual(it, h) && (estricto ? cabeza(h) && nombre(h) >= 0.55 : cabeza(h) || nombre(h) >= 0.25));
+  if (exactos.length) { const h = exactos.map(h => ({ h, s: nombre(h) - deMas(qs, h) + (cabezaIgual(it, h) ? 1 : 0) })).sort((a, b) => b.s - a.s)[0].h; return { h, como: 'precio' }; }
+  const dif = h => { const p = it.kg ? h.ref : h.precio; return p ? Math.abs(p - it.pu) / p : 1; };
+  const pack = h => !it.kg && it.pu > 0 && h.precio > it.pu * 1.5 && Math.abs(h.precio / it.pu - Math.round(h.precio / it.pu)) < 0.02;
+  const vale = h => (it.kg || PESO_T.test(it.d)) ? AL_PESO_T.has(h.cat) && (!it.kg || dif(h) <= 0.45) : pack(h) || dif(h) <= (AL_PESO_T.has(h.cat) ? 0.45 : 0.25);
+  const conNombre = hits.map(h => ({ h, s: nombre(h), r: nombre(h) - deMas(qs, h) })).filter(x => estricto ? cabezaIgual(it, x.h, 1) : cabeza(x.h));
+  const a = conNombre.filter(x => x.s >= 0.75 && vale(x.h)).sort((x, y) => (y.r - dif(y.h) * 0.5) - (x.r - dif(x.h) * 0.5))[0];
+  if (a) return { h: a.h, como: 'aprox' };
+  const p = conNombre.filter(x => x.s >= 0.9 && !(it.kg && !AL_PESO_T.has(x.h.cat))).sort((x, y) => y.r - x.r)[0];
+  return p ? { h: p.h, como: 'parecido' } : null;
+}
+// La sección de un renglón que no se ha reconocido: los platos del mostrador de «Listo para comer» («POLLO 1/4 PATATAS»,
+// «COSTILLAR 1/2 PATATA», «ALBONDIGAS PATATAS»), lo de granel en fruta, carne o pescado; si no, la del primer producto
+// con su misma palabra principal, o la del primero.
+export function seccionTicket(it, hits) {
+  const qs = palabrasTicket(consultaTicket(it.d)); hits = hits.filter(h => !otroColor(qs, h));
+  if (/\b1\/[24]\b|\b(albondigas?|costillar|panadera)\b/i.test(normaliza(it.d))) return 'Pizzas y platos preparados';
+  if (it.kg || PESO_T.test(it.d)) return hits.find(h => AL_PESO_T.has(h.cat) && cabezaIgual(it, h))?.cat || 'Fruta y verdura';
+  return (hits.find(h => cabezaIgual(it, h)) || hits[0])?.cat || null;
+}
+
 // Empareja los renglones del ticket con los productos de la lista: el reparto que más se parece en total
 // (método húngaro), para que «FILETE PECHUGA» y «PECHUGA PAVO FILETE» no se crucen. puntua(renglón, fila) da de 0 a 1;
 // por debajo de «minimo» no se empareja, y uno justo en el mínimo casi no cuenta, para que varios flojos no ganen a pocos seguros.

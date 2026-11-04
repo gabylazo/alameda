@@ -107,6 +107,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'lector-ticket', fecha: '2026-11-05', emo: '', titulo: 'El ticket se lee mucho mejor', texto: 'Ahora reconoce casi todo lo del ticket (antes, 7 de cada 10 cosas; ahora, más de 9): entiende las abreviaturas de la caja, lo que va al peso y los platos de «Listo para comer». Lo que reconoce entra en la Nevera con su nombre, su foto y su sección.', ir: 'casa' },
   { id: 'nevera-clasificada', fecha: '2026-11-04', emo: '', titulo: 'Todo en su sitio en la Nevera', texto: 'Lo del ticket que no es de la app (burrata, gazpacho, ternera…) ya no va a «Otras cosas»: sale en su sección, con su foto cuando Mercadona lo reconoce.', ir: 'casa' },
   { id: 'marcar-compra', fecha: '2026-11-04', emo: '', titulo: 'Marcar lo que vais comprando', texto: 'En Compra, toca el círculo de cada producto al meterlo en el carro: se tacha y baja a «Comprado». Al terminar, el ticket lo confirma y lo pasa a la Nevera.', ir: 'compra', foco: '.marca-compra' },
   { id: 'dia-compra', fecha: '2026-11-03', emo: '', titulo: 'Día de la compra', texto: 'En Compra, elige qué día vais a comprar y para cuántos días: la lista sale entera, con el menú, lo que se acabó en casa y lo que soléis comprar.', ir: 'compra', foco: '#b-dia-compra' },
@@ -2036,19 +2037,35 @@ function ticketIlegible(fichero, motivo = '') {
   });
 }
 
-// Cada renglón distinto se busca en Mercadona, de 20 en 20 en una sola llamada. Sin conexión se compara solo por el nombre.
+// Cada renglón distinto se busca en Mercadona dos veces (tal cual y sin las abreviaturas de caja: L.consultaTicket), de 20 en 20
+// en una sola llamada, y L.eligeProducto decide cuál es (5/11: del 71 % al 94 % de sus tickets reconocidos). Lo que no está en la web
+// (ñoquis de patata, albóndigas con patatas) se busca en los productos de la app. Sin conexión, solo en esos.
 const ALGOLIA_VARIAS = ALGOLIA.replace('/products_prod_mad1_es/query', '/*/queries');
+const catalogoTicket = () => Object.entries(D.productos).map(([k, p]) => ({ id: p.id ? String(p.id) : null, n: p.n, foto: p.foto || '', precio: p.precio, ref: 0, cat: p.cat, k }));
+// it.seguro: el producto, con el precio igual o casi (aprox); al peso, también por el nombre (la cantidad la da el ticket).
+// it.parecido: solo el nombre se parece mucho (sirve para el nombre, la foto y la sección). it.cat: la sección, aunque no se sepa el producto.
+function ponIdentidad(it, hits) {
+  const e = L.eligeProducto(it, hits) || L.eligeProducto(it, catalogoTicket(), true), h = e?.h;
+  const fiable = !!e && (e.como !== 'parecido' || (!!it.kg && !!h.k));
+  it.hits = hits; it.cat = h?.cat || L.seccionTicket(it, [...hits, ...catalogoTicket()]);
+  it.seguro = fiable ? { ...h, aprox: e.como !== 'precio' } : null;
+  it.parecido = e && !fiable ? h : null;
+}
 async function identificaTicket(items) {
-  for (let i = 0; i < items.length; i += 20) {
-    const trozo = items.slice(i, i + 20);
-    const r = await fetch(ALGOLIA_VARIAS, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: trozo.map(it => ({
-      indexName: 'products_prod_mad1_es', params: 'query=' + encodeURIComponent(it.d) + '&hitsPerPage=3&queryType=prefixAll&removeWordsIfNoResults=allOptional' })) }) });
-    if (!r.ok) throw new Error('Mercadona no responde');
-    (await r.json()).results.forEach((res, n) => {
-      const it = trozo[n], hits = (res.hits || []).filter(h => h.published !== false).map(deAlgolia);
-      it.hits = hits; it.seguro = hits.find(h => it.kg ? h.ref && Math.abs(h.ref - it.pu) < 0.011 : it.pu && Math.abs(h.precio - it.pu) < 0.011) || null;
-    });
-  }
+  try {
+    for (let i = 0; i < items.length; i += 20) {
+      const trozo = items.slice(i, i + 20);
+      const qs = trozo.flatMap(it => [L.consultaTicket(it.d), it.d]);
+      const r = await fetch(ALGOLIA_VARIAS, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: qs.map(q => ({
+        indexName: 'products_prod_mad1_es', params: 'query=' + encodeURIComponent(q) + '&hitsPerPage=10&queryType=prefixAll&removeWordsIfNoResults=allOptional' })) }) });
+      if (!r.ok) throw new Error('Mercadona no responde');
+      const rs = (await r.json()).results || [], de = i => (rs[i]?.query === qs[i] ? rs[i] : rs.find(x => x.query === qs[i]) || rs[i])?.hits || [];   // cada respuesta, con su búsqueda
+      trozo.forEach((it, n) => {
+        const hits = [...de(2 * n), ...de(2 * n + 1)].filter(h => h.published !== false).map(deAlgolia).filter((h, j, a) => a.findIndex(x => x.id === h.id) === j);
+        ponIdentidad(it, hits);
+      });
+    }
+  } finally { for (const it of items) if (!it.hits) ponIdentidad(it, []); }
 }
 // Un mismo producto puede salir en varios renglones: se suman.
 function juntaRenglones(items) {
@@ -2064,17 +2081,18 @@ const idFila = f => f.k ? String(D.productos[f.k].id) : f.m?.id ? String(f.m.id)
 const nombreLargo = f => f.k ? D.productos[f.k].n : f.m ? f.m.n : f.texto || '';
 // De 0 a 1: ¿es este renglón del ticket esa fila de la lista? Si Mercadona dice (por el precio) que es otro producto,
 // solo vale si el nombre es casi igual (otro tamaño del mismo yogur, por ejemplo).
+const esMismo = (h, f) => !!h && ((!!h.id && h.id === idFila(f)) || (!!h.k && h.k === f.k));
 function puntuaTicket(it, f) {
   const id = idFila(f), nombre = nombreLargo(f), t = L.parecido(it.d, nombre);
-  if (!id) { const pr = it.seguro || it.hits?.[0]; return pr ? Math.max(t, (it.seguro ? 0.9 : 0.75) * L.parecido(nombre, pr.n)) : t; }
-  if (it.seguro) return it.seguro.id === id ? 1 : t >= 0.85 ? t : t * 0.6;
-  return it.hits?.[0]?.id === id && t >= 0.3 ? Math.max(t, 0.7) : t;   // lo primero que encuentra Mercadona, si el nombre también se parece
+  if (!id) { const pr = it.seguro || it.parecido || it.hits?.[0]; return pr ? Math.max(t, (it.seguro && !it.seguro.aprox ? 0.9 : 0.75) * L.parecido(nombre, pr.n)) : t; }
+  if (it.seguro) return esMismo(it.seguro, f) ? 1 : it.seguro.aprox || t >= 0.85 ? t : t * 0.6;
+  return (esMismo(it.parecido, f) || it.hits?.[0]?.id === id) && t >= 0.3 ? Math.max(t, 0.7) : t;   // lo que más se parece, si el nombre de la fila también
 }
 const sinMarca = n => nombreCorto({ n }).replace(/ (Deliplus|Bosque Verde|Sabroz|Compy)\b/g, '');
 const nombreFuera = x => x.m?.n ? sinMarca(x.m.n) : capital(x.d.toLowerCase());
 const resumenTicket = (t, fuera) => ({ fecha: t.fecha, hora: t.hora, total: t.total ?? t.suma, cuadra: t.cuadra, lineas: t.items.map(it => [it.n, it.d, it.imp, it.kg]),
-  fuera: fuera.map(it => ({ d: it.d, n: it.n, kg: it.kg, imp: it.imp, k: it.seguro?.k || null,
-    m: it.seguro ? { id: it.seguro.id, n: it.seguro.n, cat: it.seguro.cat, foto: it.seguro.foto } : it.hits?.[0] ? { cat: it.hits[0].cat } : null })) });
+  fuera: fuera.map(it => { const h = it.seguro || it.parecido; return { d: it.d, n: it.n, kg: it.kg, imp: it.imp, k: it.seguro?.k || null,
+    m: h ? { ...(h.id ? { id: h.id } : {}), n: h.n, cat: h.cat, foto: h.foto } : it.cat ? { cat: it.cat } : null }; }) });
 // Lo que no es producto de la app va a la Nevera en su sección de Mercadona, con foto si se sabe (4/11: «todo tiene que salir clasificado»).
 function aExtraCasa(n, cat, foto, m) {
   if ((E.casaExtra || []).some(x => L.normaliza(x.n) === L.normaliza(n))) return;
@@ -2093,10 +2111,10 @@ async function clasificaOtros() {
     const items = otros.map(t => { const l = lineas.get(L.normaliza(t)); return l ? { d: t, n: l.n, imp: l.imp, kg: l.kg, pu: +(l.imp / (l.kg || l.n || 1)).toFixed(2) } : { d: t, n: 1 }; });
     await identificaTicket(items);
     for (const it of items) {
-      const h = it.seguro, cat = (h || it.hits?.[0])?.cat || 'Otros';
+      const h = it.seguro, x = h || it.parecido, cat = it.cat || 'Otros';
       if (NO_COMIDA.has(cat)) continue;
       if (h?.k) { E.casa[h.k] = (E.casa[h.k] || 0) + (it.kg ? it.kg * 1000 : it.n * D.productos[h.k].util); alta(h.k); }
-      else aExtraCasa(h ? sinMarca(h.n) : it.d, cat, h?.foto, h?.id);
+      else aExtraCasa(x ? sinMarca(x.n) : it.d, cat, x?.foto, x?.id || undefined);
     }
     const hechos = new Set(otros); E.casaOtros = (E.casaOtros || []).filter(t => !hechos.has(t));
     salva(); if (V.pestana === 'casa' && !$('.hoja')) vCasa();
@@ -2116,10 +2134,10 @@ function aCasaTicket(fuera = []) {
 }
 // Si Mercadona confirma el producto y su precio ha cambiado, la lista usa el precio nuevo (con la fecha del ticket).
 function aprendePrecios(items, f = hoy()) {
-  for (const it of items) { const k = it.seguro?.k; if (k && !it.kg && it.pu > 0 && Math.abs(D.productos[k].precio - it.pu) > 0.004) { E.precios[k] = [it.pu, f]; D.productos[k].precio = it.pu; } }
+  for (const it of items) { const k = !it.seguro?.aprox && it.seguro?.k; if (k && !it.kg && it.pu > 0 && Math.abs(D.productos[k].precio - it.pu) > 0.004) { E.precios[k] = [it.pu, f]; D.productos[k].precio = it.pu; } }
 }
-const filaTicket = it => `<div class="res sin-borde">${it.seguro?.foto ? `<img src="${esc(it.seguro.foto)}" alt="" loading="lazy">` : '<div class="sinfoto">🧾</div>'}
-  <span class="res-t"><b>${esc(it.seguro ? sinMarca(it.seguro.n) : capital(it.d.toLowerCase()))}</b><span class="nota">${it.kg ? String(it.kg).replace('.', ',') + ' kg' : it.n + ' ud.'}</span></span><span class="res-p">${euros(it.imp)}</span></div>`;
+const filaTicket = it => { const h = it.seguro || it.parecido; return `<div class="res sin-borde">${h?.foto ? `<img src="${esc(h.foto)}" alt="" loading="lazy">` : '<div class="sinfoto">🧾</div>'}
+  <span class="res-t"><b>${esc(h ? sinMarca(h.n) : capital(it.d.toLowerCase()))}</b><span class="nota">${it.kg ? String(it.kg).replace('.', ',') + ' kg' : it.n + ' ud.'}</span></span><span class="res-p">${euros(it.imp)}</span></div>`; };
 
 async function muestraTicket(t) {
   const items = juntaRenglones(t.items);
