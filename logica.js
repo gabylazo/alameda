@@ -203,7 +203,7 @@ const paraQuien = (r, comida, quien) => !(comida === 'comida' && quien && typeof
 export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
   const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
-    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida)) && paraQuien(r, comida, quien))
+    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida) && comida !== 'bol') && paraQuien(r, comida, quien))
     .map(r => ({ r, pen: puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) }))
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
@@ -227,7 +227,7 @@ export function ajustaPresupuesto(plan, recetas, prod, fac, casa, tope, apta, de
           const qs = q ? [q] : QUIEN, id = q ? v[q] : idDe(v), r = recetas[id];
           if (!r) continue;
           const usados = {}; pl.dias.forEach((dd, j) => ['comida', 'cena'].forEach(cc => { if (!(j === i && cc === c)) idsDe(dd[cc]).forEach(x => { usados[x] = (usados[x] || 0) + 1; }); }));
-          const cands = Object.values(recetas).filter(x => x.id !== id && x.tipo.includes(c) && apta(x, qs) && !(x.soloEnsalada && !DOBLES.includes(c))
+          const cands = Object.values(recetas).filter(x => x.id !== id && x.tipo.includes(c) && apta(x, qs) && !(x.soloEnsalada && !DOBLES.includes(c) && c !== 'bol')
               && (DOBLES.includes(c) || (usados[x.id] || 0) < repetir) && Math.abs(kcal(x, qs[0]) - kcal(r, qs[0])) <= kcal(r, qs[0]) * 0.3);   // todas: lo que ya se compra para otro plato sale casi gratis
           for (const x of cands) {
             const viejo = d[c];
@@ -253,12 +253,12 @@ export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.no
   const rnd = azar(semilla), toca = (d, c) => (!solo || solo === c) && (!desde || d.f >= desde);
   const nuevo = { ...plan, dias: plan.dias.map(d => {
     const nd = { ...d };
-    for (const c of COMIDAS) if (toca(d, c) && (nd[c] === null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
+    for (const c of COMIDAS) if (toca(d, c) && (nd[c] == null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
     return nd;
   }) };
-  const mejor = (i, c, salvo, q = null) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c)) && paraQuien(r, c, q))
+  const mejor = (i, c, salvo, q = null) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c) && c !== 'bol') && paraQuien(r, c, q))
     .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
-  for (let i = 0; i < nuevo.dias.length; i++) for (const c of ['comida', 'cena', 'desayuno', 'merienda'].filter(x => COMIDAS.includes(x))) {
+  for (let i = 0; i < nuevo.dias.length; i++) for (const c of [...['comida', 'cena', 'desayuno', 'merienda'].filter(x => COMIDAS.includes(x)), ...COMIDAS.filter(x => !['comida', 'cena', 'desayuno', 'merienda'].includes(x))]) {
     if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
     if (DOBLES.includes(c)) { const g = mejor(i, c, null, 'G'); nuevo.dias[i][c] = { G: g }; if (QUIEN.includes('P')) nuevo.dias[i][c].P = mejor(i, c, g, 'P'); }
     else nuevo.dias[i][c] = mejor(i, c);

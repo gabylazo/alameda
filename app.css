@@ -157,7 +157,6 @@ a { color: var(--acento); font-weight: 700; }
 
 /* Semana: tarjetas de comida */
 .comida { display: flex; gap: 12px; padding: 12px; margin: 10px 0; align-items: center; position: relative; overflow: hidden; transition: transform .15s; }
-.comida::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--color-comida, var(--acento)); }
 .comida .tile { flex: 0 0 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; font-size: 34px; border: 0; background: var(--color-comida-suave, var(--acento-suave)); }
 .comida .cuerpo { flex: 1; min-width: 0; }
 .comida .momento { font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .06em; color: var(--color-comida, var(--acento)); display: flex; align-items: center; gap: 6px; }
@@ -825,9 +824,7 @@ body { color: var(--texto); }
 /* Semana y recetas: el color de cada comida, suave */
 .dia-btn[aria-pressed="true"] { background: var(--acento); }
 .dia-btn.hoy .ds { color: var(--tomate); }
-.comida { border-left: 4px solid var(--color-comida-suave); }
 .comida .momento { color: var(--color-comida); }
-.receta-tarjeta { border-top: 4px solid var(--color-comida-suave, var(--linea)); }
 .receta-tarjeta .pill { background: var(--color-comida-suave, var(--tarjeta-2)); color: var(--color-comida, var(--suave)); }
 .portada-hoja { background: var(--color-comida-suave, transparent); border-radius: 18px; margin: 0 0 12px; padding: 16px; }
 .pasos li::before { background: var(--acento-suave) !important; color: var(--acento) !important; }
@@ -1130,3 +1127,138 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 .marca-compra svg { width: 15px; height: 15px; stroke: var(--acento-texto); stroke-width: 3.2; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity .15s; }
 .marca-compra[aria-pressed="true"] .circulo { background: var(--acento); border-color: var(--acento); }
 .marca-compra[aria-pressed="true"] svg { opacity: 1; }
+
+/* ——— NutriHome 4 (05/11/2026): Hoy para mirar, no para leer. Anillos con lo que suma el día, la cena con la foto del plato y la del
+   bol de ensalada, acciones con icono, desayuno y merienda en fotos y la semana en miniaturas. Compra: lo marcado se queda tachado,
+   una barra con lo que va en el carro y cuatro botones con icono ——— */
+.ic, .accion-ic svg, .cena-datos svg, .comida-hoy h2 svg, .cena-con svg, .cena-fuera svg, .hoy-noche svg, .compra-botones svg, .tira-foto svg, .tira-ok svg, .sello svg, .cena-sello svg {
+  fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#vista > section + section { margin-top: 26px; }
+
+/* Lo que suma el día */
+.medidor { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 4px; }
+.medidor.una { grid-template-columns: 1fr; }
+.medidor-p { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.anillos-hoy { flex: 0 0 64px; width: 64px; height: 64px; transform: rotate(-90deg); }
+.anillos-hoy circle { fill: none; stroke-linecap: round; }
+.anillos-hoy .pista { stroke: var(--gris-2); stroke-width: 8; }
+.anillos-hoy .k { stroke: var(--acento); stroke-width: 8; }
+.anillos-hoy .p { stroke: var(--tomate); stroke-width: 8; }
+.anillos-hoy .plan { opacity: .3; }
+.medidor-n { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--texto); }
+.medidor-n b { font-size: 16px; font-weight: 600; }
+.medidor-p.persona-g .medidor-n b { color: var(--persona-g); } .medidor-p.persona-p .medidor-n b { color: var(--persona-p); }
+.medidor-n .k, .medidor-n .p { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.medidor-n i { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--acento); }
+.medidor-n .p i { background: var(--tomate); }
+.medidor-n small { font-size: 12.5px; color: var(--suave); }
+
+/* La noche antes */
+.hoy-noche { display: flex; align-items: center; gap: 10px; width: 100%; margin: 18px 0 0; padding: 12px 14px; min-height: 48px; border: 0; border-radius: 14px; background: var(--gris); color: var(--texto); font: inherit; font-size: 15px; text-align: left; }
+.hoy-noche svg { width: 20px; height: 20px; flex: 0 0 20px; color: var(--suave); }
+.hoy-noche span:not(.flecha) { flex: 1; }
+
+/* La cena */
+.cena-hoy { margin-top: 22px; }
+.cena-fotos { position: relative; }
+.cena-foto { display: block; width: 100%; padding: 0; border: 0; background: var(--gris); border-radius: 20px; overflow: hidden; aspect-ratio: 4 / 3; }
+.cena-foto .foto { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cena-bol { position: absolute; right: 14px; bottom: -26px; width: 92px; height: 92px; padding: 0; border-radius: 50%; overflow: hidden; border: 4px solid var(--fondo); background: var(--gris); box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
+.cena-bol .foto { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cena-sello { position: absolute; left: 12px; top: 12px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--acento); color: #fff; }
+.cena-sello svg { width: 20px; height: 20px; stroke-width: 2.6; }
+.cena-hoy.hecha .cena-foto .foto { filter: saturate(.55); }
+.cena-cuerpo { padding: 14px 2px 0; }
+.cena-cuerpo::before { content: ''; float: right; width: 106px; height: 22px; }   /* el bol tapa la primera línea a la derecha */
+.cena-cuerpo h2 { font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -.015em; margin: 0; }
+.cena-acciones, .cena-datos, .cena-con, .cena-aviso { clear: both; }
+.cena-con { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; padding: 4px 0; min-height: 44px; border: 0; background: none; color: var(--texto); font: inherit; font-size: 15px; text-align: left; }
+.cena-con svg { width: 20px; height: 20px; flex: 0 0 20px; color: var(--acento); }
+.cena-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 14px; color: var(--suave); font-variant-numeric: tabular-nums; }
+.cena-datos span { display: inline-flex; align-items: center; gap: 5px; }
+.cena-datos svg { width: 16px; height: 16px; }
+.cena-aviso { margin: 10px 0 0; font-size: 14px; color: var(--tomate); }
+.cena-acciones { display: flex; gap: 6px; margin-top: 14px; }
+.accion-ic { flex: 1 1 0; min-width: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 2px; border: 0; border-radius: 14px; background: var(--gris); color: var(--texto); font: inherit; font-size: 12.5px; font-weight: 500; line-height: 1.15; text-align: center; }
+.accion-ic svg { width: 22px; height: 22px; }
+.accion-ic.prin { background: var(--acento); color: #fff; flex-grow: 1.4; }
+.cena-fuera { display: flex; align-items: center; gap: 12px; padding: 18px 16px; border-radius: 20px; background: var(--gris); }
+.cena-fuera svg { width: 26px; height: 26px; color: var(--suave); flex: 0 0 26px; }
+.cena-fuera h2 { margin: 0; font-size: 19px; font-weight: 600; }
+.cena-hoy.fuera .cena-acciones, .cena-hoy.vacia .cena-acciones { margin-top: 8px; }
+
+/* Desayuno y merienda */
+.comida-hoy h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; margin: 0 2px 10px; }
+.comida-hoy h2 svg { width: 20px; height: 20px; color: var(--suave); }
+.comida-hoy.ahora h2 svg { color: var(--acento); }
+.comida-hoy .sello { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--acento); color: #fff; }
+.comida-hoy .sello svg { width: 13px; height: 13px; stroke-width: 3; color: #fff; }
+.comida-fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.comida-fotos .foto-plato:only-child { grid-column: 1 / -1; }
+.foto-plato { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--texto); font: inherit; text-align: left; }
+.fp-img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; background: var(--gris); }
+.comida-fotos .foto-plato:only-child .fp-img { aspect-ratio: 16 / 9; }
+.fp-img.sin-foto { display: grid; place-items: center; color: var(--suave); }
+.fp-img.sin-foto svg { width: 30px; height: 30px; }
+.fp-quien { position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: var(--fondo); }
+.fp-n { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding: 0 2px; }
+.comida-hoy.hecha .fp-img { filter: saturate(.5); opacity: .8; }
+
+/* La semana en miniaturas */
+.tira-cab { display: flex; align-items: baseline; gap: 16px; margin: 0 2px 10px; }
+.tira-cab h2 { font-size: 17px; font-weight: 600; margin: 0 auto 0 0; }
+.tira-cab .ver-todo { font-size: 15px; padding: 0 4px; min-height: 44px; text-decoration: none; }
+.tira-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.tira-dia { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--suave); font: inherit; font-size: 12.5px; }
+.tira-foto { width: 100%; aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: var(--gris); display: grid; place-items: center; }
+.tira-foto svg { width: 18px; height: 18px; color: var(--suave); }
+.tira-dia.hoy .tira-foto { outline: 2.5px solid var(--acento); outline-offset: 2px; }
+.tira-dia.hoy .tira-l { color: var(--acento); font-weight: 700; }
+.tira-dia.hecha .tira-foto { opacity: .55; }
+.tira-ok { position: absolute; right: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--acento); display: grid; place-items: center; }
+.tira-ok svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3; }
+.hoy-vacio { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 16px 2px; color: var(--suave); }
+
+/* Compra */
+.compra-cab { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+.compra-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.compra-total b { font-size: 34px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.compra-total span { font-size: 14px; color: var(--suave); }
+.carro { height: 8px; border-radius: 999px; background: var(--gris-2); overflow: hidden; }
+.carro i { display: block; height: 100%; border-radius: inherit; background: var(--acento); transition: width .3s cubic-bezier(.2, .8, .2, 1); }
+.carro-n { font-size: 13.5px; color: var(--suave); font-variant-numeric: tabular-nums; }
+.carro-n.pasa { color: var(--tomate); }
+.compra-cab .boton { align-self: flex-start; }
+.compra-botones { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-bottom: 18px; }
+.compra-botones button { position: relative; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 4px; border: 0; border-radius: 14px; background: var(--gris); color: var(--texto); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.15; text-align: center; }
+.compra-botones svg { width: 22px; height: 22px; }
+.compra-botones .pide { background: var(--acento-suave); color: var(--acento); }
+.compra-botones .hecho { color: var(--acento); }
+.compra-botones .nuevo { position: absolute; top: -7px; right: -2px; font-size: 10px; padding: 1px 6px; }
+.boton .ic { width: 20px; height: 20px; flex: 0 0 20px; }
+.producto.si { background: var(--gris); }
+.producto.si .pn { color: var(--suave); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.producto.si .pp, .producto.si .pc { color: var(--suave); }
+.producto.si img { opacity: .45; }
+
+/* Terminar: lo que queda sin marcar */
+.segmento.tres { grid-template-columns: repeat(3, 1fr); margin: 6px 0 0; }
+.segmento.tres button { font-weight: 500; font-size: 13.5px; min-height: 40px; }
+.segmento.tres button[aria-pressed="true"] { background: var(--fondo); color: var(--texto); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); font-weight: 600; }
+.todo-quedan { margin-bottom: 12px !important; }
+.todo-quedan button { color: var(--acento) !important; }
+.quedan { display: flex; flex-direction: column; gap: 12px; max-height: 46vh; overflow: auto; padding: 2px; }
+.queda { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+.queda .pn { font-size: 15px; line-height: 1.25; margin: 0 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.queda .segmento.tres { margin: 0; width: 222px; }
+.queda .segmento.tres button { font-size: 12.5px; min-height: 40px; padding: 6px 2px; }
+.fuente-receta { font-size: 13.5px; color: var(--suave); margin: 12px 2px 0; }
+.fuente-receta a { color: var(--acento); }
+
+:root[data-theme="dark"] .cena-bol { border-color: var(--fondo); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+:root[data-theme="dark"] .accion-ic.prin { color: var(--acento-texto); }
+:root[data-theme="dark"] :is(.cena-sello, .tira-ok, .comida-hoy .sello) { color: var(--acento-texto); }
+:root[data-theme="dark"] .tira-ok svg, :root[data-theme="dark"] .comida-hoy .sello svg { stroke: var(--acento-texto); color: var(--acento-texto); }
+:root[data-theme="dark"] .producto.si { background: var(--gris); }
+:root[data-theme="dark"] .segmento.tres button[aria-pressed="true"] { background: var(--gris-2); }
+@media (prefers-reduced-motion: reduce) { .carro i { transition: none; } }
