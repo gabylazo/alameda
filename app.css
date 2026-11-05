@@ -1262,3 +1262,11 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 :root[data-theme="dark"] .producto.si { background: var(--gris); }
 :root[data-theme="dark"] .segmento.tres button[aria-pressed="true"] { background: var(--gris-2); }
 @media (prefers-reduced-motion: reduce) { .carro i { transition: none; } }
+
+/* 5/11: contraste (axe) — el número del anillo de la primera persona y el contador de cada sección */
+:root:not([data-theme="dark"]) .medidor-p.persona-g .medidor-n b { color: #b04d70; }
+.cat .num { color: var(--suave); }
+/* Vacío de Compra con la compra hecha */
+.vacio.al-dia { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.vacio.al-dia b { color: var(--texto); font-size: 17px; font-weight: 600; }
+.vacio.al-dia .boton { margin-top: 10px; }

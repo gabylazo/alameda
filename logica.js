@@ -372,6 +372,7 @@ const ESCALA_CAT = { 'Carne': 'p', 'Marisco y pescado': 'p', 'Huevos, leche y ma
   'Arroz, legumbres y pasta': 'h', 'Panadería y pastelería': 'h', 'Cereales y galletas': 'h', 'Fruta y verdura': 'v', 'Congelados': 'v',
   'Conservas, caldos y cremas': 'v', 'Aperitivos': 'g', 'Aceite, especias y salsas': '1' };
 const HIDRATOS_FRESCOS = ['patata', 'boniato', 'platano', 'yuca', 'noquis'];
+const PROTEINA_VEGETAL = ['tofu', 'seitan', 'soja_texturizada'];   // van en «Platos preparados» o «Legumbres», pero son la proteína del plato
 export const BASICOS = /^(sal|sal fina|sal gorda|agua|hielo|sal y pimienta|cilantro|perejil|albahaca|comino|laurel|tomillo|romero|ajo y perejil)$/;
 const LIMPIA = s => s.replace(/\b(al gusto|poco|pizca|pellizco|chorrito|chorro|hojas?|ramitas?|unas?|unos|algo|de|del)\b/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -400,7 +401,7 @@ export function lineaIngrediente(linea, prod) {
   if (n == null) g = x.despensa ? (k.startsWith('aceite') ? 5 : 1) : x.gud || 100;
   else if (factor) g = n * factor;
   else g = n * (x.gud || (x.util && x.util <= 250 ? x.util : 100));
-  const esc = x.despensa ? '1' : HIDRATOS_FRESCOS.includes(k) ? 'h' : (ESCALA_CAT[x.cat] || '1');
+  const esc = x.despensa ? '1' : HIDRATOS_FRESCOS.includes(k) ? 'h' : PROTEINA_VEGETAL.includes(k) ? 'p' : (ESCALA_CAT[x.cat] || '1');
   return { texto: original, k, g: Math.round(g * 10) / 10, esc, aprox: n == null || (!factor && !x.gud) };
 }
 
