@@ -119,6 +119,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'nevera-cuenta', fecha: '2026-11-10', emo: '', titulo: 'La carne de la Nevera ya cuenta', texto: 'El vacuno marinado, la pechuga a las finas hierbas y el lomo adobado del ticket valen para las recetas de añojo, pollo y lomo. «Cambiar» enseña primero lo que sale con lo que tenéis, con esa carne delante, y el Chef también lo sabe. Las ensaladas usan las hojas y los frutos secos que haya, y lo que coméis se descuenta también de esa carne.', ir: 'hoy' },
   { id: 'recetas-mundo', fecha: '2026-11-05', emo: '', titulo: '36 recetas nuevas de medio mundo', texto: 'Bulgogi de añojo, pad kra pao de pollo, lomo saltado, okonomiyaki de gambas, shakshuka con garbanzos, fattoush, arroz con leche con proteína… 16 cenas, 12 boles de ensalada, 4 desayunos y 4 meriendas, casi todas con lo que ya compráis.', ir: 'recetas', origen: true },
   { id: 'chef-menus', fecha: '2026-11-05', emo: '', titulo: 'El Chef os hace menús enteros', texto: 'Pedidle lo que queráis: «menú vegano para 5 días», «una semana para perder grasa», «algo dulce con lo que hay». Os propone las recetas y, con un toque, las pone en el menú y apunta en Compra solo lo que no tenéis. Y con la compra hecha, Compra ya no os pide nada hasta la próxima: solo lo que se acabe o apuntéis.', ir: 'claude' },
   { id: 'nutrihome4', fecha: '2026-11-05', emo: '', titulo: 'NutriHome 4', texto: 'Hoy, de un vistazo: lo que suma el día, la cena con su bol de ensalada y la semana en fotos. El Chef tiene pestaña y contesta aunque el ordenador esté apagado. En Compra, lo marcado se queda tachado. Y 46 recetas nuevas de creadores de recetas fáciles.', ir: 'hoy', foco: '.medidor' },
@@ -458,9 +459,15 @@ function descuentaHueco(v) {
   for (const q of L.QUIEN) {
     const r = recetas[L.recetaDe(v, q)];
     if (!r) continue;
-    for (const ing of r.ing) { const g = L.gramos(ing, q, fac); if (g && E.casa[ing[0]] != null) E.casa[ing[0]] = Math.max(0, E.casa[ing[0]] - g); }
+    for (const ing of r.ing) {
+      let g = L.gramos(ing, q, fac); if (!g) continue;
+      for (const m of grupoDe(ing[0])) { if (g <= 0) break; if (E.casa[m] == null) continue; const t = Math.min(E.casa[m], g); E.casa[m] -= t; g -= t; }   // o lo que hace sus veces
+      // Lo que no está como producto de la app sale de lo de la Nevera que cuenta como él (la carne del ticket: «vacuno marinado»…).
+      for (const x of E.casaExtra || []) { if (g <= 0) break; const e = equivDe(x); if (!e || e.k !== ing[0]) continue; const t = Math.min(e.g - (x.usado || 0), g); if (t > 0) { x.usado = (x.usado || 0) + t; g -= t; } }
+    }
   }
   for (const k of Object.keys(E.casa)) if (E.casa[k] <= 0.5) delete E.casa[k];
+  E.casaExtra = (E.casaExtra || []).filter(x => { const e = equivDe(x); return !e || (x.usado || 0) < e.g * 0.85; });   // gastado: fuera de la Nevera
 }
 function consumePasados() {
   const h = hoy();
@@ -799,22 +806,36 @@ function adaptaMenu(p) {
 // Si a un plato le falta algo (no está o no llega), se cambia por el primero que se pueda hacer con lo que queda. La despensa no cuenta.
 const infinito = k => { const x = D.productos[k]; return !x || x.despensa || x.en_casa || !x.util; };
 // base: solo lo principal (proteína o hidrato, 30 g o más): es lo único que obliga a cambiar el plato; lo demás (ensalada, adornos) solo se avisa.
-function necesita(r, qs, base = false) { const n = {}; for (const ing of r.ing) { if (base && !(['p', 'h'].includes(ing[2]) && ing[1] >= 30)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
+// bol: en el bol de ensalada cuenta todo lo de 25 g o más (las hojas, el tomate, la mozzarella): sin ello no es esa ensalada (10/11).
+function necesita(r, qs, base = false, bol = false) { const n = {}; for (const ing of r.ing) { if (base && !(bol ? ing[2] !== '1' && ing[1] >= 25 : ['p', 'h'].includes(ing[2]) && ing[1] >= 30)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
 // Lo de la Nevera que no es producto de la app (del ticket: «vacuno marinado», «pechuga finas hierbas», «burrata»…) cuenta como su
-// equivalente para las recetas: si no, una nevera recién llena decía «falta pollo» (05/11). Un envase normal: 400 g.
+// equivalente para las recetas: si no, una nevera recién llena decía «falta pollo» (05/11). Un envase normal: 400 g, o el tercer valor.
+// Lo preparado no cuenta como su ingrediente: los fideos «sabor pollo» no son pollo ni la crema de lentejas son lentejas (10/11).
 const EQUIV = [[/pavo/, 'pavo_filetes'], [/jamoncito|contramuslo|muslo/, 'jamoncitos'], [/pechuga|pollo/, 'pechuga_pollo'], [/vacuno|ternera|anojo|entrecot|solomillo de vac|hamburguesa/, 'lomo_anojo'],
-  [/cerdo|lomo|cinta|secreto|presa/, 'lomo_cerdo_tierno'], [/burrata|mozzarella/, 'mozzarella_light'], [/ricotta|cottage|batido/, 'queso_batido'], [/feta|cabra/, 'queso_cabra'],
-  [/serrano|taquitos de jamon|jamon curado/, 'jamon_serrano'], [/gamba|langostino/, 'gambas'], [/huevo/, 'huevos'], [/atun/, 'atun_natural'], [/salmon/, 'salmon'], [/merluza/, 'merluza'],
-  [/yogur.*griego/, 'yogur_griego_ligero'], [/yogur.*prote/, 'yogur_proteinas'], [/noqui|gnocchi/, 'noquis'], [/garbanzo/, 'garbanzos'], [/lenteja/, 'lentejas'], [/quinoa/, 'quinoa'], [/arroz/, 'arroz']];
+  [/cerdo|lomo|cinta|secreto|presa/, 'lomo_cerdo_tierno'], [/burrata|mozzarella/, 'mozzarella_light', 125], [/ricotta|cottage|batido/, 'queso_batido', 500], [/feta|cabra/, 'queso_cabra', 150],
+  [/serrano|taquitos de jamon|jamon curado/, 'jamon_serrano', 100], [/gamba|langostino/, 'gambas', 250], [/huevo/, 'huevos', 330], [/atun/, 'atun_natural', 150], [/salmon/, 'salmon'], [/merluza/, 'merluza'],
+  [/yogur.*griego/, 'yogur_griego_ligero', 500], [/yogur.*prote/, 'yogur_proteinas', 500], [/noqui|gnocchi/, 'noquis', 500], [/garbanzo/, 'garbanzos'], [/lenteja/, 'lentejas'], [/quinoa/, 'quinoa', 250], [/arroz/, 'arroz', 250]];
+const NO_EQUIV = /\bsabor\b|crema de|sopa|caldo|fideos|salsa|pate\b|palomitas|croquet|pizza|lasana|empanad|bebida|zumo|nectar|helado|galleta|patatas fritas|snack|vegetal|vegan/;
+function equivDe(x) {
+  const n = L.normaliza(x.n || ''); if (NO_EQUIV.test(n)) return null;
+  const e = EQUIV.find(([re, k]) => re.test(n) && D.productos[k]);
+  return e ? { k: e[1], g: e[2] || 400 } : null;
+}
+// Lo que se puede usar en lugar de otra cosa (10/11: «salen recetas con cosas que no están en la nevera»): hojas de ensalada entre sí,
+// frutos secos entre sí (el cóctel vale), zanahoria de cualquier corte, y lima o limón (o el zumo de una naranja, para el mojo o un aliño).
+// Solo para saber si un plato sale con lo de casa: la ficha dice con qué («Almendra (con cóctel de frutos secos)»).
+const GRUPOS = [['canonigos', 'rucula', 'duo_canonigos_rucula', 'ensalada_gourmet', 'brotes', 'lechuga_romana', 'espinaca_baby'],
+  ['almendras', 'nueces', 'anacardos', 'cocktail_frutos_secos'], ['zanahoria_rallada', 'palitos_zanahoria', 'zanahoria_tiras'], ['limon', 'lima']];
+const SUSTITUYE = { lima: ['naranja'], limon: ['naranja'] };   // solo en ese sentido: la naranja de postre no se cambia por limón
+const grupoDe = k => [k, ...(GRUPOS.find(g => g.includes(k)) || []).filter(m => m !== k), ...(SUSTITUYE[k] || [])];   // primero el mismo producto
+const hayDe = (k, hay) => grupoDe(k).reduce((t, m) => t + (hay[m] || 0), 0);
+function gasta(hay, k, g) { for (const m of grupoDe(k)) { if (g <= 0) break; const t = Math.min(hay[m] || 0, g); if (t > 0) { hay[m] -= t; g -= t; } } }
 function hayEnCasa() {
   const hay = { ...(E.casa || {}) };
-  for (const x of E.casaExtra || []) {
-    const n = L.normaliza(x.n || ''), e = EQUIV.find(([re, k]) => re.test(n) && D.productos[k]);
-    if (e) hay[e[1]] = (hay[e[1]] || 0) + 400;
-  }
+  for (const x of E.casaExtra || []) { const e = equivDe(x); if (e) hay[e.k] = (hay[e.k] || 0) + Math.max(0, e.g - (x.usado || 0)); }
   return hay;
 }
-const alcanza = (n, hay) => Object.entries(n).filter(([k, g]) => (hay[k] || 0) < g * 0.7).map(([k]) => k);   // margen: lo de casa es aproximado
+const alcanza = (n, hay) => Object.entries(n).filter(([k, g]) => hayDe(k, hay) < g * 0.7).map(([k]) => k);   // margen: lo de casa es aproximado
 const semillaDe = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);   // igual en todos los móviles: eligen lo mismo
 // Platos ya puestos que llevan algo que no compráis (menús hechos antes del 26/10/2026, cuando valía cualquier receta): se cambian por
 // otro con lo de siempre, primero los que salen con lo de casa y sin repetir receta en la semana. Misma semilla en todos los móviles.
@@ -877,14 +898,20 @@ function autoMenu() {
       for (const q of (L.esDoble(v) ? L.QUIEN : [null])) {
         const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)];
         if (!r) continue;
-        if (r.chef && (E.inventos || {})[k]?.id) continue;   // la que se inventó el Chef para esta comida con lo de casa: se queda
-        if ((s.elegidos || {})[k]) continue;   // lo que pedisteis al Chef (un menú vegano, un plato concreto) no se cambia solo: lo que falta va a la compra
-        const faltaReal = alcanza(necesita(r, qs, true), hay);
-        let n = necesita(r, qs), falta = faltaReal.filter(kk => !(E.pendientes || []).some(x => x.k === kk));   // lo apuntado para comprar ya cuenta…
-        const porComprar = !falta.length && faltaReal.length > 0;   // …pero si hay otro plato que se puede hacer con lo de casa, va ese
+        // Lo apuntado para comprar no cuenta como tenido: hasta la próxima compra se vive de lo que hay (10/11: el bol de quinoa,
+        // «hay que comprar», se quedaba en la cena de hoy). En el bol, también las hojas y verduras de la ensalada.
+        let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true, c === 'bol'), hay);
+        // Se quedan, y gastan lo suyo de la Nevera: la cena que se inventó el Chef con lo de casa y lo que pedisteis al Chef (un menú vegano,
+        // un plato concreto), mientras lo que le falte esté en la compra. Si falta algo que no está en la lista (otro plato se lo ha gastado), se cambia (10/11).
+        const enLista = kk => (E.proximaCompra || []).some(x => x.k === kk) || (E.pendientes || []).some(x => x.k === kk);
+        if (r.chef && (E.inventos || {})[k]?.id || (s.elegidos || {})[k] && falta.every(enLista)) {
+          for (const [kk, g] of Object.entries(n)) gasta(hay, kk, g);
+          if (!L.DOBLES.includes(c)) previo = principal(r);
+          continue;
+        }
         const sola = r.soloEnsalada && !L.DOBLES.includes(c) && c !== 'bol';   // una ensalada sola no es comida ni cena: hace falta un plato principal
         const seguido = !L.DOBLES.includes(c) && principal(r).some(kk => previo.includes(kk));   // lo mismo que la comida o cena anterior
-        if (falta.length || sola || seguido || porComprar) {
+        if (falta.length || sola || seguido) {
           const cand = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '')), q).filter(x => aptaCasa(x, qs));
           // Nada repetido en comidas y cenas: ni lo de esta semana (también lo ya comido) ni lo de otro día.
           const cerca = new Set();
@@ -896,23 +923,23 @@ function autoMenu() {
           const choca = x => prin(x).filter(kk => junto.has(kk)).length;
           const deVerdad = x => (x.tipo0 || x.tipo).includes(c) ? 0 : 1;   // un desayuno de verdad antes que una merienda (zanahoria con hummus)
           const orden = (x, y) => choca(x) - choca(y) || deVerdad(x) - deVerdad(y) || alcanza(necesita(x, qs), hay).length - alcanza(necesita(y, qs), hay).length;
-          const posibles = cand.filter(x => !alcanza(necesita(x, qs, true), hay).length).sort(orden);
-          let nueva = posibles.find(x => !cerca.has(x.id) && (!seguido || !choca(x))) || (cerca.has(r.id) || seguido || porComprar ? null : posibles[0]), comprar = [];
-          if (!nueva && (seguido || porComprar) && !falta.length && !sola) { /* se puede hacer y no hay otro sin repetir: se queda */ }
+          const posibles = cand.filter(x => !alcanza(necesita(x, qs, true, c === 'bol'), hay).length).sort(orden);
+          let nueva = posibles.find(x => !cerca.has(x.id) && (!seguido || !choca(x))) || (cerca.has(r.id) || seguido ? null : posibles[0]), comprar = [];
+          if (!nueva && seguido && !falta.length && !sola) { /* se puede hacer y no hay otro sin repetir: se queda */ }
           else if (!nueva && c === 'cena' && d0.f === h && servidor() && !s.hechos[k]) { /* la cena de hoy se la inventa el Chef con lo que hay (inventaSiHaceFalta) */ }
           else if (!nueva) {   // con lo que hay no sale ningún plato: el que menos haya que comprar, sin repetir, y lo que falta a la compra
             const noHay = new Set([...Object.keys(E.noHay || {}), ...(D.semana.correcciones || []).flatMap(cc => Object.keys(cc.si || {}).filter(kk => (cc.si[kk][1] >= cc.si[kk][0])))]);   // lo que dijeron que no hay: no se propone comprarlo
-            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => choca(a.x) - choca(b.x) || a.f.length - b.f.length || orden(a.x, b.x))[0];
+            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true, c === 'bol'), hay) })).sort((a, b) => choca(a.x) - choca(b.x) || a.f.length - b.f.length || orden(a.x, b.x))[0];
             if (mejor && (sola || cerca.has(r.id) || mejor.f.length < falta.length)) { nueva = mejor.x; comprar = mejor.f; } else comprar = falta;
           }
           for (const kk of comprar) apuntaPendiente({ k: kk, n: nombreCorto(D.productos[kk]) });
           if (nueva) {
             if (q) { const base = L.esDoble(vv) ? { ...vv } : { G: L.idDe(vv), P: L.idDe(vv) }; base[q] = nueva.id; s.cambios[k] = base; } else s.cambios[k] = nueva.id;
-            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: (porComprar ? faltaReal : falta).map(nombreFalta), sola: sola && !falta.length, seguido: seguido && !sola && !falta.length && !porComprar, porComprar, comprar: comprar.map(nombreFalta) });
+            cambios.push({ f: d0.f, c, q, de: r.n, a: nueva.n, falta: falta.map(nombreFalta), sola: sola && !falta.length, seguido: seguido && !sola && !falta.length, comprar: comprar.map(nombreFalta) });
             n = necesita(nueva, qs); falta = [];
           }
         }
-        for (const [kk, g] of Object.entries(n)) hay[kk] = Math.max(0, (hay[kk] || 0) - g);   // lo que se va a gastar
+        for (const [kk, g] of Object.entries(n)) gasta(hay, kk, g);   // lo que se va a gastar (o lo que hace sus veces)
         if (!L.DOBLES.includes(c)) { const rr = recetas[L.idDe(efectivo(p).dias[i][c])]; previo = rr ? principal(rr) : []; }
       }
     }
@@ -922,7 +949,7 @@ function autoMenu() {
 }
 // Lo que le falta a un plato concreto con lo que hay en casa (para la pastilla y la receta).
 // Solo lo principal (proteína o hidrato): que falte la rúcula no es «falta» con la nevera llena (05/11).
-const faltaEnCasa = (r, qs = L.QUIEN) => !deCasa(planActivo(), est(planActivo().id)) ? [] : alcanza(necesita(r, qs, true), hayEnCasa());
+const faltaEnCasa = (r, qs = L.QUIEN, c = null) => !deCasa(planActivo(), est(planActivo().id)) ? [] : alcanza(necesita(r, qs, true, c === 'bol'), hayEnCasa());
 // Si la cena de hoy no sale con lo que hay en casa, el Chef se inventa una solo con lo de la nevera y se pone sola, con Deshacer
 // (28/10: «ajústate a lo que tenemos en casa, sé creativo a partir de esos ingredientes»). Una vez por cena, de 8:00 a 21:59.
 function inventaSiHaceFalta() {
@@ -1139,18 +1166,30 @@ const pillsKcal = (r, qs = L.QUIEN) => qs.map(q => `<span class="pill ${q.toLowe
 function filaReceta(r, q = null, extra = '') {
   const kc = pillsKcal(r, q ? [q] : L.QUIEN);
   return `<button class="alternativa" data-id="${r.id}"><span class="emo">${emojiReceta(r)}</span><span style="min-width:0"><span class="nombre" style="display:block">${esc(r.n)}</span>
-    <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${kc}${r.propia ? '<span class="pill">⭐</span>' : ''}${extra}</span></span></button>`;
+    <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${kc}${r.propia ? '<span class="pill">vuestra</span>' : ''}${extra}</span></span></button>`;
 }
 function abrirCambiar(p, i, c, q) {
   const pe = efectivo(p), d = pe.dias[i], v = d[c];
   const doble = L.DOBLES.includes(c) && !(v && v.fuera);
-  const persona = q || (doble ? 'G' : null);
-  // Primero lo que se puede hacer con lo que tenéis; lo demás, avisando de lo que falta.
-  const tengo = V.tengo || loQueTenemos(p, est(p.id));
-  const alts = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 30, Date.now(), persona).filter(r => aptaCasa(r, persona ? [persona] : L.QUIEN)).slice(0, 10)
-    .map(r => ({ r, falta: faltanDe(r, tengo) })).sort((a, b) => a.falta.length - b.falta.length);
+  const persona = q || (doble ? 'G' : null), qs = persona ? [persona] : L.QUIEN;
+  const cand = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 999, Date.now(), persona).filter(r => aptaCasa(r, qs));
+  const fila = ({ r, falta }) => filaReceta(r, persona, falta.length ? `<span class="pill malo">falta ${esc(falta.map(nombreFalta).join(', '))}</span>` : '');
+  let cuerpo;
+  if (deCasa(p, est(p.id))) {
+    // Hasta la próxima compra se vive de la Nevera (10/11: «no me da para cambiar por recetas con cosas que sí tenemos, sobre todo carne»):
+    // primero todo lo que sale con lo que hay, con la carne de la Nevera delante, y después unas pocas que piden comprar algo.
+    const hay = hayEnCasa(), carne = r => r.ing.some(x => x[1] >= 30 && D.productos[x[0]]?.cat === 'Carne' && hayDe(x[0], hay) > 0) ? 1 : 0;
+    const info = cand.map(r => ({ r, falta: alcanza(necesita(r, qs, true, c === 'bol'), hay), menor: alcanza(necesita(r, qs), hay).length }));
+    const si = info.filter(x => !x.falta.length).sort((a, b) => carne(b.r) - carne(a.r) || a.menor - b.menor);
+    const no = info.filter(x => x.falta.length).sort((a, b) => a.falta.length - b.falta.length).slice(0, Math.max(3, 10 - si.length));
+    cuerpo = `${si.length ? `<div class="cat">Con lo que tenéis<span class="num">${si.length}</span></div>${si.map(fila).join('')}` : '<p class="nota">Con lo que hay en la Nevera no sale ninguna receta: el Chef puede inventarse una.</p>'}
+      ${no.length ? `<div class="cat">Hay que comprar algo</div>${no.map(fila).join('')}` : ''}`;
+  } else {   // antes de la compra: lo que falta va a la lista
+    const tengo = V.tengo || loQueTenemos(p, est(p.id));
+    cuerpo = cand.slice(0, 30).map(r => ({ r, falta: faltanDe(r, tengo) })).sort((a, b) => a.falta.length - b.falta.length).slice(0, 10).map(fila).join('');
+  }
   hoja(`<h2>${COMIDA_EMO[c]} Cambiar ${L.NOMBRE_COMIDA[c].toLowerCase()}</h2><div class="nota">${persona ? `Para ${esc(NOM[persona])} · ` : ''}${capital(DL[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}</div>
-    ${alts.map(({ r, falta }) => filaReceta(r, persona, falta.length ? `<span class="pill malo">falta ${esc(falta.map(nombreFalta).join(', '))}</span>` : '')).join('')}`, h => {
+    ${cuerpo}`, h => {
     $$('[data-id]', h).forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
@@ -1180,8 +1219,11 @@ function abrirReceta(id, ctx) {
   const mac = Object.fromEntries(quienes.map(q => [q, L.macrosReceta(r, q, D.productos, fac)])), hay = hayEnCasa();
   const filas = r.ing.map(ing => {
     const x = D.productos[ing[0]], necesita = quienes.reduce((t, q) => t + (L.gramos(ing, q, fac) || 0), 0);
-    const marca = infinito(ing[0]) ? '' : (hay[ing[0]] || 0) >= necesita * 0.7 ? '<span class="hay si">✓</span>' : '<span class="hay no">✕</span>';
-    return `<div class="ing-fila${una ? ' una' : ''}"><span>${marca}${esc(nombreCorto(x))}</span>${quienes.map(q => { const g = L.gramos(ing, q, fac); return `<span class="c persona-${q.toLowerCase()}">${g ? esc(L.cantidadTexto(ing[0], g, D.productos)) : '—'}</span>`; }).join('')}</div>`;
+    const propio = (hay[ing[0]] || 0) >= necesita * 0.7, sust = !propio && !infinito(ing[0]) && hayDe(ing[0], hay) >= necesita * 0.7 ? grupoDe(ing[0]).slice(1).find(m => (hay[m] || 0) > 0) : null;
+    const marca = infinito(ing[0]) ? '' : propio || sust ? '<span class="hay si">✓</span>' : '<span class="hay no">✕</span>';
+    const extra = propio && (E.casa?.[ing[0]] || 0) < necesita * 0.7 ? (E.casaExtra || []).find(e => equivDe(e)?.k === ing[0]) : null;   // la carne del ticket
+    const con = sust ? nombreCorto(D.productos[sust]) : extra ? extra.n : '';
+    return `<div class="ing-fila${una ? ' una' : ''}"><span>${marca}${esc(nombreCorto(x))}${con ? ` <span class="sust">(con ${esc(con.toLowerCase())})</span>` : ''}</span>${quienes.map(q => { const g = L.gramos(ing, q, fac); return `<span class="c persona-${q.toLowerCase()}">${g ? esc(L.cantidadTexto(ing[0], g, D.productos)) : '—'}</span>`; }).join('')}</div>`;
   }).join('') + [...(r.otros || []), ...(r.basicos || [])].map(t => `<div class="ing-fila${una ? ' una' : ''}"><span class="otro">${esc(t)}</span>${quienes.map(() => '<span class="c">·</span>').join('')}</div>`).join('');
   const m = (q, x) => {
     const o = obj[q], color = q === 'G' ? 'var(--persona-g)' : 'var(--persona-p)';
@@ -2407,7 +2449,7 @@ function vCasa() {
   const secs = Object.keys(porSec).sort((a, b) => ordenSeccion(a) - ordenSeccion(b));
   const fila = ({ k, g, x }) => {
     if (x) return `<div class="producto casa-fila">${x.foto ? `<img src="${esc(x.foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(x.cat || 'Otros')}</div>`}
-      <div class="info"><div class="pn">${esc(x.n)}</div></div>
+      <div class="info"><div class="pn">${esc(x.n)}</div>${x.usado && equivDe(x) ? `<div class="pc">quedan unos ${r0(equivDe(x).g - x.usado)} g</div>` : ''}</div>
       <button class="icono" data-extra-acabado="${esc(x.id)}" aria-label="Se acabó">${I.carro}</button><button class="icono" data-extra-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`;
     const p = D.productos[k];
     return `<div class="producto casa-fila">${p.foto ? `<img src="${esc(p.foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(p.cat)}</div>`}
@@ -3262,7 +3304,7 @@ const recetaParaChef = r => ({ id: r.id, nombre: r.n, aparato: APARATO[r.ap] || 
 // Para el Chef: si la receta sale con lo que hay en casa (lo principal y la cantidad para los dos) o qué hay que comprar.
 function conLoDeCasa(r) {
   if (!E.casa) return '';
-  const f = alcanza(necesita(r, L.QUIEN, true), E.casa), otros = alcanza(necesita(r, L.QUIEN), E.casa).filter(k => !f.includes(k));
+  const hay = hayEnCasa(), f = alcanza(necesita(r, L.QUIEN, true), hay), otros = alcanza(necesita(r, L.QUIEN), hay).filter(k => !f.includes(k));   // con la carne de la Nevera (10/11)
   return f.length ? ` [HAY QUE COMPRAR: ${f.map(nombreFalta).join(', ')}]` : ` [CON LO DE CASA${otros.length ? `; falta solo ${otros.slice(0, 4).map(nombreFalta).join(', ')}` : ''}]`;
 }
 // Lo que el cerebro necesita saber para contestar: menú próximo, lo que hay, la lista, pendientes, personas.
@@ -3274,7 +3316,7 @@ function contextoParaClaude(texto = '') {
   const { filas } = lineaCompra();
   return {
     hoy: h, semana: p.titulo || p.id,
-    enCasa: [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => `${nombreCorto(D.productos[k])} (${cantidadCasa(k, E.casa[k])})`), ...(E.casaExtra || []).map(x => x.n), ...E.casaOtros],
+    enCasa: [...Object.keys(E.casa).filter(k => D.productos[k] && E.casa[k] > 0).map(k => `${nombreCorto(D.productos[k])} (${cantidadCasa(k, E.casa[k])})`), ...(E.casaExtra || []).map(x => { const e = equivDe(x); return e ? `${x.n} (en las recetas cuenta como ${nombreCorto(D.productos[e.k])}${x.usado ? `; quedan unos ${r0(e.g - x.usado)} g` : ''})` : x.n; }), ...E.casaOtros],
     lista: filas.filter(f => !s.marcados[f.clave]).slice(0, 60).map(nombreFila),
     ultimaCompra: E.compras[0] ? { dia: iso(new Date(E.compras[0].f)), llegaHasta: compraCubre(), nota: 'hasta ese día no se piensa comprar: lo de antes sale de la nevera' } : null,
     diaDeCompra: compraElegida() ? { compran: compraElegida().f, listaHasta: compraElegida().hasta } : 'sin elegir (en Compra → «¿Cuándo vais a comprar?»)',

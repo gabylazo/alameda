@@ -1270,3 +1270,6 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 .vacio.al-dia { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .vacio.al-dia b { color: var(--texto); font-size: 17px; font-weight: 600; }
 .vacio.al-dia .boton { margin-top: 10px; }
+
+/* 10/11: en la ficha, con qué se hace lo que no hay (lima → naranja, almendra → cóctel) */
+.ing-fila .sust { color: var(--suave); font-size: 14px; }
