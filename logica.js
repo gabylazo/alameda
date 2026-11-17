@@ -9,6 +9,9 @@ export function fijaQuien(qs) { QUIEN.splice(0, QUIEN.length, ...qs); }
 export const PESCADO = ['salmon', 'atun', 'merluza', 'gambas'];
 // Reparto orientativo de las calorías del día entre las comidas (para comparar alternativas).
 export const REPARTO = { desayuno: 0.22, comida: 0.32, merienda: 0.15, cena: 0.28 };
+// Lo que la app sabe al proponer (17/11): lo que hay en casa ({clave: gramos}), para que el menú lo gaste primero, y lo que suelen comprar (Set).
+export const PREF = { casa: null, habituales: null };
+export function fijaPreferencias(p) { Object.assign(PREF, p); }
 
 // Objetivos diarios con la fórmula de Mifflin-St Jeor, un factor de actividad y un déficit moderado.
 export function objetivos(p) {
@@ -183,10 +186,45 @@ function puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) {
     const contar = tags => plan.dias.reduce((s, d) => s + ['comida', 'cena'].filter(c => !(d === dia && c === comida)).filter(c => tags.includes(recetas[idDe(d[c])]?.prot)).length, 0);
     if (PESCADO.includes(r.prot) && contar(PESCADO) >= 2) pen += 10;
     if (r.prot === 'ternera' && contar(['ternera']) >= 2) pen += 6;
-    const otra = comida === 'comida' ? 'cena' : 'comida';
-    const hayEnsalada = recetas[idDe(dia[otra])]?.ens || dia[otra]?.fuera;
-    if (!hayEnsalada && r.ens) pen -= 3;
-    if (!hayEnsalada && !r.ens) pen += 2;
+    if (!COMIDAS.includes('bol')) {   // sin bol aparte (casas amigas), una ensalada al día dentro de la comida o la cena
+      const otra = comida === 'comida' ? 'cena' : 'comida';
+      const hayEnsalada = recetas[idDe(dia[otra])]?.ens || dia[otra]?.fuera;
+      if (!hayEnsalada && r.ens) pen -= 3;
+      if (!hayEnsalada && !r.ens) pen += 2;
+    }
+  }
+  // 17/11 («tengo una air fryer y no me recomiendas ni una»): unas 4 de cada 10 cenas, de air fryer.
+  if (comida === 'cena') {
+    const cenas = plan.dias.filter((d, j) => j !== i && d.cena && !d.cena.fuera && !d.cena.libre).map(d => recetas[idDe(d.cena)]).filter(Boolean);
+    if (r.ap === 'airfryer' && cenas.filter(x => x.ap === 'airfryer').length < Math.ceil((cenas.length + 1) * 0.4)) pen -= 2.5;
+  }
+  // El bol de ensalada acompaña a la cena de ese día: sin repetir su proteína ni su ingrediente principal («ensaladas absurdas», 17/11).
+  if (comida === 'bol') {
+    const cena = recetas[idDe(dia.cena)];
+    if (cena) {
+      const prin = x => x.ing.filter(g => g[2] === 'p' && g[1] >= 30).map(g => g[0]);
+      if (cena.prot && cena.prot === r.prot) pen += 6;
+      if (prin(r).some(k => prin(cena).includes(k))) pen += 6;
+    }
+  }
+  // Primero lo que hay en casa, y los frescos que ya se compran para otro plato de la semana (una bolsa de espinacas da para dos o tres).
+  if (!DOBLES.includes(comida)) {
+    const frescos = r.ing.filter(g => g[2] === 'v' && g[1] >= 25).map(g => g[0]);
+    const otros = new Set(plan.dias.flatMap((d, j) => COMIDAS.filter(c => !(j === i && c === comida)).flatMap(c => idsDe(d[c]))).flatMap(x => recetas[x]?.ing.map(g => g[0]) || []));
+    pen -= Math.min(2, frescos.filter(k => otros.has(k)).length * 0.7);
+  }
+  // Algo nuevo para probar (un producto que no compran), sí, pero dos o tres por semana como mucho.
+  if (PREF.habituales) {
+    const nuevo = x => x?.ing.some(g => !PREF.habituales.has(g[0]) && prod[g[0]] && !prod[g[0]].despensa && !prod[g[0]].en_casa && !(g[2] === '1' && g[1] <= 15));
+    if (nuevo(r)) {
+      const ya = plan.dias.reduce((t, d, j) => t + COMIDAS.filter(c => !(j === i && c === comida)).flatMap(c => idsDe(d[c])).filter(x => nuevo(recetas[x])).length, 0);
+      pen += ya >= 3 ? 8 : 1.5;
+    }
+  }
+  if (PREF.casa) {
+    const pide = r.ing.filter(g => g[1] >= (g[2] === '1' ? 20 : 10) && prod[g[0]] && !prod[g[0]].despensa && !prod[g[0]].en_casa);
+    const tiene = pide.filter(g => (PREF.casa[g[0]] || 0) >= g[1]).length;
+    if (pide.length) pen -= 3 * tiene / pide.length;
   }
   const kcal = macrosReceta(r, 'G', prod, fac).kcal;
   pen += Math.abs(kcal - objG.kcal * REPARTO[comida]) / 60;
@@ -203,7 +241,7 @@ const paraQuien = (r, comida, quien) => !(comida === 'comida' && quien && typeof
 export function alternativas(plan, i, comida, recetas, prod, fac, objG, n = 8, semilla = Date.now(), quien = null) {
   const rnd = azar(semilla), actual = quien ? recetaDe(plan.dias[i][comida], quien) : idDe(plan.dias[i][comida]);
   return Object.values(recetas)
-    .filter(r => r.tipo.includes(comida) && r.id !== actual && !(r.soloEnsalada && !DOBLES.includes(comida) && comida !== 'bol') && paraQuien(r, comida, quien))
+    .filter(r => r.tipo.includes(comida) && r.id !== actual && !r.retirada && !(r.soloEnsalada && !DOBLES.includes(comida) && comida !== 'bol') && paraQuien(r, comida, quien))
     .map(r => ({ r, pen: puntuacion(r, plan, i, comida, recetas, prod, fac, objG, rnd) }))
     .sort((a, b) => a.pen - b.pen).slice(0, n).map(x => x.r);
 }
@@ -249,18 +287,20 @@ export function ajustaPresupuesto(plan, recetas, prod, fac, casa, tope, apta, de
 // Rellena de nuevo los huecos que no estén marcados como «fuera» o «libre». Con «solo», únicamente ese tipo de comida;
 // con «desde», únicamente desde ese día. Desayunos y meriendas: uno distinto para cada uno.
 export const DOBLES = ['desayuno', 'merienda'];
-export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.now(), solo = null, desde = null) {
+// `elegibles` (opcional): las recetas que se pueden proponer; las demás de `recetas` solo están para puntuar (las de los días que no se tocan).
+export function proponerSemana(plan, recetas, prod, fac, objG, semilla = Date.now(), solo = null, desde = null, elegibles = null) {
   const rnd = azar(semilla), toca = (d, c) => (!solo || solo === c) && (!desde || d.f >= desde);
   const nuevo = { ...plan, dias: plan.dias.map(d => {
     const nd = { ...d };
     for (const c of COMIDAS) if (toca(d, c) && (nd[c] == null || typeof nd[c] === 'string' || esDoble(nd[c]))) nd[c] = null;
     return nd;
   }) };
-  const mejor = (i, c, salvo, q = null) => Object.values(recetas).filter(r => r.tipo.includes(c) && r.id !== salvo && !(r.soloEnsalada && !DOBLES.includes(c) && c !== 'bol') && paraQuien(r, c, q))
+  const mejor = (i, c, salvo, q = null) => Object.values(recetas).filter(r => (!elegibles || elegibles[r.id]) && r.tipo.includes(c) && r.id !== salvo && !r.retirada && !(r.soloEnsalada && !DOBLES.includes(c) && c !== 'bol') && paraQuien(r, c, q))
     .map(r => ({ r, pen: puntuacion(r, nuevo, i, c, recetas, prod, fac, objG, rnd) })).sort((a, b) => a.pen - b.pen)[0]?.r.id || null;
   for (let i = 0; i < nuevo.dias.length; i++) for (const c of [...['comida', 'cena', 'desayuno', 'merienda'].filter(x => COMIDAS.includes(x)), ...COMIDAS.filter(x => !['comida', 'cena', 'desayuno', 'merienda'].includes(x))]) {
     if (nuevo.dias[i][c] !== null || !toca(nuevo.dias[i], c)) continue;
     if (DOBLES.includes(c)) { const g = mejor(i, c, null, 'G'); nuevo.dias[i][c] = { G: g }; if (QUIEN.includes('P')) nuevo.dias[i][c].P = mejor(i, c, g, 'P'); }
+    else if (c === 'bol' && nuevo.dias[i].cena?.fuera) nuevo.dias[i][c] = { fuera: true };   // la ensalada va con la cena: si se cena fuera, tampoco
     else nuevo.dias[i][c] = mejor(i, c);
   }
   return nuevo;

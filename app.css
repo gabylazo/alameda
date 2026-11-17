@@ -1273,3 +1273,11 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 
 /* 10/11: en la ficha, con qué se hace lo que no hay (lima → naranja, almendra → cóctel) */
 .ing-fila .sust { color: var(--suave); font-size: 14px; }
+
+/* Paso a paso de escuela (17/11): debajo de cada paso, el calor y el tiempo; y cómo saber que está hecho. */
+.pasos .paso-datos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pasos .paso-listo { display: block; margin-top: 4px; font-size: 14px; color: var(--suave); }
+
+/* Contraste (17/11, axe): el verde, el rosa y el azul de cada persona y el gris secundario, un punto más oscuros para llegar a 4,5:1
+   sobre sus fondos suaves (antes 3,7–4,44). Solo el modo claro: el oscuro tiene sus propios tonos. */
+:root { --acento: #2b7656; --bueno: #2b7656; --persona-g: #a74a6a; --persona-p: #3d6baa; --suave: #68686d; }

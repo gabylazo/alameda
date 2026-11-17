@@ -28,7 +28,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const MOVIL = leeTexto('nutrihome.movil') || (m => (guardaTexto('nutrihome.movil', m), m))(uid());   // este móvil (no se sincroniza)
 
 let D, E, fac, obj, recetas, NOM = { G: '', P: '' };
-const V = { pestana: 'semana', anterior: 'semana', dia: null, filtro: 'todas', busca: '', anadidos: new Set(), borrador: '', adjunto: null };
+const V = { pestana: 'semana', anterior: 'semana', dia: null, filtro: 'todas', busca: '', anadidos: new Set(), borrador: '', adjunto: null, detalle: true };   // las recetas se abren con el paso a paso completo (17/11)
 
 // ——— Casas amigas: su clave empieza por «nh-». Usan el catálogo público y sus datos viven solo en el servidor, cifrados con su clave ———
 const NUEVA = 'alameda.nueva';   // la casa se abrió con un enlace de invitación: puede empezar de cero
@@ -119,6 +119,8 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'recetario-escuela', fecha: '2026-11-17', emo: '', titulo: 'Recetas nuevas, bien explicadas', texto: '50 cenas (20 de air fryer, clásicos ligeros, tres cubanas) y 23 ensaladas de verdad, que acompañan a la cena sin repetir su proteína. Cada paso dice el fuego o los grados, el tiempo y cómo saber que está hecho. Fuera las combinaciones raras. El menú de los próximos días ya va con ellas.', ir: 'recetas', origen: true },
+  { id: 'menu-compra', fecha: '2026-11-17', emo: '', titulo: 'Primero el menú, luego la lista', texto: 'Al elegir el día de compra os propongo el menú de esos días: cenas con su ensalada a juego, más air fryer y algunas recetas nuevas. Cambiad lo que no os apetezca o pedid otro menú, y la lista sale de ese menú. Lo que ya tenéis en la Nevera entra primero.', ir: 'compra', origen: true },
   { id: 'nevera-cuenta', fecha: '2026-11-10', emo: '', titulo: 'La carne de la Nevera ya cuenta', texto: 'El vacuno marinado, la pechuga a las finas hierbas y el lomo adobado del ticket valen para las recetas de añojo, pollo y lomo. «Cambiar» enseña primero lo que sale con lo que tenéis, con esa carne delante, y el Chef también lo sabe. Las ensaladas usan las hojas y los frutos secos que haya, y lo que coméis se descuenta también de esa carne.', ir: 'hoy' },
   { id: 'recetas-mundo', fecha: '2026-11-05', emo: '', titulo: '36 recetas nuevas de medio mundo', texto: 'Bulgogi de añojo, pad kra pao de pollo, lomo saltado, okonomiyaki de gambas, shakshuka con garbanzos, fattoush, arroz con leche con proteína… 16 cenas, 12 boles de ensalada, 4 desayunos y 4 meriendas, casi todas con lo que ya compráis.', ir: 'recetas', origen: true },
   { id: 'chef-menus', fecha: '2026-11-05', emo: '', titulo: 'El Chef os hace menús enteros', texto: 'Pedidle lo que queráis: «menú vegano para 5 días», «una semana para perder grasa», «algo dulce con lo que hay». Os propone las recetas y, con un toque, las pone en el menú y apunta en Compra solo lo que no tenéis. Y con la compra hecha, Compra ya no os pide nada hasta la próxima: solo lo que se acabe o apuntéis.', ir: 'claude' },
@@ -309,6 +311,7 @@ async function sincroniza() {
     }
     V.sync = 'ok'; V.syncHora = new Date(); V.syncError = '';
     if (V.montada) { inventaSiHaceFalta(); clasificaOtros(); }   // con lo del otro móvil ya fundido
+    if (V.montada && (E.recetario || 1) < RECETARIO) aplicaRemoto();   // el recetario nuevo se estrena en cuanto se sabe lo último del servidor
   } catch (e) { V.sync = 'error'; V.syncError = e.message; }
   finally { sincronizando = false; pintaSync(); if (otraVez) { otraVez = false; programaSync(); } for (const c of E.charla || []) if (!c.r && Date.now() - new Date(c.t) < 864e5) esperaRespuesta(c.id); }   // respuestas que queden por recoger
 }
@@ -393,7 +396,15 @@ const todasRecetas = () => [...(E.propias || []), ...D.recetas];
 // para los dos (hueco «bol»). Las cenas que traían la ensalada dentro la sueltan (ensK: sus ingredientes) porque la pone el bol.
 // Las casas amigas no tienen bol: las ensaladas son sus comidas.
 const LIGERA = 300;
+// Los pasos del recetario nuevo (17/11) traen calor, tiempo, cómo saber que está hecho y lo que se usa: {t, calor, tiempo, listo, usa}.
+// Se guardan aparte (`cocina`, para el modo cocinar) y `detalle` queda como texto, que es lo que usa todo lo demás (ficha, Chef, compartir).
+function pasosDeCocina(r) {
+  if (!Array.isArray(r.detalle) || !r.detalle.some(x => x && typeof x === 'object')) return;
+  r.cocina = r.detalle.map(x => typeof x === 'string' ? { t: x } : x);
+  r.detalle = r.cocina.map(x => x.t);
+}
 function ajustaPlanCasa() {
+  for (const r of todasRecetas()) pasosDeCocina(r);
   if (D.amiga) { for (const r of todasRecetas()) if (r.tipo.includes('bol')) r.tipo = [...new Set(r.tipo.map(t => t === 'bol' ? 'comida' : t))]; return; }
   if (!L.DOBLES.includes('comida')) L.DOBLES.push('comida');
   const i = L.COMIDAS.indexOf('merienda'); if (i >= 0) L.COMIDAS.splice(i, 1);
@@ -421,8 +432,10 @@ function bolDe(d) {
   const c = d.cena;
   if (!c || d.f < BOL_DESDE) return null;
   if (c.fuera) return { fuera: true };
-  const boles = Object.values(recetas).filter(r => r.tipo.includes('bol') && aptaCasa(r)).sort((a, b) => a.id.localeCompare(b.id));
-  return boles.length ? boles[semillaDe(d.f + 'bol') % boles.length].id : null;
+  const todos = Object.values(recetas).filter(r => r.tipo.includes('bol') && aptaCasa(r)).sort((a, b) => a.id.localeCompare(b.id));
+  const rc = recetas[L.idDe(c)], boles = todos.filter(r => !rc || r.prot !== rc.prot);   // que acompañe a la cena sin repetir su proteína (17/11)
+  const de = boles.length ? boles : todos;
+  return de.length ? de[semillaDe(d.f + 'bol') % de.length].id : null;
 }
 function reconstruyeRecetas() { ajustaPlanCasa(); const fav = new Set(E.favRecetas || []); recetas = Object.fromEntries(todasRecetas().map(r => { r.fav = fav.has(r.id); return [r.id, r]; })); }
 const ini = q => esc((NOM[q] || q)[0]);
@@ -599,6 +612,7 @@ function sinEmojis(n) {
 
 let tEntra;
 function pinta() {
+  if (E?.casa) L.fijaPreferencias({ casa: hayEnCasa(), habituales: habituales() });   // las propuestas de menú gastan primero lo de casa y prueban poco nuevo (17/11)
   const auto = autoMenu();   // el menú, siempre al día con lo que hay en casa
   inventaSiHaceFalta();
   if (auto.length) setTimeout(() => tostada(`🔄 Menú adaptado a lo que ${auto.every(x => x.raro) ? 'soléis comprar' : 'hay en casa'}: ${auto.length} plato${auto.length > 1 ? 's' : ''}`), 300);
@@ -805,9 +819,11 @@ function adaptaMenu(p) {
 // Tras la compra de la semana, se recorren los platos pendientes por orden (desde hoy, sin comer) «gastando» lo que hay en casa.
 // Si a un plato le falta algo (no está o no llega), se cambia por el primero que se pueda hacer con lo que queda. La despensa no cuenta.
 const infinito = k => { const x = D.productos[k]; return !x || x.despensa || x.en_casa || !x.util; };
-// base: solo lo principal (proteína o hidrato, 30 g o más): es lo único que obliga a cambiar el plato; lo demás (ensalada, adornos) solo se avisa.
-// bol: en el bol de ensalada cuenta todo lo de 25 g o más (las hojas, el tomate, la mozzarella): sin ello no es esa ensalada (10/11).
-function necesita(r, qs, base = false, bol = false) { const n = {}; for (const ing of r.ing) { if (base && !(bol ? ing[2] !== '1' && ing[1] >= 25 : ['p', 'h'].includes(ing[2]) && ing[1] >= 30)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
+// base: lo que hace falta para hacer el plato tal cual (17/11: «recetas que se ajusten 100 % a lo que tengo en casa»): todo menos la despensa
+// (aceite, sal, especias: `infinito`) y los adornos de pocos gramos (una cucharadita de salsa, unas hojas de hierbabuena). Antes solo contaba
+// lo principal y el plato salía «con lo de casa» aunque faltara la mitad.
+const imprescindible = ing => ing[1] >= (ing[2] === '1' ? 20 : 10);
+function necesita(r, qs, base = false) { const n = {}; for (const ing of r.ing) { if (base && !imprescindible(ing)) continue; for (const q of qs) { const g = L.gramos(ing, q, fac); if (g && !infinito(ing[0])) n[ing[0]] = (n[ing[0]] || 0) + g; } } return n; }
 // Lo de la Nevera que no es producto de la app (del ticket: «vacuno marinado», «pechuga finas hierbas», «burrata»…) cuenta como su
 // equivalente para las recetas: si no, una nevera recién llena decía «falta pollo» (05/11). Un envase normal: 400 g, o el tercer valor.
 // Lo preparado no cuenta como su ingrediente: los fideos «sabor pollo» no son pollo ni la crema de lentejas son lentejas (10/11).
@@ -849,7 +865,7 @@ function cambiaRaras(h) {
         const k = d0.f + '|' + c, v = efectivo(p).dias[i][c];
         if (s.hechos[k] || !v || v.fuera || v.libre || (s.elegidos || {})[k]) continue;
         for (const q of (L.esDoble(v) ? L.QUIEN : [null])) {
-          const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)], raro = noHabitual(r);
+          const qs = q ? [q] : L.QUIEN, vv = efectivo(p).dias[i][c], r = recetas[q ? vv[q] : L.idDe(vv)], raro = demasiadoNuevo(r) ? noHabitual(r) : [];
           if (!r || !raro.length) continue;
           const usadas = new Set(efectivo(p).dias.flatMap(d => L.COMIDAS.flatMap(cc => L.idsDe(d[cc]))));
           const cand = L.alternativas(efectivo(p), i, c, recetas, D.productos, fac, obj.G, 99, semillaDe(k + (q || '') + 'habitual'), q).filter(x => aptaCasa(x, qs));
@@ -868,9 +884,42 @@ function cambiaRaras(h) {
 // (28/10: miércoles sin compra y el menú seguía pidiendo pollo y ñoquis).
 // También mientras dure la última compra (5/11: la del 3/11 era para 10 días y la semana del 7 seguía pidiendo lo de su menú).
 const deCasa = (p, s) => s.compraHecha || hoy() >= masDias(p.dias[0].f, 2) || (compraCubre() || '') >= hoy();
+// El recetario de escuela (17/11): al estrenarlo, los días que quedan se proponen de nuevo con las recetas nuevas, salvo lo comido, lo de fuera
+// y lo elegido a propósito. Una vez por casa (E.recetario), con la misma semilla en los dos móviles. Y siempre: un plato que ya no está en el
+// recetario (se quitó por absurdo) se cambia por otro de la misma comida.
+const RECETARIO = 2;
+function estrenaRecetario() {
+  const h = hoy(); let n = 0;
+  if ((E.recetario || 1) < RECETARIO && (V.sync === 'ok' || !servidor()) && D.recetas.some(r => r.cocina)) {   // con lo último del servidor: los dos móviles parten de lo mismo
+    E.recetario = RECETARIO;
+    n += rehaceMenuCompra({ f: masDias(h, 1), hasta: planes().at(-1).dias.at(-1).f }, semillaDe('recetario-v2'), true);   // desde mañana: la cena de hoy puede estar ya en marcha
+    setTimeout(() => tostada('Menú rehecho con las recetas nuevas'), 600);
+  }
+  for (const pl of planes().filter(x => x.dias.at(-1).f >= h)) {
+    const s = est(pl.id), pe = efectivo(pl);
+    pe.dias.forEach((d, i) => {
+      if (d.f < h) return;
+      for (const c of L.COMIDAS) {
+        const v = d[c], k = d.f + '|' + c;
+        if (!v || v.fuera || v.libre || s.hechos[k]) continue;
+        for (const q of (L.esDoble(v) ? L.QUIEN : [null])) {
+          const id = q ? L.recetaDe(v, q) : L.idDe(v);
+          if (!id || (recetas[id] && !recetas[id].retirada)) continue;
+          const nueva = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 30, semillaDe(k + (q || '') + 'repone'), q).find(x => aptaCasa(x, q ? [q] : L.QUIEN));
+          if (!nueva) continue;
+          if (q) s.cambios[k] = { ...v, [q]: nueva.id }; else s.cambios[k] = nueva.id;
+          if (s.elegidos) delete s.elegidos[k];
+          n++;
+        }
+      }
+    });
+  }
+  if (n) salva();
+}
 function autoMenu() {
   if (!D?.semana || !E?.casa) return [];
   respetaBajas();
+  estrenaRecetario();
   const p = planActivo(), s = est(p.id), h = hoy();
   // Correcciones publicadas (semana.json → correcciones: [{id, si: {clave: [si hay justo esto, quitar esto]}}]): solo si En casa sigue con la
   // cantidad del ticket, así que se pueden repetir sin peligro aunque la sincronización junte móviles (no hay marca que pueda viajar sola).
@@ -900,7 +949,7 @@ function autoMenu() {
         if (!r) continue;
         // Lo apuntado para comprar no cuenta como tenido: hasta la próxima compra se vive de lo que hay (10/11: el bol de quinoa,
         // «hay que comprar», se quedaba en la cena de hoy). En el bol, también las hojas y verduras de la ensalada.
-        let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true, c === 'bol'), hay);
+        let n = necesita(r, qs), falta = alcanza(necesita(r, qs, true), hay);
         // Se quedan, y gastan lo suyo de la Nevera: la cena que se inventó el Chef con lo de casa y lo que pedisteis al Chef (un menú vegano,
         // un plato concreto), mientras lo que le falte esté en la compra. Si falta algo que no está en la lista (otro plato se lo ha gastado), se cambia (10/11).
         const enLista = kk => (E.proximaCompra || []).some(x => x.k === kk) || (E.pendientes || []).some(x => x.k === kk);
@@ -923,13 +972,13 @@ function autoMenu() {
           const choca = x => prin(x).filter(kk => junto.has(kk)).length;
           const deVerdad = x => (x.tipo0 || x.tipo).includes(c) ? 0 : 1;   // un desayuno de verdad antes que una merienda (zanahoria con hummus)
           const orden = (x, y) => choca(x) - choca(y) || deVerdad(x) - deVerdad(y) || alcanza(necesita(x, qs), hay).length - alcanza(necesita(y, qs), hay).length;
-          const posibles = cand.filter(x => !alcanza(necesita(x, qs, true, c === 'bol'), hay).length).sort(orden);
+          const posibles = cand.filter(x => !alcanza(necesita(x, qs, true), hay).length).sort(orden);
           let nueva = posibles.find(x => !cerca.has(x.id) && (!seguido || !choca(x))) || (cerca.has(r.id) || seguido ? null : posibles[0]), comprar = [];
           if (!nueva && seguido && !falta.length && !sola) { /* se puede hacer y no hay otro sin repetir: se queda */ }
           else if (!nueva && c === 'cena' && d0.f === h && servidor() && !s.hechos[k]) { /* la cena de hoy se la inventa el Chef con lo que hay (inventaSiHaceFalta) */ }
           else if (!nueva) {   // con lo que hay no sale ningún plato: el que menos haya que comprar, sin repetir, y lo que falta a la compra
             const noHay = new Set([...Object.keys(E.noHay || {}), ...(D.semana.correcciones || []).flatMap(cc => Object.keys(cc.si || {}).filter(kk => (cc.si[kk][1] >= cc.si[kk][0])))]);   // lo que dijeron que no hay: no se propone comprarlo
-            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true, c === 'bol'), hay) })).sort((a, b) => choca(a.x) - choca(b.x) || a.f.length - b.f.length || orden(a.x, b.x))[0];
+            const mejor = cand.filter(x => !cerca.has(x.id) && !x.ing.some(ing => noHay.has(ing[0]))).map(x => ({ x, f: alcanza(necesita(x, qs, true), hay) })).sort((a, b) => choca(a.x) - choca(b.x) || a.f.length - b.f.length || orden(a.x, b.x))[0];
             if (mejor && (sola || cerca.has(r.id) || mejor.f.length < falta.length)) { nueva = mejor.x; comprar = mejor.f; } else comprar = falta;
           }
           for (const kk of comprar) apuntaPendiente({ k: kk, n: nombreCorto(D.productos[kk]) });
@@ -947,9 +996,8 @@ function autoMenu() {
   if (cambios.length) { E.ultimosAuto = { t: new Date().toISOString(), cambios }; salva(); }
   return cambios;
 }
-// Lo que le falta a un plato concreto con lo que hay en casa (para la pastilla y la receta).
-// Solo lo principal (proteína o hidrato): que falte la rúcula no es «falta» con la nevera llena (05/11).
-const faltaEnCasa = (r, qs = L.QUIEN, c = null) => !deCasa(planActivo(), est(planActivo().id)) ? [] : alcanza(necesita(r, qs, true, c === 'bol'), hayEnCasa());
+// Lo que le falta a un plato concreto con lo que hay en casa (para la pastilla y la receta): todo lo que hace falta para hacerlo tal cual (17/11).
+const faltaEnCasa = (r, qs = L.QUIEN) => !deCasa(planActivo(), est(planActivo().id)) ? [] : alcanza(necesita(r, qs, true), hayEnCasa());
 // Si la cena de hoy no sale con lo que hay en casa, el Chef se inventa una solo con lo de la nevera y se pone sola, con Deshacer
 // (28/10: «ajústate a lo que tenemos en casa, sé creativo a partir de esos ingredientes»). Una vez por cena, de 8:00 a 21:59.
 function inventaSiHaceFalta() {
@@ -1133,8 +1181,8 @@ function consejosDia(pe, i) {
 
 // Guarda cómo estaba un hueco del menú para poder deshacer el cambio.
 function recuerdaHueco(p, k) {
-  const s = est(p.id), habia = k in s.cambios, antes = s.cambios[k];
-  return () => { if (habia) s.cambios[k] = antes; else delete s.cambios[k]; salva(); repinta(); };
+  const s = est(p.id), habia = k in s.cambios, antes = s.cambios[k], eleg = (s.elegidos || {})[k];
+  return () => { if (habia) s.cambios[k] = antes; else delete s.cambios[k]; if (s.elegidos) { if (eleg) s.elegidos[k] = eleg; else delete s.elegidos[k]; } salva(); repinta(); };
 }
 function alternaFuera(p, f, c) {
   const s = est(p.id), k = f + '|' + c, actual = efectivo(p).dias.find(d => d.f === f)[c], deshaz = recuerdaHueco(p, k);
@@ -1168,18 +1216,18 @@ function filaReceta(r, q = null, extra = '') {
   return `<button class="alternativa" data-id="${r.id}"><span class="emo">${emojiReceta(r)}</span><span style="min-width:0"><span class="nombre" style="display:block">${esc(r.n)}</span>
     <span class="datos"><span class="pill">${APARATO_EMO[r.ap] || '🍴'} ${r.min}′</span>${kc}${r.propia ? '<span class="pill">vuestra</span>' : ''}${extra}</span></span></button>`;
 }
-function abrirCambiar(p, i, c, q) {
+function abrirCambiar(p, i, c, q, alElegir = null) {
   const pe = efectivo(p), d = pe.dias[i], v = d[c];
   const doble = L.DOBLES.includes(c) && !(v && v.fuera);
   const persona = q || (doble ? 'G' : null), qs = persona ? [persona] : L.QUIEN;
-  const cand = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 999, Date.now(), persona).filter(r => aptaCasa(r, qs));
+  const cand = L.alternativas(pe, i, c, recetas, D.productos, fac, obj.G, 999, Date.now(), persona).filter(r => aptaCasa(r, qs) || (r.chef && aptaCasa({ ...r, chef: false }, qs)));
   const fila = ({ r, falta }) => filaReceta(r, persona, falta.length ? `<span class="pill malo">falta ${esc(falta.map(nombreFalta).join(', '))}</span>` : '');
   let cuerpo;
   if (deCasa(p, est(p.id))) {
     // Hasta la próxima compra se vive de la Nevera (10/11: «no me da para cambiar por recetas con cosas que sí tenemos, sobre todo carne»):
     // primero todo lo que sale con lo que hay, con la carne de la Nevera delante, y después unas pocas que piden comprar algo.
     const hay = hayEnCasa(), carne = r => r.ing.some(x => x[1] >= 30 && D.productos[x[0]]?.cat === 'Carne' && hayDe(x[0], hay) > 0) ? 1 : 0;
-    const info = cand.map(r => ({ r, falta: alcanza(necesita(r, qs, true, c === 'bol'), hay), menor: alcanza(necesita(r, qs), hay).length }));
+    const info = cand.map(r => ({ r, falta: alcanza(necesita(r, qs, true), hay), menor: alcanza(necesita(r, qs), hay).length }));
     const si = info.filter(x => !x.falta.length).sort((a, b) => carne(b.r) - carne(a.r) || a.menor - b.menor);
     const no = info.filter(x => x.falta.length).sort((a, b) => a.falta.length - b.falta.length).slice(0, Math.max(3, 10 - si.length));
     cuerpo = `${si.length ? `<div class="cat">Con lo que tenéis<span class="num">${si.length}</span></div>${si.map(fila).join('')}` : '<p class="nota">Con lo que hay en la Nevera no sale ninguna receta: el Chef puede inventarse una.</p>'}
@@ -1194,7 +1242,9 @@ function abrirCambiar(p, i, c, q) {
       const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
       else s.cambios[k] = id;
-      salva(); cierraHoja(); repinta(); conDeshacer('Plato cambiado', deshaz);
+      (s.elegidos ||= {})[k] = true;   // lo elegido a mano no lo cambia el menú automático ni «Proponer otro menú» (17/11)
+      salva(); cierraHoja(!!alElegir); repinta(); conDeshacer('Plato cambiado', deshaz);
+      if (alElegir) alElegir();
     }));
   });
 }
@@ -1242,7 +1292,7 @@ function abrirReceta(id, ctx) {
     <div class="ing-lista"><div class="ing-fila cab${una ? ' una' : ''}"><span>Ingrediente</span>${quienes.map(q => `<span class="c persona-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</div>${filas}</div>
     ${r.prep?.length ? `<h3>🧺 Antes de empezar</h3><ul class="prep">${r.prep.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     ${r.detalle?.length ? `<div class="segmento dos" role="tablist"><button role="tab" data-modo="resumen" aria-selected="${!V.detalle}">Resumen</button><button role="tab" data-modo="detalle" aria-selected="${!!V.detalle}">👩‍🍳 Paso a paso detallado</button></div>` : '<h3>👩‍🍳 Paso a paso</h3>'}
-    <ol class="pasos">${(V.detalle && r.detalle?.length ? r.detalle : r.pasos).map(x => `<li><span>${esc(x)}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
+    <ol class="pasos">${(V.detalle && r.detalle?.length ? (r.cocina?.length === r.detalle.length ? r.cocina : r.detalle) : r.pasos).map(x => `<li><span>${esc(x.t ?? x)}${x.calor || x.tiempo ? `<span class="botones paso-datos">${[x.calor, x.tiempo].filter(Boolean).map(t => `<span class="pill">${esc(t)}</span>`).join('')}</span>` : ''}${x.listo ? `<span class="paso-listo">Punto: ${esc(x.listo.replace(/^\s*(está\s+)?listo\s+cuando\s+/i, ''))}</span>` : ''}</span></li>`).join('') || '<li><span>Sin pasos apuntados.</span></li>'}</ol>
     ${r.truco ? `<div class="aviso"><span class="emo">💡</span><div><b>Truco:</b> ${esc(r.truco)}</div></div>` : ''}
     ${r.fuente?.n ? `<p class="fuente-receta">Inspirada en ${/^https:\/\//.test(r.fuente.url || '') ? `<a href="${esc(r.fuente.url)}" target="_blank" rel="noopener">${esc(r.fuente.n)}</a>` : esc(r.fuente.n)}</p>` : ''}
     ${r.nota ? `<div class="aviso"><span class="emo">💡</span><div>${esc(r.nota)}</div></div>` : ''}
@@ -1250,9 +1300,9 @@ function abrirReceta(id, ctx) {
     <div class="botones" style="margin-top:14px"><button class="boton" id="b-compartir-receta">📤 Compartir</button><button class="boton" id="b-fav-receta">${r.fav ? 'Quitar de favoritas' : 'Favorita'}</button><button class="boton suave" id="b-a-lista">${I.carro}A la lista</button>
       ${r.propia ? `<button class="boton" id="b-editar">${I.lapiz}Editar</button><button class="boton" id="b-claude-receta">${I.enviar}Al Chef</button><button class="boton peligro" id="b-borrar-receta" aria-label="Borrar">${I.papelera}</button>` : ''}</div>
     ${ctx ? '' : `<h3>${I.calendario} Ponerla en el menú</h3><div class="botones">
-      <select id="s-dia" class="boton">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
-      <select id="s-com" class="boton">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
-      ${L.QUIEN.length > 1 ? `<select id="s-quien" class="boton"><option value="">👫 Los dos</option>${L.QUIEN.map(q => `<option value="${q}">${esc(NOM[q])}</option>`).join('')}</select>` : ''}
+      <select id="s-dia" class="boton" aria-label="Día">${plan.dias.map(d => `<option value="${d.f}">${DS[fecha(d.f).getDay()]} ${fecha(d.f).getDate()}</option>`).join('')}</select>
+      <select id="s-com" class="boton" aria-label="Comida">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${COMIDA_EMO[c]} ${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
+      ${L.QUIEN.length > 1 ? `<select id="s-quien" class="boton" aria-label="Para quién"><option value="">👫 Los dos</option>${L.QUIEN.map(q => `<option value="${q}">${esc(NOM[q])}</option>`).join('')}</select>` : ''}
       <button class="boton principal" id="b-poner">Poner</button></div>`}`, h => {
     $('#b-foto', h)?.addEventListener('click', () => elegirFoto(r));
     $('#b-compartir-receta', h)?.addEventListener('click', () => compartirTexto(r.n, recetaParaCompartir(r), '📋 Receta copiada: pégala donde quieras'));
@@ -1298,7 +1348,7 @@ function elegirRaciones(r) {
 function elegirRecetaParaLista() {
   const pintaLista = (h, t) => {
     const n = L.normaliza(t);
-    $('#lista-recetas', h).innerHTML = todasRecetas().filter(r => !n || L.normaliza(r.n).includes(n)).slice(0, 40).map(r => filaReceta(r)).join('') || '<div class="vacio">No encuentro esa receta.</div>';
+    $('#lista-recetas', h).innerHTML = todasRecetas().filter(r => !r.retirada && (!n || L.normaliza(r.n).includes(n))).slice(0, 40).map(r => filaReceta(r)).join('') || '<div class="vacio">No encuentro esa receta.</div>';
     $$('#lista-recetas [data-id]', h).forEach(b => b.addEventListener('click', () => elegirRaciones(recetas[b.dataset.id])));
   };
   hoja(`<h2>🍲 Receta a la lista</h2>
@@ -1446,13 +1496,56 @@ function abrirDiaCompra() {
       const antes = JSON.stringify({ dc: E.diaCompra ?? null, planes: E.planes, semanas: E.semanas }), previa = planCompra();
       E.diaCompra = { f, hasta: masDias(f, n - 1), t: ahora() };
       aseguraPlanes(E.diaCompra.hasta);
+      rehaceMenuCompra(E.diaCompra, semillaDe(f + n + 'menu'));   // primero el menú de esos días (17/11), y la lista sale de él
       // Propuesta nueva: vuelve lo que se quitó de la lista antes (hummus, champiñones…) si el menú lo pide; lo añadido a mano se queda.
       const s = est(planCompra().id); s.quitados = {}; s.menos = {}; s.despensaOculta = false; s.soleisOculto = false;
       const a = est(previa.id);   // lo añadido a mano en la lista de antes viene a esta
       if (previa.id !== planCompra().id && !a.compraHecha) { s.extra = [...s.extra, ...a.extra]; s.recetasLista = [...s.recetasLista, ...a.recetasLista]; a.extra = []; a.recetasLista = []; }
-      salva(); cierraHoja(); refrescaCompra();
-      conDeshacer(`Lista hasta el ${diaCorto(E.diaCompra.hasta)}`, () => { const a = JSON.parse(antes); if (a.dc) E.diaCompra = a.dc; else delete E.diaCompra; E.planes = a.planes; E.semanas = a.semanas; salva(); refrescaCompra(); });
+      salva(); refrescaCompra(); abrirMenuCompra();
+      conDeshacer(`Menú y lista hasta el ${diaCorto(E.diaCompra.hasta)}`, () => { const a = JSON.parse(antes); if (a.dc) E.diaCompra = a.dc; else delete E.diaCompra; E.planes = a.planes; E.semanas = a.semanas; salva(); cierraHoja(); refrescaCompra(); });
     });
+  });
+}
+// Antes de comprar, el menú de esos días (17/11: «antes de hacer la compra prepara el menú de la semana y, en base a eso, proponme una lista
+// de la compra»). Se proponen de nuevo los platos de esos días, salvo lo comido, lo de fuera, lo que pedisteis a propósito (Cambiar o el Chef)
+// y la cena que se inventó el Chef. Sin mirar la Nevera como límite (se va a comprar), pero gastando primero lo que hay (L.PREF.casa).
+function rehaceMenuCompra(c, semilla = Date.now(), estreno = false) {
+  const desde = [c.f, hoy()].sort().at(-1), pool = recetasAptas();
+  // Todos los días de la compra en un solo menú, aunque crucen de semana: así no se repite plato al pasar de una semana a la otra.
+  const de = {}, dias = [];
+  for (const pl of planes().filter(x => x.dias.at(-1).f >= desde && x.dias[0].f <= c.hasta))
+    for (const d of efectivo(pl).dias) if (d.f <= c.hasta && !de[d.f]) { de[d.f] = pl; dias.push(d); }
+  if (!dias.length) return 0;
+  dias.sort((a, b) => a.f.localeCompare(b.f));
+  const pe = { id: 'compra', dias };
+  // Al estrenar el recetario, lo que puso el Chef en días que aún no han llegado también se propone de nuevo (salvo vuestras favoritas).
+  const delChef = v => estreno && L.idsDe(v).some(id => recetas[id]?.chef && !recetas[id].fav);
+  const fijo = (d, cc) => { const s = est(de[d.f].id), k = d.f + '|' + cc, v = d[cc]; return d.f < desde || s.hechos[k] || ((s.elegidos || {})[k] || (E.inventos || {})[k]?.id) && !delChef(v) || v?.fuera || v?.libre; };
+  const usadas = Object.fromEntries(dias.flatMap(d => L.COMIDAS.flatMap(cc => L.idsDe(d[cc]))).filter(id => recetas[id]).map(id => [id, recetas[id]]));
+  const nuevo = L.proponerSemana(pe, { ...usadas, ...pool }, D.productos, fac, obj.G, semilla, null, desde, pool);
+  let n = 0;
+  nuevo.dias.forEach((d, i) => { for (const cc of L.COMIDAS) { if (fijo(dias[i], cc) || !d[cc] || JSON.stringify(d[cc]) === JSON.stringify(dias[i][cc])) continue; est(de[d.f].id).cambios[d.f + '|' + cc] = d[cc]; n++; } });
+  return n;
+}
+function abrirMenuCompra(todo = false) {
+  const c = compraElegida(); if (!c) return abrirDiaCompra();
+  const comidas = todo ? L.COMIDAS : L.COMIDAS.filter(x => !L.DOBLES.includes(x));   // primero lo que decide la compra: cenas y ensaladas
+  const dias = planes().flatMap(pl => efectivo(pl).dias.filter(d => d.f >= c.f && d.f <= c.hasta && d.f >= hoy()).map(d => ({ pl, d })));
+  hoja(`<h2>El menú de la compra</h2><div class="nota">Del ${diaCorto(c.f)} al ${diaCorto(c.hasta)}. Toca un plato para cambiarlo: la lista sale de este menú.</div>
+    ${dias.map(({ pl, d }) => `<div class="cat">${capital(diaChip(d.f))}</div><div class="hoy-plan">${filasDia(pl, d, comidas)}</div>`).join('')}
+    <button class="boton suave ancho" id="mc-todo" style="margin-top:10px">${todo ? 'Solo cenas y ensaladas' : 'Ver también desayunos y meriendas'}</button>
+    <div class="botones" style="margin-top:12px"><button class="boton" id="mc-otro">Proponer otro menú</button><button class="boton principal" id="mc-lista">Hacer la lista</button></div>`, h => {
+    $$('[data-hoy]', h).forEach(b => b.addEventListener('click', () => {
+      const pb = planes().find(x => x.id === b.dataset.plan); if (!pb) return;
+      abrirCambiar(pb, efectivo(pb).dias.findIndex(x => x.f === b.dataset.f), b.dataset.hoy, b.dataset.q || null, () => abrirMenuCompra(todo));
+    }));
+    $('#mc-todo', h).addEventListener('click', () => abrirMenuCompra(!todo));
+    $('#mc-otro', h).addEventListener('click', () => {
+      const antes = JSON.stringify(E.semanas);
+      rehaceMenuCompra(c); salva(); refrescaCompra(); abrirMenuCompra(todo);
+      conDeshacer('Otro menú', () => { E.semanas = JSON.parse(antes); salva(); refrescaCompra(); abrirMenuCompra(todo); });
+    });
+    $('#mc-lista', h).addEventListener('click', () => { cierraHoja(); if (V.pestana !== 'compra') location.hash = 'compra'; else refrescaCompra(); });
   });
 }
 function lineaCompra() {
@@ -1601,6 +1694,7 @@ function vCompra() {
   $('#vista').innerHTML = `
     <section class="compra-cab" aria-label="La compra">
       <div class="compra-total"><b>${euros(total)}</b><span>${c ? `${cuandoCompra(c.f)} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</span></div>
+      ${c ? `<button class="boton suave" id="b-menu-compra">Ver el menú de estos días${etiquetaNuevo('menu-compra')}</button>` : ''}
       ${enLista ? `<div class="carro" role="progressbar" aria-label="En el carro" aria-valuemin="0" aria-valuemax="${enLista}" aria-valuenow="${comprados.length}"><i style="width:${Math.round(comprados.length / enLista * 100)}%"></i></div><span class="carro-n">${comprados.length} de ${enLista} en el carro</span>` : ''}
       ${tope ? `<span class="carro-n${total > tope ? ' pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</span>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}
     </section>
@@ -1654,6 +1748,7 @@ function vCompra() {
   $('#b-vaciar-pend')?.addEventListener('click', () => conVuelta('🧹 Pendientes vaciados', () => { E.pendientes.forEach(descarta); E.pendientes = []; }));
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
   $('#b-dia-compra')?.addEventListener('click', abrirDiaCompra);
+  $('#b-menu-compra')?.addEventListener('click', () => abrirMenuCompra());
   $('#b-proxima')?.addEventListener('click', abrirDiaCompra);
   $('#b-ticket')?.addEventListener('click', elegirTicket);
   $('#b-ver-ticket')?.addEventListener('click', () => hojaTicketLeido(s, filas));
@@ -2560,16 +2655,16 @@ function anadeACasa(items) {
 // ——— Recetas ———
 const FILTROS = [['todas', 'Todas'], ['cena', 'Cenas'], ['desayuno', 'Desayunos'], ['comida', 'Almuerzos'], ['antojos', 'Smoothies y postres'], ['favoritas', 'Favoritas'], ['rapidas', 'En 10 min'], ['vuestras', 'Vuestras']];
 function vRecetas() {
-  const todas = todasRecetas();
+  const todas = todasRecetas().filter(r => !r.retirada);
   cabecera('Recetas', `${todas.length} recetas`);
   const pregunta = V.busca.trim();
   const t = L.normaliza(pregunta).replace(/^(como se hace|como hago|como preparo|como se prepara|receta de|receta)\s+/, '').replace(/^(un|una|el|la|los|las)\s+/, '');
   const ocultas = todas.filter(r => !sePuedeHacer(r)).length, sinAp = platosSinAparato(planActivo()).length, vos = L.QUIEN.length > 1;
-  const raras = todas.filter(r => noHabitual(r).length);
+  const raras = todas.filter(demasiadoNuevo);   // las que el menú no propone (17/11: con una o dos cosas nuevas, sí salen)
   const lista = todas.filter(r => {
     if (D.amiga && L.QUIEN.some(q => alergiaDe(r, perfiles()[q]).length)) return false;   // alergias: nunca
     if (!V.verOcultas && !sePuedeHacer(r)) return false;   // lo que no se puede hacer con esta cocina, solo si se pide
-    if (!V.verRaras && !t && noHabitual(r).length) return false;   // lo que lleva cosas que no compráis: si se pide o se busca
+    if (!V.verRaras && !t && demasiadoNuevo(r)) return false;   // lo que lleva cosas que no compráis: si se pide o se busca
     if (t && !L.normaliza(r.n + ' ' + r.ing.map(i => D.productos[i[0]]?.n).join(' ') + ' ' + (r.otros || []).join(' ')).includes(t)) return false;
     const f = V.filtro;
     return f === 'todas' || (f === 'antojos' && (r.bebida || r.postre || r.batido)) || (f === 'favoritas' && r.fav) || (f === 'vuestras' && r.propia) || r.tipo.includes(f) || r.ap === f || (f === 'rapidas' && r.min <= 10);
@@ -2818,8 +2913,10 @@ function creaPlan(inicio, n) {
 // Recetas que puede comer toda la casa: sin alergias (regla fija), con su forma de comer, sin lo que no le gusta a nadie,
 // con los aparatos que tienen y en el tiempo que tienen.
 function aptaCasa(r, qs = L.QUIEN) {
+  if (r.retirada) return false;   // del recetario de antes del 17/11: solo para enseñar lo ya comido
+  if (r.chef && !r.fav) return false;   // las que inventó el Chef un día (con la nevera vacía), solo si las marcáis como favoritas o las elegís en «Cambiar»
   if (!gustaA(r, qs) || !sePuedeHacer(r)) return false;   // lo que no gusta y lo que no se puede hacer con la cocina de casa
-  if (noHabitual(r).length) return false;   // lleva algo que no compráis (merluza, claras…)
+  if (demasiadoNuevo(r)) return false;   // lleva varias cosas que no compráis, o pescado que no compráis (merluza, salmón…)
   if (!D.amiga) return true;
   const per = perfiles();
   for (const q of qs) { const x = per[q]; if (x && (alergiaDe(r, x).length || !dietaOk(r, x.dieta))) return false; }
@@ -2850,6 +2947,11 @@ function habituales() {
 }
 // Lo que lleva una receta y no soléis comprar (sin contar especias, aceite ni adornos fijos de 15 g o menos). Las vuestras, siempre valen.
 const noHabitual = r => { const h = habituales(); return !h || !r || r.propia ? [] : r.ing.filter(i => !h.has(i[0]) && !infinito(i[0]) && !(i[2] === '1' && i[1] <= 15)).map(i => i[0]); };
+// Algo nuevo de vez en cuando, sí (17/11: «recetas novedosas… con productos de Mercadona»): una receta puede llevar hasta DOS productos que
+// no compráis (irán a la lista; lo de despensa, como el tomate triturado o el caldo, no cuenta). Con más, o con pescado que no compráis (comen
+// poco pescado: salmón, merluza), no se propone. Cuántas recetas nuevas entran por semana lo limita la puntuación del menú (logica.js).
+const PESCADO_NUEVO = ['salmon', 'merluza', 'bacalao', 'dorada', 'lubina'];
+const demasiadoNuevo = r => { const nh = noHabitual(r); return nh.length > 2 || nh.some(k => PESCADO_NUEVO.includes(k)); };
 const recetasAptas = () => Object.fromEntries(Object.entries(recetas).filter(([, r]) => aptaCasa(r) || (typeof r.almuerzo === 'string' && aptaCasa(r, [r.almuerzo]))));   // el almuerzo de uno solo: basta con que le guste a él
 const alergenosReceta = r => [...new Set(r.ing.flatMap(i => D.productos[i[0]]?.al || []))];
 function alergiaDe(r, x) {
@@ -3291,7 +3393,7 @@ function recetasParaPregunta(texto, pe, h) {
   const ids = new Set(pe.dias.filter(d => d.f >= masDias(h, -1) && d.f <= masDias(h, 1)).flatMap(d => L.COMIDAS.flatMap(c => L.idsDe(d[c]))));
   const VACIAS = new Set(['con', 'de', 'del', 'la', 'el', 'los', 'las', 'y', 'en', 'al', 'a', 'receta', 'plancha', 'ensalada']);
   const t = L.normaliza([texto, ...(E.charla || []).slice(-2).map(c => c.q + ' ' + separaAcciones(c.r || '').texto)].join(' '));
-  for (const r of Object.values(recetas)) {
+  for (const r of Object.values(recetas).filter(r => !r.retirada)) {
     const palabras = L.normaliza(r.n).split(/[^a-z0-9ñ]+/).filter(w => w.length > 3 && !VACIAS.has(w));
     if (palabras.filter(w => t.includes(w)).length >= Math.min(2, palabras.length)) ids.add(r.id);
   }
@@ -3328,7 +3430,7 @@ function contextoParaClaude(texto = '') {
     menuSemanaEntera: planes().flatMap(pl => efectivo(pl).dias).filter(d => d.f >= masDias(h, -4) && d.f <= masDias(h, 8)).map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
     recetasCompletas: pideMucho(texto) ? [] : recetasParaPregunta(texto, pe, h).map(recetaParaChef),   // para un menú entero basta con la lista de recetas
     notasDeLaCasa: E.notasChef || [],   // lo que nos han dicho de sus costumbres: vale siempre
-    todasLasRecetas: Object.values(recetas).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${dietaOk(r, 'vegana') ? ' [vegana]' : dietaOk(r, 'vegetariana') ? ' [vegetariana]' : ''}${kcalProt(r)}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}${noHabitual(r).length ? ` [NO LO COMPRAN: ${noHabitual(r).map(nombreFalta).join(', ')}]` : ''}`),
+    todasLasRecetas: Object.values(recetas).filter(r => !r.retirada).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${dietaOk(r, 'vegana') ? ' [vegana]' : dietaOk(r, 'vegetariana') ? ' [vegetariana]' : ''}${kcalProt(r)}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}${noHabitual(r).length ? ` [NO LO COMPRAN: ${noHabitual(r).map(nombreFalta).join(', ')}]` : ''}`),
     loQueSuelenComprar: habituales() ? [...habituales()].filter(k => D.productos[k] && !infinito(k)).map(k => nombreCorto(D.productos[k])) : null,   // de sus tickets: el menú y la lista, con esto
     productosDeLaApp: Object.values(D.productos).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
     conversacionReciente: (E.charla || []).filter(c => c.r).slice(-5).map(c => { const { texto: t, acciones } = separaAcciones(c.r); return { pregunta: c.q.slice(0, 400), respuesta: t.slice(0, 600) + (acciones.length ? ` [botones: ${acciones.map(a => a.tipo).join(', ')}${(c.hechas || []).length ? '; pulsados' : ''}]` : '') }; }),
@@ -3388,7 +3490,7 @@ function rehaceConLoQueHay() {
   const pool = Object.fromEntries(Object.values(recetas).filter(r => aptaCasa(r) && !alcanza(necesita(r, L.QUIEN, true), hayEnCasa()).length).map(r => [r.id, r]));
   const base = { ...pe, dias: pe.dias.map(d => { const x = { ...d }; for (const c of L.COMIDAS) if (d.f < h || s.hechos[d.f + '|' + c]) x[c] = d[c]; else if (!(d[c] && (d[c].fuera || d[c].libre))) x[c] = null; return x; }) };
   const fijas = Object.fromEntries(base.dias.flatMap(d => L.COMIDAS.flatMap(c => L.idsDe(d[c]))).filter(id => recetas[id]).map(id => [id, recetas[id]]));   // las que se quedan (pasado, comido)
-  const nuevo = L.proponerSemana(base, { ...fijas, ...pool }, D.productos, fac, obj.G, semillaDe(h + 'rehacer'), null, h);
+  const nuevo = L.proponerSemana(base, { ...fijas, ...pool }, D.productos, fac, obj.G, semillaDe(h + 'rehacer'), null, h, pool);
   let n = 0;
   nuevo.dias.forEach((d, i) => { if (d.f < h) return; for (const c of L.COMIDAS) { if (s.hechos[d.f + '|' + c] || JSON.stringify(d[c]) === JSON.stringify(pe.dias[i][c]) || !d[c]) continue; s.cambios[d.f + '|' + c] = d[c]; n++; } });
   return n;
@@ -3410,7 +3512,7 @@ function recetaDelChef(a) {
 // El Chef a veces nombra la receta en vez de dar su id.
 function recetaPorNombre(n) {
   const t = String(n || ''); if (!t) return null;
-  const orden = Object.values(recetas).map(r => [L.parecido(r.n, t), r.id]).sort((a, b) => b[0] - a[0]);
+  const orden = Object.values(recetas).filter(r => !r.retirada).map(r => [L.parecido(r.n, t), r.id]).sort((a, b) => b[0] - a[0]);
   return orden[0] && orden[0][0] >= 0.55 && orden[0][0] - (orden[1]?.[0] || 0) >= 0.1 ? orden[0][1] : null;   // claro el primero: si dudo, no lo pongo
 }
 // «Canela molida», «pimentón dulce»: lo que siempre tenéis (especias, vuestra salsa) no se pide aunque venga escrito.
