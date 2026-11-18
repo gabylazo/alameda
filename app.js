@@ -4387,6 +4387,7 @@ function cenaHoy5(p, d) {
     const titulo = vc?.fuera ? `${d.f === hoy() ? 'Hoy' : 'Este día'} ${vos ? 'cenáis' : 'cenas'} fuera` : inventando ? `El Chef está inventando la cena${conQue}…` : vc?.libre ? esc(vc.libre) : 'Cena sin elegir';
     return `<section class="n-bloque n-cena n-comida-cena" aria-labelledby="t-cena">${cab}<div class="n-fuera">${titulo}</div>
       <div class="n-acciones">${vc?.fuera ? `<button type="button" class="n-pastilla" data-hoy-acc="fuera">${vos ? 'Cenamos' : 'Ceno'} en casa</button>`
+        : vc?.libre && !inventando ? `${circ('cambiar', 'Cambiar la cena', NI.cambiar)}${circ('hecho', 'Cena hecha', NI.check, hecha)}`   // ya decidida (18/11: el día de compra, comida preparada): sin «Elegir la cena»
         : `<button type="button" class="n-pastilla" data-hoy-acc="cambiar">${NI.cambiar}Elegir la cena</button>${circ('antojo', 'Tengo un antojo', NI.chispas)}${circ('mas', 'Más opciones de la cena', NI.mas)}`}</div></section>`;
   }
   const cc = compraElegida(), seCompra = cc && d.f >= cc.f && d.f <= cc.hasta;   // lo de los días de la compra que viene aún no está en casa: se va a comprar
@@ -4440,7 +4441,7 @@ function comidasHoy5(p, d) {
   }).join('');
 }
 // El antojo, a la vista (18/11: «las funciones de antojos o comidas con x ingredientes se quedan, que aparezcan en el principal»).
-const antojoHoy5 = d => d.f < hoy() || d.cena?.fuera ? '' : `<section class="n-bloque n-antojo-hoy" aria-label="Antojo"><ul class="n-filas"><li class="n-fila"><button type="button" class="n-fila-abre" data-hoy-acc="antojo"><span class="n-min-ic">${NI.chispas}</span><span class="n-txt"><b>¿${L.QUIEN.length > 1 ? 'Os' : 'Te'} apetece algo?</b><span>Elige ingredientes y te propongo la cena${d.f === hoy() ? '' : ' de ese día'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li></ul></section>`;
+const antojoHoy5 = d => d.f < hoy() || d.cena?.fuera || d.cena?.libre ? '' : `<section class="n-bloque n-antojo-hoy" aria-label="Antojo"><ul class="n-filas"><li class="n-fila"><button type="button" class="n-fila-abre" data-hoy-acc="antojo"><span class="n-min-ic">${NI.chispas}</span><span class="n-txt"><b>¿${L.QUIEN.length > 1 ? 'Os' : 'Te'} apetece algo?</b><span>Elige ingredientes y te propongo la cena${d.f === hoy() ? '' : ' de ese día'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li></ul></section>`;
 // Las cenas de la semana: de ayer a 6 días; cada tarjeta lleva a ese día arriba.
 function semanaHoy5() {
   const items = [], h = hoy();
