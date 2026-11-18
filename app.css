@@ -1332,3 +1332,19 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 #b-antojo-cambiar { margin: 10px 0 4px; }
 .tarjeta.antojo-rec { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
 .tarjeta.antojo-rec .nota { margin: 0; }
+/* ——— Tiendas y antojos de la semana (18/11) ——— */
+.cat-tienda { margin-top: 34px; }
+.chip.chip-tienda { flex: 0 0 auto; min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 600; background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
+.fila-tienda-lista .fav:first-child { padding-top: 0; }
+.fila-tienda-lista .fav:last-child { padding-bottom: 0; }
+.fila-tienda .icono { flex: 0 0 auto; }
+.tienda-otra { display: flex; gap: 8px; align-items: center; }
+.tienda-otra .campo-texto { flex: 1; min-width: 0; }
+/* Lo elegido: una sola pastilla con el nombre (tocar cambia cuántas cenas) y su × */
+.ant-sel { display: inline-flex; align-items: center; border-radius: 999px; background: var(--acento-suave); color: var(--acento); }
+.ant-sel .chip { border: 0; background: none; color: inherit; font-weight: 600; padding-right: 4px; min-height: 44px; }
+.chip-x { min-width: 40px; min-height: 44px; border: 0; background: none; color: inherit; font-size: 22px; line-height: 1; cursor: pointer; border-radius: 0 999px 999px 0; }
+.mc-chef { margin: -2px 4px 6px; }
+.opcional { color: var(--suave); font-weight: 400; }
+.tarjeta.antojos-semana { margin: 12px 0 4px; }
+.tarjeta.antojos-semana .nota { display: block; margin-top: 2px; }

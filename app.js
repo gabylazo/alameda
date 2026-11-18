@@ -43,6 +43,51 @@ const idCasa = async c => [...new Uint8Array(await crypto.subtle.digest('SHA-256
 const SUPERS = [['mercadona', 'Mercadona'], ['lidl', 'Lidl'], ['dia', 'Dia'], ['carrefour', 'Carrefour'], ['otro', 'Otro']];
 const nombreSuper = () => (SUPERS.find(([k]) => k === (E.super || 'mercadona')) || SUPERS[0])[1];
 const esMercadona = () => !E.super || E.super === 'mercadona';
+// Tiendas (18/11/2026: «quiero comprar en Mercadona como siempre, pero los frijoles Goya creo que se compran en el Lidl… si no hay un
+// ingrediente en Mercadona, ¿cómo sabe la app dónde comprarlo?»). El súper de la casa es el principal. Lo que no vende (productos «fuera»)
+// o lo que digáis que compráis en otro sitio va a esa tienda, y la app lo recuerda por producto: E.tiendas = {clave: {t, n}}.
+const TIENDAS = [['mercadona', 'Mercadona'], ['lidl', 'Lidl'], ['carrefour', 'Carrefour'], ['dia', 'Dia'], ['aldi', 'Aldi'], ['alcampo', 'Alcampo'], ['eroski', 'Eroski'],
+  ['latina', 'Tienda latina'], ['asiatica', 'Tienda asiática'], ['fruteria', 'Frutería']];
+const principal = () => E.super || 'mercadona';
+const nombreTienda = t => (TIENDAS.find(([k]) => k === t) || SUPERS.find(([k]) => k === t) || [0, t ? String(t).charAt(0).toUpperCase() + String(t).slice(1) : 'Otra tienda'])[1];
+const tiendaDeNombre = n => { const b = L.normaliza(n); return (TIENDAS.find(([k, x]) => k === b || L.normaliza(x) === b) || [String(n).trim().slice(0, 30)])[0]; };
+// «200 g de frijoles colorados» → «frijoles colorados»: lo escrito, sin cantidades, para reconocerlo en la lista.
+const limpiaCompra = t => L.normaliza(String(t || '')).replace(/\b(al gusto|una pizca de|un poco de|pizca de|un chorrito de)\b/g, '')
+  .replace(/^[\d.,/½¼]+\s*(g|gr|gramos|ml|kg|l|ud|uds|unidad(es)?|cucharadas?|cucharaditas?|tazas?|latas?|botes?|dientes?|punados?|pizcas?|chorritos?|rodajas?|hojas?|ramitas?|paquetes?)?\s*(de\s+)?/, '').trim();
+const claveTienda = f => f.k ? 'k:' + f.k : f.m ? 'm:' + f.m.id : 't:' + limpiaCompra(f.texto || f.n);
+// Dónde se compra una fila: lo que dijisteis; si no, el súper de la casa; null = no lo vende Mercadona y no sé dónde lo compráis.
+function tiendaDe(f) {
+  const ts = E.tiendas || {}, c = claveTienda(f);
+  if (ts[c]) return ts[c].t;
+  if (f.k) return D.productos[f.k]?.fuera ? null : principal();
+  if (f.m) return principal();
+  const b = c.slice(2), k = b && productoDe(b);
+  if (k && D.productos[k]) return ts['k:' + k]?.t || (D.productos[k].fuera ? null : principal());
+  const x = Object.entries(ts).find(([y]) => y.startsWith('t:') && L.parecido(y.slice(2), b) >= 0.85);
+  return x ? x[1].t : principal();
+}
+function recuerdaTienda(f, t) {
+  E.tiendas ||= {};
+  const c = claveTienda(f), fuera = !!(f.k && D.productos[f.k]?.fuera);
+  if (t === principal() && !fuera) delete E.tiendas[c];
+  else E.tiendas[c] = { t, n: f.k ? nombreCorto(D.productos[f.k]) : f.m ? f.m.n : capital(String(f.texto || f.n || '').trim()).slice(0, 60) };
+  if (t !== principal() && !TIENDAS.some(([k]) => k === t) && !(E.otrasTiendas || []).includes(t)) E.otrasTiendas = [...(E.otrasTiendas || []), t];
+}
+const sinTienda = () => esMercadona() ? 'No está en Mercadona' : '¿Dónde lo compráis?';
+const pillTienda = f => { const t = tiendaDe(f); return t && t !== principal() ? ` <span class="pill">${esc(nombreTienda(t))}</span>` : ''; };
+// «¿Dónde compráis esto?»: las tiendas de la casa primero; también una que se escriba.
+function abrirTienda(f) {
+  if (!f) return;
+  const n = nombreFila(f), ya = f.tienda === undefined ? tiendaDe(f) : f.tienda, pri = principal(), fuera = !!(f.k && D.productos[f.k]?.fuera);
+  const ops = [...new Set([pri, ...(E.otrasTiendas || []), ...TIENDAS.map(([k]) => k)])].filter(t => !(fuera && t === 'mercadona'));
+  hoja(`<h2>¿Dónde ${L.QUIEN.length > 1 ? 'lo compráis' : 'lo compras'}?</h2><p class="nota">${esc(n)}${fuera ? ` no está en ${esc(nombreTienda('mercadona'))}` : ''}. Lo recuerdo para las próximas compras.</p>
+    <div class="botones" style="margin:12px 0">${ops.map(t => `<button type="button" class="chip" data-tienda="${esc(t)}" aria-pressed="${t === ya}">${esc(nombreTienda(t))}</button>`).join('')}</div>
+    <form class="tienda-otra" id="f-tienda"><input class="campo-texto" id="i-tienda" placeholder="Otra: la frutería, una tienda latina…" aria-label="Otra tienda" autocomplete="off"><button class="boton">Usar</button></form>`, h => {
+    const fija = t => { recuerdaTienda(f, t); salva(); cierraHoja(); refrescaCompra(); tostada(t === pri ? `${n}: en ${nombreTienda(t)}` : `${n}: en ${nombreTienda(t)}. Lo recuerdo`); };
+    $$('[data-tienda]', h).forEach(b => b.addEventListener('click', () => fija(b.dataset.tienda)));
+    $('#f-tienda', h).addEventListener('submit', e => { e.preventDefault(); const t = $('#i-tienda', h).value.trim(); if (t) fija(tiendaDeNombre(t)); });
+  });
+}
 
 // ——— Fechas ———
 const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -119,6 +164,9 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'antojos-semana', fecha: '2026-11-18', emo: '', titulo: 'Antojos de la semana', texto: 'Al elegir el día de la compra, di lo que os apetece esos días: una cocina (comida cubana, italiana…), un plato o un ingrediente, y cuántas cenas. El menú de la compra lo incluye y la lista sale de ese menú. Si no hay receta, el Chef la crea y se pone sola.', ir: 'compra', foco: '#b-dia-compra' },
+  { id: 'tiendas', fecha: '2026-11-18', emo: '', titulo: 'Compra en varias tiendas', texto: 'Lo que no vende vuestro súper sale aparte en la lista, con su tienda. Toca «¿Dónde?» o ⋯ → «Se compra en otra tienda» y la app lo recuerda para las próximas compras. En Ajustes, en vuestro súper, las otras tiendas donde compráis.', ir: 'compra', foco: '#b-anadir' },
+  { id: 'cubanas', fecha: '2026-11-18', emo: '', titulo: 'Comida cubana', texto: 'Recetas nuevas: frijoles negros con arroz blanco, maduros y pollo; congrí con lomo al mojo y aguacate; ropa vieja de pollo; bistec encebollado con chicharritas al air fryer; y ensalada de aguacate a la cubana. El plátano macho está en Mercadona; los frijoles Goya, en la tienda que digáis.', ir: 'recetas', foco: '.rec-busca' },
   { id: 'antojo', fecha: '2026-11-18', emo: '', titulo: 'Tengo un antojo', texto: 'Elige lo que te apetece comer sí o sí (filetes de cerdo y patatas, pasta con gambas…) y te propongo la cena que lo lleva, primero las que salen con lo de casa. La pones en el día que quieras y lo que falte va a la compra. Si ninguna convence, el Chef se inventa una con eso. Está en la cena de Hoy («Antojo»), en «Cambiar», en Recetas y en el Chef.', ir: 'hoy', foco: '[data-hoy-acc=antojo]' },
   { id: 'recetas-lupa', fecha: '2026-11-18', emo: '', titulo: 'Recetas: busca con la lupa', texto: 'Fuera la fila de tipos. Escribe en la lupa («air fryer», «pollo», «cena», «10 minutos») y elige entre lo que sale. Lo elegido se queda arriba y se quita con la ×. También «Con lo que tenéis en casa».', ir: 'recetas', foco: '.rec-busca' },
   { id: 'no-habia', fecha: '2026-11-18', emo: '', titulo: 'Compra: «no había» y «no lo compro»', texto: 'Cada producto tiene sus tres puntos: «No había» lo apunta para otro día y te propone otra cosa; «No lo compro» lo saca de la lista.', ir: 'compra', foco: '.fila-mas' },
@@ -1157,7 +1205,7 @@ async function inventaAntojo(f, nombres) {
 }
 // La receta que se ha inventado el Chef se guarda y se pone sola (en el móvil que la pidió), con Deshacer.
 function aplicaInvento(c) {
-  const acciones = separaAcciones(c.r).acciones, i = acciones.findIndex(a => ['receta', 'cambiar', 'menu'].includes(a.tipo));
+  const acciones = separaAcciones(c.r).acciones, i = acciones.findIndex(a => ['receta', 'cambiar', 'menu', 'plan'].includes(a.tipo));
   if (i < 0 || (c.hechas || []).includes(i)) return;
   const antes = fotoMenu(), ids = new Set((E.propias || []).map(r => r.id));
   const hecho = haceAccion(acciones[i]); if (!hecho) return;
@@ -1616,31 +1664,65 @@ const diaCorto = f => { const d = fecha(f); return `${DS[d.getDay()]} ${d.getDat
 const diaChip = f => f === hoy() ? 'Hoy ' + diaCorto(f) : f === masDias(hoy(), 1) ? 'Mañana ' + diaCorto(f) : capital(diaCorto(f));
 const cuandoCompra = f => f === hoy() ? 'hoy, ' + diaCorto(f) : f === masDias(hoy(), 1) ? 'mañana, ' + diaCorto(f) : 'el ' + diaCorto(f);
 function abrirDiaCompra() {
-  const h = hoy(), c = compraElegida();
-  let f = c?.f || h, n = c ? Math.round((fecha(c.hasta) - fecha(c.f)) / 864e5) + 1 : 7;
+  const h = hoy(), c = compraElegida(), vos = L.QUIEN.length > 1;
+  let f = c?.f || h, n = c ? Math.round((fecha(c.hasta) - fecha(c.f)) / 864e5) + 1 : 7, busca = '', vistas = [];
   const dias = Array.from({ length: 8 }, (_, i) => masDias(h, i));
+  // Lo que apetece esos días: cocinas, vuestras favoritas, ingredientes y platos (cenas que podéis comer, aunque lleven algo que no compráis).
+  const todas = todasRecetas().filter(r => aptaCasa(r, L.QUIEN, true)), txt = new Map(todas.map(r => [r.id, textoBusca(r)])), cenas = todas.filter(esCenaR);
+  const cuenta = o => cenas.filter(r => o.test(r, txt.get(r.id))).length;
+  const OPS = [...COCINAS.map(x => ({ ...opcionSemana({ t: x.t, cocina: x.k }), g: 'Cocinas' })),
+    ...cenas.filter(r => r.fav).map(r => ({ ...opcionSemana({ t: r.n, receta: r.id }), g: vos ? 'Vuestras favoritas' : 'Tus favoritas' })),
+    ...opcionesAntojo().map(o => ({ ...o, g: 'Ingredientes' })),
+    ...cenas.filter(r => !r.fav).map(r => ({ ...opcionSemana({ t: r.n, receta: r.id }), g: 'Platos' }))]
+    .map(o => ({ ...o, n: o.receta ? 1 : cuenta(o) })).filter(o => o.cocina ? o.n >= 2 : o.n);
+  const sel = (c?.antojos || []).map(opcionSemana);
+  const pintaAnt = hj => {
+    $('#dc-ant-sel', hj).innerHTML = sel.map((o, i) => `<span class="ant-sel"><button type="button" class="chip rec-activo" data-ant-veces="${i}" aria-label="${esc(o.t)}: ${vecesTxt(o.veces || 1)}. Toca para cambiar cuántas">${esc(o.t)} · ${vecesTxt(o.veces || 1)}</button><button type="button" class="chip-x" data-ant-quita="${i}" aria-label="Quitar ${esc(o.t)}">×</button></span>`).join('');
+    const t = L.normaliza(busca.trim()), ya = new Set(sel.map(o => L.normaliza(o.t))), libre = o => !ya.has(L.normaliza(o.t));
+    let grupos;
+    if (t) { vistas = OPS.filter(o => libre(o) && L.normaliza(o.t).includes(t)).slice(0, 8); grupos = [...new Set(vistas.map(o => o.g))].map(g => [g, vistas.filter(o => o.g === g)]); }
+    else { const coc = OPS.filter(o => o.cocina && libre(o)), fav = OPS.filter(o => o.receta && o.g !== 'Platos' && libre(o)).slice(0, 4); vistas = [...coc, ...fav]; grupos = [['Ideas', coc], [fav[0]?.g, fav]]; }
+    $('#dc-ant-ops', hj).innerHTML = grupos.filter(([, xs]) => xs.length).map(([g, xs]) => `<div class="cat">${esc(g)}</div><div class="botones">${xs.map(o => `<button type="button" class="chip" data-ant-op="${vistas.indexOf(o)}">${esc(o.t)}</button>`).join('')}</div>`).join('')
+      || (t ? `<p class="nota">No hay recetas con «${esc(busca.trim())}». Pulsa Intro y el Chef crea una para esos días.</p>` : '');
+    $$('[data-ant-op]', hj).forEach(b => b.addEventListener('click', () => { const o = vistas[+b.dataset.antOp]; sel.push({ ...o, veces: o.cocina ? 2 : 1 }); busca = ''; $('#i-dc-ant', hj).value = ''; dibuja(hj); }));
+    $$('[data-ant-veces]', hj).forEach(b => b.addEventListener('click', () => { const o = sel[+b.dataset.antVeces]; o.veces = (o.veces || 1) % 3 + 1; dibuja(hj); }));
+    $$('[data-ant-quita]', hj).forEach(b => b.addEventListener('click', () => { sel.splice(+b.dataset.antQuita, 1); dibuja(hj); }));
+  };
   const dibuja = hj => {
     $('#dc-dias', hj).innerHTML = dias.map(x => `<button class="chip" data-dc-f="${x}" aria-pressed="${x === f}">${diaChip(x)}</button>`).join('');
     $('#dc-n', hj).innerHTML = [3, 4, 5, 6, 7, 10].map(x => `<button class="chip" data-dc-n="${x}" aria-pressed="${x === n}">${x} días</button>`).join('');
-    $('#dc-res', hj).textContent = `Lista para comer del ${diaCorto(f)} al ${diaCorto(masDias(f, n - 1))}, más lo que se acabó en casa y lo que añadáis.`;
+    $('#dc-res', hj).textContent = `Menú y lista para comer del ${diaCorto(f)} al ${diaCorto(masDias(f, n - 1))}${sel.length ? `, con ${yJunta(sel.map(o => minus(o.t)))}` : ''}, más lo que se acabó en casa y lo que añadáis.`;
     $$('[data-dc-f]', hj).forEach(b => b.addEventListener('click', () => { f = b.dataset.dcF; dibuja(hj); }));
     $$('[data-dc-n]', hj).forEach(b => b.addEventListener('click', () => { n = +b.dataset.dcN; dibuja(hj); }));
+    pintaAnt(hj);
   };
   hoja(`<h2>Día de la compra</h2><div class="nota">¿Qué día vais?</div><div class="botones" id="dc-dias" style="margin:8px 0 14px"></div>
     <div class="nota">¿Para cuántos días?</div><div class="botones" id="dc-n" style="margin:8px 0 14px"></div>
-    <p class="nota" id="dc-res"></p><button class="boton principal ancho" id="dc-ok" style="margin-top:10px">Hacer la lista</button>`, hj => {
+    <div class="nota">¿${vos ? 'Os' : 'Te'} apetece algo estos días? <span class="opcional">(opcional)</span>${etiquetaNuevo('antojos-semana')}</div>
+    <div id="dc-ant-sel" class="rec-activos" style="margin-top:8px"></div>
+    <div class="buscador antojo-busca">${I.buscar}<input id="i-dc-ant" type="search" placeholder="Comida cubana, pasta, lentejas…" aria-label="Lo que ${vos ? 'os' : 'te'} apetece estos días" autocomplete="off" enterkeyhint="done"></div>
+    <div id="dc-ant-ops" class="antojo-ops"></div>
+    <p class="nota" id="dc-res" style="margin-top:14px"></p><button class="boton principal ancho" id="dc-ok" style="margin-top:10px">Hacer el menú y la lista</button>`, hj => {
     dibuja(hj);
+    const inp = $('#i-dc-ant', hj);
+    inp.addEventListener('input', () => { busca = inp.value; pintaAnt(hj); });
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.isComposing || !busca.trim()) return;
+      e.preventDefault(); const o = vistas[0] || opcionSemana({ t: capital(busca.trim()) }); sel.push({ ...o, veces: o.cocina ? 2 : 1 }); busca = ''; inp.value = ''; dibuja(hj);
+    });
     $('#dc-ok', hj).addEventListener('click', () => {
-      const antes = JSON.stringify({ dc: E.diaCompra ?? null, planes: E.planes, semanas: E.semanas }), previa = planCompra();
-      E.diaCompra = { f, hasta: masDias(f, n - 1), t: ahora() };
+      const antes = JSON.stringify({ dc: E.diaCompra ?? null, planes: E.planes, semanas: E.semanas, inv: E.inventos || {} }), previa = planCompra();
+      if (E.diaCompra) anulaInvento(E.diaCompra.f + '|semana');   // lo que el Chef creaba para los antojos de antes ya no se pone
+      E.diaCompra = { f, hasta: masDias(f, n - 1), t: ahora(), puestos: E.diaCompra?.puestos || {}, ...(sel.length ? { antojos: sel.map(guardaAntojo) } : {}) };
       aseguraPlanes(E.diaCompra.hasta);
-      rehaceMenuCompra(E.diaCompra, semillaDe(f + n + 'menu'));   // primero el menú de esos días (17/11), y la lista sale de él
+      rehaceMenuCompra(E.diaCompra, semillaDe(f + n + 'menu' + sel.map(o => o.t + (o.veces || 1)).join('|')));   // primero el menú de esos días (17/11), con los antojos, y la lista sale de él
       // Propuesta nueva: vuelve lo que se quitó de la lista antes (hummus, champiñones…) si el menú lo pide; lo añadido a mano se queda.
       const s = est(planCompra().id); s.quitados = {}; s.menos = {}; s.despensaOculta = false; s.soleisOculto = false;
       const a = est(previa.id);   // lo añadido a mano en la lista de antes viene a esta
       if (previa.id !== planCompra().id && !a.compraHecha) { s.extra = [...s.extra, ...a.extra]; s.recetasLista = [...s.recetasLista, ...a.recetasLista]; a.extra = []; a.recetasLista = []; }
+      if (E.diaCompra.chef?.length) pideAntojosChef(E.diaCompra);   // antes de abrir el menú: así enseña lo que el Chef está creando
       salva(); refrescaCompra(); abrirMenuCompra();
-      conDeshacer(`Menú y lista hasta el ${diaCorto(E.diaCompra.hasta)}`, () => { const a = JSON.parse(antes); if (a.dc) E.diaCompra = a.dc; else delete E.diaCompra; E.planes = a.planes; E.semanas = a.semanas; salva(); cierraHoja(); refrescaCompra(); });
+      conDeshacer(`Menú y lista hasta el ${diaCorto(E.diaCompra.hasta)}`, () => { anulaInvento(E.diaCompra.f + '|semana'); const a = JSON.parse(antes); if (a.dc) E.diaCompra = a.dc; else delete E.diaCompra; E.planes = a.planes; E.semanas = a.semanas; E.inventos = a.inv; salva(); cierraHoja(); refrescaCompra(); });
     });
   });
 }
@@ -1649,6 +1731,9 @@ function abrirDiaCompra() {
 // y la cena que se inventó el Chef. Sin mirar la Nevera como límite (se va a comprar), pero gastando primero lo que hay (L.PREF.casa).
 function rehaceMenuCompra(c, semilla = Date.now(), estreno = false) {
   const desde = [c.f, hoy()].sort().at(-1), pool = recetasAptas();
+  // Lo que puso un antojo de la semana se vuelve a proponer: si cambiáis los antojos, no se queda lo de antes.
+  for (const k of Object.keys(c.puestos || {})) { const pl = planes().find(x => x.dias.some(d => d.f === k.slice(0, 10))), el = pl && est(pl.id).elegidos; if (el?.[k] === 'antojo') delete el[k]; }
+  c.puestos = {};
   // Todos los días de la compra en un solo menú, aunque crucen de semana: así no se repite plato al pasar de una semana a la otra.
   const de = {}, dias = [];
   for (const pl of planes().filter(x => x.dias.at(-1).f >= desde && x.dias[0].f <= c.hasta))
@@ -1663,14 +1748,88 @@ function rehaceMenuCompra(c, semilla = Date.now(), estreno = false) {
   const nuevo = L.proponerSemana(pe, { ...usadas, ...pool }, D.productos, fac, obj.G, semilla, null, desde, pool);
   let n = 0;
   nuevo.dias.forEach((d, i) => { for (const cc of L.COMIDAS) { if (fijo(dias[i], cc) || !d[cc] || JSON.stringify(d[cc]) === JSON.stringify(dias[i][cc])) continue; est(de[d.f].id).cambios[d.f + '|' + cc] = d[cc]; n++; } });
+  if (!estreno && c.antojos?.length) n += ponAntojosSemana(c, semilla, desde);
   return n;
+}
+// ——— Antojos de la semana (18/11: «mañana vamos a hacer la compra… me apetece que en la semana haya alguna comida cubana, con frijoles,
+// platanito maduro frito, chicharritas, aguacate, arroz blanco, congrí… que lo tenga en cuenta para la compra y para el menú») ———
+// Al elegir el día de compra se dice lo que apetece esos días (una cocina, un plato o un ingrediente) y cuántas cenas. Van en cenas
+// repartidas, con la ensalada de esa cocina si la hay; la lista sale de ese menú. Lo que no está en el recetario lo crea el Chef
+// («Antojos de la semana:» en agente.md) y se pone solo.
+const COCINAS = [
+  { k: 'cubana', t: 'Comida cubana', test: r => r.cocina === 'cubana' || /cuban/.test(L.normaliza(r.n)) },
+  { k: 'mexicana', t: 'Comida mexicana', re: /burrito|taco|fajita|chilaquil|quesadilla|enchilada|nacho|mexican/ },
+  { k: 'asiatica', t: 'Comida asiática', re: /bulgogi|pad kra|teriyaki|\bwok\b|curry|ramen|sushi|poke|okonomiyaki|tailand|corean|japones|thai|katsu|gyoza|yakisoba|tikka|tandoori|satay/ },
+  { k: 'italiana', t: 'Comida italiana', re: /pasta|macarron|espagueti|noqui|lasana|risotto|toscana|carbonara|pizza|pesto|bolones|parmesan/ },
+  { k: 'espanola', t: 'Comida española', re: /tortilla de patata|gazpacho|salmorejo|al ajillo|pisto|lentejas|potaje|fabada|cocido|bravas/ },
+];
+const esCenaR = r => (r.tipo0 || r.tipo).includes('cena') && !r.soloEnsalada;
+function opcionSemana(x) {
+  if (x.cocina) { const c = COCINAS.find(y => y.k === x.cocina); return { ...x, test: r => !!c && (c.test ? c.test(r) : c.re.test(L.normaliza(r.n))) }; }
+  if (x.receta) return { ...x, test: r => r.id === x.receta };
+  return opcionAntojo(x);
+}
+const guardaAntojo = ({ test, n, g, casa, ...x }) => x;
+const vecesTxt = v => v === 1 ? '1 cena' : `${v} cenas`;
+function ponAntojosSemana(c, semilla, desde) {
+  const todas = todasRecetas().filter(r => aptaCasa(r, L.QUIEN, true)), txt = new Map(todas.map(r => [r.id, textoBusca(r)]));
+  // Las cenas libres de la compra: sin comer, no fuera, no elegidas a mano ni inventadas por el Chef.
+  const libres = [];
+  for (const pl of planes()) for (const d of efectivo(pl).dias) {
+    const s = est(pl.id), k = d.f + '|cena';
+    if (d.f < desde || d.f > c.hasta || libres.includes(d.f) || s.hechos[k] || d.cena?.fuera || d.cena?.libre || (s.elegidos || {})[k] || (E.inventos || {})[k]?.id) continue;
+    libres.push(d.f);
+  }
+  libres.sort();
+  // Uno de cada antojo por turno (cubana, pasta, cubana…) y en días repartidos, no seguidos.
+  const rr = []; for (let i = 0; i < 3; i++) for (const a of c.antojos) if ((a.veces || 1) > i) rr.push(a);
+  const m = Math.min(rr.length, libres.length), paso = libres.length / (m || 1);
+  const diasA = Array.from({ length: m }, (_, i) => libres[Math.min(libres.length - 1, Math.floor(i * paso + paso / 2))]);
+  const usados = new Set(), chef = [], conBol = L.COMIDAS.includes('bol');
+  const marca = (f, cc, t, id) => { const pl = planes().find(x => x.dias.some(d => d.f === f)); (est(pl.id).elegidos ||= {})[f + '|' + cc] = 'antojo'; c.puestos[f + '|' + cc] = { t, id }; };
+  let n = 0;
+  rr.slice(0, m).forEach((a, j) => {
+    const o = opcionSemana(a), f = diasA[j];
+    const r = todas.filter(x => esCenaR(x) && !usados.has(x.id) && o.test(x, txt.get(x.id)))
+      .sort((x, y) => !!y.fav - !!x.fav || semillaDe(x.id + semilla) - semillaDe(y.id + semilla))[0];
+    if (!r) { chef.push({ t: a.t, f }); return; }
+    if (!ponPlato({ dia: f, comida: 'cena', receta: r.id })) return;
+    marca(f, 'cena', a.t, r.id); usados.add(r.id); n++;
+    if (conBol && a.cocina) {   // la ensalada de esa noche, de la misma cocina si la hay (la de aguacate con la comida cubana)
+      const b = todas.find(x => (x.tipo0 || x.tipo).includes('bol') && !usados.has(x.id) && o.test(x, txt.get(x.id)));
+      if (b && ponPlato({ dia: f, comida: 'bol', receta: b.id })) { marca(f, 'bol', a.t, b.id); usados.add(b.id); }
+    }
+  });
+  c.chef = chef;
+  return n;
+}
+// Lo que no hay en el recetario se lo pido al Chef: crea las recetas y las pone esos días (acción «plan», que se aplica sola en este móvil).
+async function pideAntojosChef(c) {
+  const k = c.f + '|semana', items = c.chef || [];
+  if (!items.length || !servidor()) return;
+  anulaInvento(k);
+  E.inventos = Object.fromEntries(Object.entries(E.inventos || {}).filter(([x]) => x >= masDias(hoy(), -14)));
+  const grupos = [...new Set(items.map(x => x.t))].map(t => [t, items.filter(x => x.t === t).map(x => x.f)]);   // «sushi» dos noches: una petición
+  E.inventos[k] = { t: new Date().toISOString(), por: MOVIL, antojo: grupos.map(([t]) => t) }; salva();
+  const que = grupos.map(([t, fs]) => `«${t}» para ${fs.length > 1 ? 'las cenas' : 'la cena'} ${yJunta(fs.map(f => `del ${DL[fecha(f).getDay()]} ${f}`))}${fs.length > 1 ? ' (una receta distinta cada día)' : ''}`).join('; ');
+  tostada(`El Chef está creando ${yJunta(grupos.map(([t]) => minus(t)))}; se pondrá solo en el menú`);
+  try { E.inventos[k].id = await preguntaServidor(`Antojos de la semana: compramos ${c.f === hoy() ? 'hoy' : 'el ' + DL[fecha(c.f).getDay()]} (${c.f}) para hasta el ${c.hasta}. En el recetario no hay nada para esto y nos apetece: ${que}. Crea una receta para cada uno y ponlas en el menú esos días con un plan. Lo que no venda ${nombreSuper()}, ponlo en «comprar» con su tienda.`, true); salva(); }
+  catch (e) { delete E.inventos[k]; salva(); tostada('No llego al Chef: ' + e.message); }
 }
 function abrirMenuCompra(todo = false) {
   const c = compraElegida(); if (!c) return abrirDiaCompra();
   const comidas = todo ? L.COMIDAS : L.COMIDAS.filter(x => !L.DOBLES.includes(x));   // primero lo que decide la compra: cenas y ensaladas
   const dias = planes().flatMap(pl => efectivo(pl).dias.filter(d => d.f >= c.f && d.f <= c.hasta && d.f >= hoy()).map(d => ({ pl, d })));
+  const vos = L.QUIEN.length > 1, ant = c.antojos || [], inv = (E.inventos || {})[c.f + '|semana'];
+  const creando = inv && inv.por !== null && (!inv.id || (E.charla || []).some(x => x.id === inv.id && !x.r));
+  const puestos = Object.entries(c.puestos || {}).filter(([k]) => k.endsWith('|cena')).sort(([a], [b]) => a.localeCompare(b));
+  const detalleAnt = [...puestos.map(([k, x]) => `${capital(diaCorto(k.slice(0, 10)))}: ${esc(recetas[x.id]?.n || x.t)}`), ...(creando ? [`el Chef está creando ${esc(yJunta(inv.antojo.map(minus)))}`] : [])].join(' · ');
   hoja(`<h2>El menú de la compra</h2><div class="nota">Del ${diaCorto(c.f)} al ${diaCorto(c.hasta)}. Toca un plato para cambiarlo: la lista sale de este menú.</div>
-    ${dias.map(({ pl, d }) => `<div class="cat">${capital(diaChip(d.f))}</div><div class="hoy-plan">${filasDia(pl, d, comidas)}</div>`).join('')}
+    <div class="tarjeta pregunta antojos-semana"><div class="t"><b>${ant.length ? `Antojos: ${esc(yJunta(ant.map(a => minus(a.t))))}` : `¿${vos ? 'Os' : 'Te'} apetece algo estos días?`}</b>
+      <span class="nota">${ant.length ? detalleAnt || 'No quedan cenas libres para ponerlos' : 'Una cocina, un plato o un ingrediente: lo meto en el menú y en la lista'}</span></div>
+      <button class="boton" id="mc-antojos">${ant.length ? 'Cambiar' : 'Elegir'}</button></div>
+    ${dias.map(({ pl, d }) => { const ch = creando && (c.chef || []).find(x => x.f === d.f);
+      return `<div class="cat">${capital(diaChip(d.f))}</div>${ch ? `<p class="nota mc-chef">El Chef está creando «${esc(ch.t)}» para esta cena: se pondrá sola.</p>` : ''}<div class="hoy-plan">${filasDia(pl, d, comidas)}</div>`; }).join('')}
     <button class="boton suave ancho" id="mc-todo" style="margin-top:10px">${todo ? 'Solo cenas y ensaladas' : 'Ver también desayunos y meriendas'}</button>
     <div class="botones" style="margin-top:12px"><button class="boton" id="mc-otro">Proponer otro menú</button><button class="boton principal" id="mc-lista">Hacer la lista</button></div>`, h => {
     $$('[data-hoy]', h).forEach(b => b.addEventListener('click', () => {
@@ -1678,6 +1837,7 @@ function abrirMenuCompra(todo = false) {
       abrirCambiar(pb, efectivo(pb).dias.findIndex(x => x.f === b.dataset.f), b.dataset.hoy, b.dataset.q || null, () => abrirMenuCompra(todo));
     }));
     $('#mc-todo', h).addEventListener('click', () => abrirMenuCompra(!todo));
+    $('#mc-antojos', h).addEventListener('click', () => { cierraHoja(true); abrirDiaCompra(); });
     $('#mc-otro', h).addEventListener('click', () => {
       const antes = JSON.stringify(E.semanas);
       rehaceMenuCompra(c); salva(); refrescaCompra(); abrirMenuCompra(todo);
@@ -1717,12 +1877,12 @@ function lineaCompra() {
   }
   for (const x of E.proximaCompra || []) {   // lo que se acabó en casa y lo que falta para un menú pedido al Chef («por»)
     if (x.k && D.productos[x.k]) { if (s.quitados[x.k]) continue; const enLista = vistas.find(v => v.k === x.k); if (enLista) { enLista.proxima = true; enLista.por ||= x.por; continue; } vistas.push({ k: x.k, clave: x.k, envases: x.env || 1, precio: (x.env || 1) * D.productos[x.k].precio, proxima: true, por: x.por }); }
-    else vistas.push({ k: null, clave: 'px:' + x.id, texto: x.n, proxima: true, por: x.por });
+    else if (![...otros.values()].some(o => L.parecido(limpiaCompra(o.texto), limpiaCompra(x.n)) >= 0.8)) vistas.push({ k: null, clave: 'px:' + x.id, texto: x.n, proxima: true, por: x.por });   // ya sale por la receta
   }
   if (!s.compraHecha && !aldia) for (const f of E.fijos) if (f.texto && !s.fijosHechos['f:' + f.texto]) vistas.push({ k: null, clave: 'f:' + f.texto, texto: f.texto, fijo: true });
   if (!s.compraHecha && !aldia) for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
   for (const [kk, o] of otros) vistas.push({ k: null, clave: kk, texto: o.texto, otro: true, para: o.para });
-  for (const v of vistas) v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros';
+  for (const v of vistas) { v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros'; v.tienda = tiendaDe(v); }
   vistas.sort((a, b) => (ordenSeccion(a.seccion) - ordenSeccion(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
   const quitar = Object.keys(s.quitados).filter(k => s.quitados[k] === true);   // los vaciados ('oculto') siguen fuera de la lista, pero ya no se enseñan
   // Lo que el menú pide y se quitó a mano: el ticket también lo busca ahí (4/11: lo deslizaban al meterlo en el carro y el ticket no encontraba nada).
@@ -1818,7 +1978,16 @@ function vCompra() {
       ${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" width="50" height="50"${f.img ? ' style="object-fit:contain"' : ''}>` : `<div class="sinfoto">${f.otro ? '📝' : emojiSeccion(f.seccion)}</div>`}
       <span class="info"><span class="pn">${esc(nombreFila(f))}</span><span class="pc">${esc(cant)}${etiquetas}</span></span>
       <span class="pp">${f.precio ? euros(f.precio) : ''}</span></button>
-      <button class="fila-mas" data-fila-mas="${esc(f.clave)}" aria-label="No había o no lo compro: ${esc(nombreFila(f))}">${IC_MAS}</button></div></div>`;
+      ${f.tienda === null ? `<button class="chip chip-tienda" data-tienda-fila="${esc(f.clave)}" aria-label="¿Dónde se compra ${esc(nombreFila(f))}?">¿Dónde?</button>` : ''}
+      <button class="fila-mas" data-fila-mas="${esc(f.clave)}" aria-label="No había, no lo compro u otra tienda: ${esc(nombreFila(f))}">${IC_MAS}</button></div></div>`;
+  };
+  // Lo de otras tiendas, aparte y por tienda; al final, lo que no vende el súper y aún no sé dónde lo compráis.
+  const pri = principal();
+  const porTiendas = lista => {
+    const g = new Map(); for (const f of lista) { const t = f.tienda || ''; if (!g.has(t)) g.set(t, []); g.get(t).push(f); }
+    return [...g].sort(([a], [b]) => !a - !b || nombreTienda(a).localeCompare(nombreTienda(b), 'es')).map(([t, fs]) => t
+      ? `<div class="cat cat-tienda">En ${esc(nombreTienda(t))}<span class="num">${fs.length}</span></div><div class="lista">${fs.map(filaHTML).join('')}</div>`
+      : `<div class="cat cat-tienda">${sinTienda()}<span class="num">${fs.length}</span></div><p class="nota" style="margin:-2px 0 8px">Toca «¿Dónde?» y elige la tienda: lo recuerdo para las próximas compras.</p><div class="lista">${fs.map(filaHTML).join('')}</div>`).join('');
   };
   const porSecciones = lista => {
     let sec = '', html = ''; const cuenta = {};
@@ -1850,7 +2019,7 @@ function vCompra() {
     ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
-    ${enLista ? porSecciones(filas.filter(f => !s.noComprado[f.clave])) : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
+    ${enLista ? porSecciones(filas.filter(f => !s.noComprado[f.clave] && f.tienda === pri)) + porTiendas(filas.filter(f => !s.noComprado[f.clave] && f.tienda !== pri)) : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
     ${soleis.length ? `<div class="cat"><span class="emo">🔁</span>Lo que soléis comprar<span class="num">${soleis.length}</span><button class="cat-accion" id="b-ocultar-soleis">Ocultar</button></div><p class="nota" style="margin:-2px 0 8px">Está en vuestros tickets y no en la lista ni en casa.</p><div class="lista">${soleis.map(k => `<div class="producto fila-simple">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(D.productos[k].cat)}</div>`}<div class="info"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="pc">${euros(D.productos[k].precio)}</div></div><button class="chip" data-soleis="${k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
     ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button></div>`).join('')}</div>` : ''}
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista<span class="num">${quitados.length}</span><button class="cat-accion" id="b-vaciar-quitados">Vaciar</button></div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver</button><button class="icono" data-olvidar="${k}" aria-label="Quitar de aquí">${I.papelera}</button></div>`).join('')}</div>` : ''}
@@ -1858,6 +2027,7 @@ function vCompra() {
   activaLetreros();
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
   $$('[data-fila-mas]').forEach(b => b.addEventListener('click', () => opcionesFila(filas.find(f => f.clave === b.dataset.filaMas))));
+  $$('[data-tienda-fila]').forEach(b => b.addEventListener('click', () => abrirTienda(filas.find(f => f.clave === b.dataset.tiendaFila))));
   $$('[data-check]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.check, y = window.scrollY;
     if (s.marcados[k]) delete s.marcados[k]; else { s.marcados[k] = true; delete s.noComprado[k]; }
@@ -1918,12 +2088,14 @@ function opcionesFila(f) {
     <div class="opciones-fila">
       <button class="opcion-fila" data-op="nohabia"><b>${no ? 'Sí lo había' : 'No había'}</b><span>${no ? 'Vuelve a la lista' : 'Lo apunto para otro día y te propongo otra cosa'}</span></button>
       <button class="opcion-fila" data-op="nocompro"><b>No lo compro</b><span>Sale de la lista${f.proxima ? ' y de lo que se acabó' : ''}</span></button>
+      <button class="opcion-fila" data-op="tienda"><b>${f.tienda === null ? '¿Dónde se compra?' : f.tienda !== principal() ? `Se compra en ${esc(nombreTienda(f.tienda))}` : 'Se compra en otra tienda'}</b><span>${f.tienda === null ? `${sinTienda()}: dime dónde y lo recuerdo` : f.tienda !== principal() ? 'Cambiar de tienda' : 'Va aparte, con esa tienda, y lo recuerdo'}</span></button>
       <button class="opcion-fila" data-op="ver"><b>Ver el producto</b><span>Cantidad, precio y si es buena compra</span></button>
     </div>`, h => {
     $$('[data-op]', h).forEach(b => b.addEventListener('click', () => {
       cierraHoja();
       if (b.dataset.op === 'ver') return infoProducto(f.clave, f);
       if (b.dataset.op === 'nocompro') return quitaDeLista(f);
+      if (b.dataset.op === 'tienda') return abrirTienda(f);
       if (no) { delete s.noComprado[f.clave]; quitaPendiente(f); salva(); repinta(); tostada('Vale, sí lo había'); return; }
       s.noComprado[f.clave] = true; delete s.marcados[f.clave]; apuntaPendiente({ k: f.k || null, n }, true); salva(); repinta();
       conDeshacer(`No había: ${n}`, () => { const s2 = lineaCompra().s; delete s2.noComprado[f.clave]; quitaPendiente(f); salva(); repinta(); });
@@ -2037,13 +2209,16 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
   try { hits = await buscaMercadona(t, 6); } catch { caja.innerHTML = '<div class="nota" style="margin:8px 2px">📡 Sin conexión con Mercadona.</div>'; }
   if ($('#i-anadir') && limpiaPeticion($('#i-anadir').value) !== t) return;   // ya ha escrito otra cosa
   const local = L.buscaProducto(t, D.productos);
-  if (local?.k && !hits.some(h => h.k === local.k)) { const x = D.productos[local.k]; hits.unshift({ id: String(x.id), n: x.n, foto: x.foto, precio: x.precio, env: x.env, cat: x.cat, k: local.k }); }
+  if (local?.k && !hits.some(h => h.k === local.k)) { const x = D.productos[local.k]; hits.unshift({ id: String(x.id ?? 'k:' + local.k), n: x.n, foto: x.foto, precio: x.precio, env: x.env, cat: x.cat, k: local.k }); }
   const secs = [...new Set([...seccionesLista.filter(n => n !== 'Otros'), ...(E.secciones || []).map(s => s.n)])];
   caja.innerHTML = `${hits.slice(0, 6).map((h, i) => `<button class="res${V.anadidos.has(h.id) ? ' anadido' : ''}" data-res="${i}">${h.foto ? `<img src="${esc(h.foto)}" alt="" loading="lazy">` : `<span class="sinfoto">${emojiSeccion(h.cat)}</span>`}
       <span class="res-t"><b>${esc(h.n)}</b><span class="nota">${esc(h.env)} · ${emojiSeccion(h.cat)} ${esc(h.cat)}</span></span>
       ${h.k ? pillNivel(L.veredicto(L.nutrientesDe(D.productos[h.k])).nivel) : ''}<span class="res-p">${h.precio ? euros(h.precio) : ''}</span><span class="icono mas">${(V.anadidos.has(h.id) ? SVG.check : SVG.mas).replace('<svg', '<svg class="i"')}</span></button>`).join('')}
     ${V.anadidos.size ? '<button class="boton ancho" id="b-listo-anadir" style="margin-top:8px">✓ Listo</button>' : ''}
-    <div class="nota" style="margin:10px 2px 6px">¿No es ninguno? Añadir «${esc(capital(t))}» en:</div>
+    ${hits.length ? '' : `<p class="nota" style="margin:8px 2px">No lo encuentro en Mercadona.</p>`}
+    <div class="nota" style="margin:10px 2px 6px">¿Se compra en otra tienda? Añadir «${esc(capital(t))}» en:</div>
+    <div class="chips-despensa">${[...new Set([...(E.otrasTiendas || []), 'lidl', 'carrefour', 'latina', 'fruteria'])].filter(x => x !== principal()).slice(0, 6).map(x => `<button class="chip" data-anadir-tienda="${esc(x)}">${esc(nombreTienda(x))}</button>`).join('')}</div>
+    <div class="nota" style="margin:10px 2px 6px">¿No es ninguno? Añadir «${esc(capital(t))}» en la sección:</div>
     <div class="chips-despensa">${secs.map(n => `<button class="chip" data-sec="${esc(n)}">${emojiSeccion(n)} ${esc(n)}</button>`).join('')}<button class="chip" data-sec-nueva="1">＋ Nueva sección</button></div>`;
   $$('[data-res]', caja).forEach(b => b.addEventListener('click', () => {
     const h = hits[+b.dataset.res]; anadeALista([h.k ? { k: h.k } : { m: h }]);
@@ -2051,6 +2226,7 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
   }));
   $('#b-listo-anadir', caja)?.addEventListener('click', () => { V.anadidos.clear(); cierraHoja(); refrescaCompra(); });
   $$('[data-sec]', caja).forEach(b => b.addEventListener('click', () => { anadeALista([{ texto: capital(t), sec: b.dataset.sec }]); cierraHoja(); refrescaCompra(); }));
+  $$('[data-anadir-tienda]', caja).forEach(b => b.addEventListener('click', () => { recuerdaTienda({ texto: capital(t) }, b.dataset.anadirTienda); anadeALista([{ texto: capital(t), sec: 'Otros' }]); cierraHoja(); refrescaCompra(); tostada(`${capital(t)}: en ${nombreTienda(b.dataset.anadirTienda)}`); }));
   $('[data-sec-nueva]', caja)?.addEventListener('click', () => {
     const n = (prompt('Nombre de la sección nueva (por ejemplo: Farmacia):') || '').trim();
     if (!n) return;
@@ -2539,7 +2715,8 @@ async function muestraTicket(t) {
   if (!marcas && u && !u.ticket && t.fecha && t.fecha <= fu && fecha(fu) - fecha(t.fecha) <= 3 * 864e5) return ticketDeTerminada(t, items, u, sinRed);
   const pares = L.cruzaTicket(items, filas, puntuaTicket);
   const enFila = new Set(pares.map(([, j]) => j)), usados = new Set(pares.map(([i]) => i));
-  const faltan = deLista.filter((_, j) => !enFila.has(j)), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
+  // Lo de otras tiendas no va en este ticket: ni «no está» ni «no había».
+  const faltan = deLista.filter((f, j) => !enFila.has(j) && f.tienda === principal()), noEstan = faltan.filter(f => !s.marcados[f.clave]), raros = faltan.filter(f => s.marcados[f.clave]);
   const fuera = items.filter((_, i) => !usados.has(i));
   const chips = l => listaSimple(l.map(nombreFila));
   hoja(`<h2>🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}</h2>
@@ -3013,6 +3190,12 @@ function vNosotros() {
     super: [varios ? 'Vuestro súper' : 'Tu súper', `    <div class="tarjeta perfil"><h3>🏪 ${varios ? 'Vuestro' : 'Tu'} súper</h3>
       <div class="botones" style="margin-top:10px">${SUPERS.map(([k, n]) => `<button class="chip" data-super="${k}" aria-pressed="${sup === k}">${n}</button>`).join('')}</div>
       <p class="nota" style="margin:10px 0 0">${sup === 'mercadona' ? 'Productos, precios y ticket digital de Mercadona.' : 'Por ahora, los productos y los precios son los de Mercadona, como referencia.'}${amiga && E.hogar?.presupuesto ? ` Presupuesto: ${euros(E.hogar.presupuesto)} a la semana.` : ''}</p></div>
+    <div class="cat">${varios ? 'También compráis en' : 'También compras en'}${etiquetaNuevo('tiendas')}</div><div class="tarjeta perfil">
+      <p class="nota" style="margin:0">Para lo que no tiene ${esc(nombreSuper())}: salen primero al elegir dónde se compra algo.</p>
+      <div class="botones" style="margin-top:10px">${[...new Set([...TIENDAS.map(([k]) => k), ...(E.otrasTiendas || [])])].filter(t => t !== principal()).map(t => `<button class="chip" data-otra-tienda="${esc(t)}" aria-pressed="${(E.otrasTiendas || []).includes(t)}">${esc(nombreTienda(t))}</button>`).join('')}</div></div>
+    <div class="cat">${varios ? 'Lo que compráis fuera' : 'Lo que compras fuera'}</div><div class="tarjeta perfil">
+      ${Object.keys(E.tiendas || {}).length ? `<div class="fila-tienda-lista">${Object.entries(E.tiendas).sort(([, a], [, b]) => nombreTienda(a.t).localeCompare(nombreTienda(b.t), 'es') || a.n.localeCompare(b.n, 'es')).map(([c, x]) => `<div class="fav fila-tienda"><div class="fav-t"><b>${esc(x.n)}</b><span class="nota">${esc(nombreTienda(x.t))}</span></div><button class="icono" data-olvida-tienda="${esc(c)}" aria-label="Olvidar dónde se compra ${esc(x.n)}">${I.papelera}</button></div>`).join('')}</div>`
+        : `<p class="nota" style="margin:0">Nada todavía. En Compra, toca ⋯ en un producto → «Se compra en otra tienda», y lo recuerdo.</p>`}</div>
 `],
     salud: [conSuple ? 'Creatina y gimnasio' : 'Cómo lo calculo', `    ${conSuple ? `<div class="tarjeta perfil"><h3>💊 Creatina de hoy</h3>
       <div class="botones" style="margin-top:10px">${L.QUIEN.map(q => `<button class="chip" data-crea="${q}" aria-pressed="${!!cr[q]}">${cr[q] ? '✅' : '⬜'} ${esc(NOM[q])}</button>`).join('')}</div></div>
@@ -3085,6 +3268,8 @@ function vNosotros() {
   }));
   $$('textarea[data-texto]').forEach(t => t.addEventListener('change', () => { (E.perfiles[t.dataset.q] ||= {})[t.dataset.texto] = t.value.trim(); salva(); tostada('Apuntado: lo tengo en cuenta en los menús'); }));
   $$('[data-super]').forEach(b => b.addEventListener('click', () => { E.super = b.dataset.super; if (E.hogar) E.hogar.super = b.dataset.super; salva(); vNosotros(); }));
+  $$('[data-otra-tienda]').forEach(b => b.addEventListener('click', () => { const t = b.dataset.otraTienda, ya = E.otrasTiendas || []; E.otrasTiendas = ya.includes(t) ? ya.filter(x => x !== t) : [...ya, t]; salva(); vNosotros(); }));
+  $$('[data-olvida-tienda]').forEach(b => b.addEventListener('click', () => { const c = b.dataset.olvidaTienda, x = E.tiendas?.[c]; if (!x) return; delete E.tiendas[c]; salva(); vNosotros(); conDeshacer(`${x.n}: olvidado`, () => { (E.tiendas ||= {})[c] = x; salva(); vNosotros(); }); }));
   $('#b-gym')?.addEventListener('click', () => { E.gimnasio = !gym; salva(); recalcula(); vNosotros(); });
   $$('[data-crea]').forEach(b => b.addEventListener('click', () => { const x = (E.creatina[h] ||= {}); x[b.dataset.crea] = !x[b.dataset.crea]; salva(); vNosotros(); if (x[b.dataset.crea]) tostada('💊 Apuntada'); }));
   $('#b-cambiar-datos')?.addEventListener('click', () => bienvenida(true));
@@ -3364,7 +3549,7 @@ function quitaPendiente(f) {
 function seccionPendientes(filas = []) {
   const enLista = new Set(filas.filter(f => f.k).map(f => f.k)), pend = (E.pendientes || []).filter(x => !(x.k && enLista.has(x.k)));
   if (!pend.length) return '';
-  return `<div class="cat"><span class="emo">🏪</span>Para otro día<span class="num">${pend.length}</span><button class="cat-accion" id="b-vaciar-pend">Vaciar</button></div><div class="lista">${(V.verPend || pend.length <= 4 ? pend : pend.slice(0, 3)).map(x => `<div class="producto fila-simple"><div class="sinfoto">${x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒'}</div><div class="info"><div class="pn">${esc(x.k && D.productos[x.k] ? nombreCorto(D.productos[x.k]) : x.n)}</div><div class="pc">no había el ${fechaCorta(x.f)}</div></div><button class="chip si" data-pend-ya="${esc(x.id)}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>
+  return `<div class="cat"><span class="emo">🏪</span>Para otro día<span class="num">${pend.length}</span><button class="cat-accion" id="b-vaciar-pend">Vaciar</button></div><div class="lista">${(V.verPend || pend.length <= 4 ? pend : pend.slice(0, 3)).map(x => `<div class="producto fila-simple"><div class="sinfoto">${x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒'}</div><div class="info"><div class="pn">${esc(x.k && D.productos[x.k] ? nombreCorto(D.productos[x.k]) : x.n)}${pillTienda({ k: x.k && D.productos[x.k] ? x.k : null, texto: x.n })}</div><div class="pc">no había el ${fechaCorta(x.f)}</div></div><button class="chip si" data-pend-ya="${esc(x.id)}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${esc(x.id)}" aria-label="Quitar">${I.papelera}</button></div>`).join('')}</div>
     <div class="botones" style="margin:8px 0 2px">${pend.length > 4 ? `<button class="chip" id="b-ver-pend">${V.verPend ? 'Ver menos' : `Ver los ${pend.length}`}</button>` : ''}<button class="chip" id="b-enviar-pend">📤 Enviar esta lista</button></div>`;
 }
 const tarjetaPendientes = () => !E.pendientes?.length ? '' : `<div class="tarjeta pregunta"><span class="emo">🏪</span><div class="t"><b>Para otro día</b><span class="nota">${esc(enumera(E.pendientes.map(x => x.k && D.productos[x.k] ? nombreFalta(x.k) : x.n), 4))}</span></div><button class="boton" id="b-pendientes">Ver</button></div>`;
@@ -3831,7 +4016,9 @@ function contextoParaClaude(texto = '') {
     diaDeCompra: compraElegida() ? { compran: compraElegida().f, listaHasta: compraElegida().hasta } : 'sin elegir (en Compra → «¿Cuándo vais a comprar?»)',
     pendientesOtroSuper: (E.pendientes || []).map(x => x.n),
     personas: L.QUIEN.map(q => ({ nombre: per[q].nombre, meta: per[q].tca ? 'mantenerse' : OBJ_TXT[per[q].objetivo || 'perder'], objetivo: obj[q], gusta: per[q].gusta || '', noGusta: per[q].noGusta || '', alergias: [...(per[q].alergias || []), per[q].otrasAlergias || ''].filter(Boolean), dieta: per[q].dieta || 'todo', tca: !!per[q].tca })),
-    casa: { super: nombreSuper(), presupuestoSemanal: E.hogar?.presupuesto || null, cocina: aparatosCasa().map(nombreAparato) },
+    casa: { super: nombreSuper(), presupuestoSemanal: E.hogar?.presupuesto || null, cocina: aparatosCasa().map(nombreAparato),
+      tiendas: { principal: nombreSuper(), tambien: (E.otrasTiendas || []).map(nombreTienda), dondeCompran: Object.values(E.tiendas || {}).map(x => `${x.n}: ${nombreTienda(x.t)}`) } },
+    antojosDeLaSemana: compraElegida()?.antojos?.map(a => `${a.t} (${vecesTxt(a.veces || 1)})`) || null,
     recetasPropias: (E.propias || []).map(r => r.n),
     // De 4 días antes (para no repetir) a 8 después, aunque cambie de semana: un menú de 5 días cae muchas veces entre dos.
     menuSemanaEntera: planes().flatMap(pl => efectivo(pl).dias).filter(d => d.f >= masDias(h, -4) && d.f <= masDias(h, 8)).map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
@@ -3839,7 +4026,7 @@ function contextoParaClaude(texto = '') {
     notasDeLaCasa: E.notasChef || [],   // lo que nos han dicho de sus costumbres: vale siempre
     todasLasRecetas: Object.values(recetas).filter(r => !r.retirada).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${dietaOk(r, 'vegana') ? ' [vegana]' : dietaOk(r, 'vegetariana') ? ' [vegetariana]' : ''}${kcalProt(r)}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}${noHabitual(r).length ? ` [NO LO COMPRAN: ${noHabitual(r).map(nombreFalta).join(', ')}]` : ''}`),
     loQueSuelenComprar: habituales() ? [...habituales()].filter(k => D.productos[k] && !infinito(k)).map(k => nombreCorto(D.productos[k])) : null,   // de sus tickets: el menú y la lista, con esto
-    productosDeLaApp: Object.values(D.productos).map(x => nombreCorto(x)),   // para recetas nuevas: ingredientes con estos nombres
+    productosDeLaApp: Object.values(D.productos).map(x => nombreCorto(x) + (x.fuera ? ' [no lo vende Mercadona]' : '')),   // para recetas nuevas: ingredientes con estos nombres
     conversacionReciente: (E.charla || []).filter(c => c.r).slice(-5).map(c => { const { texto: t, acciones } = separaAcciones(c.r); return { pregunta: c.q.slice(0, 400), respuesta: t.slice(0, 600) + (acciones.length ? ` [botones: ${acciones.map(a => a.tipo).join(', ')}${(c.hechas || []).length ? '; pulsados' : ''}]` : '') }; }),
   };
 }
@@ -3913,6 +4100,8 @@ function recetaDelChef(a) {
     txt: { ing: ingT, pasos: (a.pasos || []).join('\n') }, propia: true, chef: true, creada: new Date().toISOString() };
   if (!r.ing.length && !r.otros?.length) return null;
   r.foto = fotosPara(r)[0] || undefined;
+  // Lo que no vende el súper, con la tienda que dice el Chef (si no lo habíais dicho vosotros).
+  for (const y of a.ingredientes) if (y && typeof y === 'object' && y.tienda && y.producto) { const k = productoDe(y.producto), f = k ? { k } : { texto: capital(String(y.producto)) }; if ((!k || D.productos[k].fuera) && !(E.tiendas || {})[claveTienda(f)]) recuerdaTienda(f, tiendaDeNombre(y.tienda)); }
   E.propias = [...(E.propias || []), r];
   return r;
 }
@@ -3925,6 +4114,8 @@ function recetaPorNombre(n) {
 // «Canela molida», «pimentón dulce»: lo que siempre tenéis (especias, vuestra salsa) no se pide aunque venga escrito.
 const siempreEnCasa = t => { const w = L.normaliza(String(t || '')).replace(/^[\d.,]+\s*\S*\s+(de\s+)?/, '').split(/[^a-z0-9ñ]+/).find(x => x.length > 3); return !!w && Object.values(D.productos).some(x => (x.en_casa || x.despensa) && L.normaliza(x.n).split(/[^a-z0-9ñ]+/).includes(w)); };
 // Lo que falta en casa para unos platos elegidos va a la compra (en envases, con lo de la Nevera descontado); lo que no es producto de la app, como texto.
+// Lo que cae dentro de la compra elegida ya sale en la lista por el menú: no se apunta otra vez.
+const fueraDeLaCompra = ps => { const c = compraElegida(); return c ? ps.filter(x => !(x.dia && x.dia >= hoy() && x.dia <= c.hasta)) : ps; };
 function apuntaLoQueFalta(puestos, por) {
   const nec = {}, textos = new Map();
   for (const c of puestos) {
@@ -3987,7 +4178,7 @@ function haceAccion(a) {
     const r = recetaDelChef(a); if (!r) { tostada('No reconozco los ingredientes de esa receta'); return null; }
     reconstruyeRecetas();
     const puestos = (a.poner || []).filter(c => c && c.dia && c.comida && ponPlato({ ...c, receta: r.id })).map(c => ({ ...c, receta: r.id }));
-    const compra = apuntaLoQueFalta(puestos, r.n);
+    const compra = apuntaLoQueFalta(fueraDeLaCompra(puestos), r.n);
     salva(); if (V.pestana === 'recetas') vRecetas();
     return `Receta guardada${puestos.length ? ` y puesta en ${puestos.length} comida${puestos.length > 1 ? 's' : ''}` : ''}${compra ? ` · ${compra} a la compra` : ''}`;
   }
@@ -4008,8 +4199,11 @@ function haceAccion(a) {
       if (id && ponPlato({ ...c, receta: id })) puestos.push({ ...c, receta: id });
     }
     if (!puestos.length) { const x = JSON.parse(antes); Object.assign(E, { propias: x.propias, planes: x.planes, semanas: x.semanas }); reconstruyeRecetas(); tostada('No he podido poner ningún plato'); return null; }
-    let compra = apuntaLoQueFalta(puestos, por);
-    for (const t of a.comprar || []) { const k = productoDe(t); if (k ? infinito(k) || !alcanza({ [k]: 1 }, hayEnCasa()).length : siempreEnCasa(t)) continue; if (apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]), por } : { texto: capital(String(t)), n: capital(String(t)), por })) compra++; }
+    let compra = apuntaLoQueFalta(fueraDeLaCompra(puestos), por);
+    for (const x of a.comprar || []) {
+      const t = typeof x === 'string' ? x : x?.producto; if (!t) continue;
+      const k = productoDe(t), fk = k ? { k } : { texto: capital(String(t)) };
+      if (x.tienda && (!k || D.productos[k].fuera) && !(E.tiendas || {})[claveTienda(fk)]) recuerdaTienda(fk, tiendaDeNombre(x.tienda)); if (k ? infinito(k) || !alcanza({ [k]: 1 }, hayEnCasa()).length : siempreEnCasa(t)) continue; if (apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]), por } : { texto: capital(String(t)), n: capital(String(t)), por })) compra++; }
     salva(); pinta();
     conDeshacer(`${por}: ${puestos.length} platos`, () => { const x = JSON.parse(antes); Object.assign(E, { propias: x.propias, proximaCompra: x.prox, planes: x.planes, semanas: x.semanas }); reconstruyeRecetas(); salva(); pinta(); });
     return `${por}: ${puestos.length} plato${puestos.length > 1 ? 's' : ''}${compra ? ` · ${compra} cosa${compra > 1 ? 's' : ''} a la compra` : ' · todo está en casa'}`;
