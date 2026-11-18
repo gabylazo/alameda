@@ -4617,8 +4617,7 @@ function recetaDelChef(a) {
     txt: { ing: ingT, pasos: (a.pasos || []).join('\n') }, propia: true, chef: true, creada: new Date().toISOString() };
   if (!r.ing.length && !r.otros?.length) return null;
   r.foto = fotosPara(r)[0] || undefined;
-  // Lo que no vende el súper, con la tienda que dice el Chef (si no lo habíais dicho vosotros).
-  for (const y of a.ingredientes) if (y && typeof y === 'object' && y.tienda && y.producto) { const k = productoDe(y.producto), f = k ? { k } : { texto: capital(String(y.producto)) }; if ((!k || D.productos[k].fuera) && !(E.tiendas || {})[claveTienda(f)]) recuerdaTienda(f, tiendaDeNombre(y.tienda)); }
+  // Lo que no vende el súper sale aparte en Compra con «¿Dónde?»: la tienda la eligen ellos, no el Chef (18/11).
   E.propias = [...(E.propias || []), r];
   return r;
 }
@@ -4720,7 +4719,7 @@ function haceAccion(a) {
     for (const x of a.comprar || []) {
       const t = typeof x === 'string' ? x : x?.producto; if (!t) continue;
       const k = productoDe(t), fk = k ? { k } : { texto: capital(String(t)) };
-      if (x.tienda && (!k || D.productos[k].fuera) && !(E.tiendas || {})[claveTienda(fk)]) recuerdaTienda(fk, tiendaDeNombre(x.tienda)); if (k ? infinito(k) || !alcanza({ [k]: 1 }, hayEnCasa()).length : siempreEnCasa(t)) continue; if (apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]), por } : { texto: capital(String(t)), n: capital(String(t)), por })) compra++; }
+      if (k ? infinito(k) || !alcanza({ [k]: 1 }, hayEnCasa()).length : siempreEnCasa(t)) continue; if (apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]), por } : { texto: capital(String(t)), n: capital(String(t)), por })) compra++; }
     salva(); pinta();
     conDeshacer(`${por}: ${puestos.length} platos`, () => { const x = JSON.parse(antes); Object.assign(E, { propias: x.propias, proximaCompra: x.prox, planes: x.planes, semanas: x.semanas }); reconstruyeRecetas(); salva(); pinta(); });
     const enLaCompra = fueraDeLaCompra(puestos).length < puestos.length;   // lo de los días de la compra ya sale en su lista

@@ -98,6 +98,21 @@ html.n5 #vista:has(> .n-cuerpo) { padding: 0 20px 24px; }
 .n5 .n-barra b { background: var(--n-verde); }
 .n5 .n-prot { font-size: 12px; color: var(--n-gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .n5 .n-prot::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--n-naranja); vertical-align: 1px; }
+/* Lo que suma hoy con el aro (v59; ella: «las barras están un poco feas; antes estaba más bonito, pero tampoco me gustaba»): una tarjeta,
+   una fila por persona; el aro con la lógica de las barras (el menú en verde claro, lo comido en verde encima) y al lado las cifras en una línea */
+.n5 .n-suma.n-suma-aros { grid-template-columns: 1fr; gap: 0; padding: 2px 16px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-suma-aros > div { display: grid; grid-template-columns: 56px 1fr; grid-template-rows: auto auto; align-items: center; gap: 0 14px; padding: 12px 0; border-radius: 0; background: none; }
+.n5 .n-suma-aros > div + div { border-top: 1px solid var(--n-linea); }
+.n5 .n-suma-aros .n-aro-caja { grid-row: 1 / span 2; position: relative; display: grid; place-items: center; width: 56px; height: 56px; }
+.n5 .n-suma-aros .n-aro { width: 56px; height: 56px; transform: rotate(-90deg); }
+.n5 .n-suma-aros .n-aro circle { fill: none; stroke-width: 4.5; stroke-linecap: round; }
+.n5 .n-suma-aros .n-aro .n-aro-pista { stroke: var(--n-barra-fondo); }
+.n5 .n-suma-aros .n-aro .n-aro-plan { stroke: var(--n-verde-plan); opacity: 1; }
+.n5 .n-suma-aros .n-aro .n-aro-comido { stroke: var(--n-verde); }
+.n5 .n-suma-aros .n-aro-caja b { position: absolute; font: 600 13px var(--n-titulo); font-variant-numeric: tabular-nums; color: var(--n-tinta); }
+.n5 .n-suma-aros .n-suma-txt { align-self: end; min-width: 0; }
+.n5 .n-suma-aros .n-kcal { margin-top: 1px; font-size: 20px; white-space: nowrap; }
+.n5 .n-suma-aros .n-prot { grid-column: 2; align-self: start; margin: 3px 0 0; font-size: 12.5px; }
 
 /* Filas: para mañana y el resto del día */
 .n5 .n-filas { display: grid; gap: 8px; padding: 0; list-style: none; }
@@ -118,6 +133,19 @@ html.n5[data-theme="dark"] :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recet
 .n5 .n-fila.n-ahora { background: var(--n-verde-suave); }
 .n5 .n-fila.n-ahora .n-txt > span { color: var(--n-verde-hondo); }
 .n5 .n-fila.n-hecha .n-txt b { color: var(--n-gris); }
+/* Desayuno, merienda, ensalada y cena, cada una con su título y su icono (v59: «bien distinguidos, no "Desayuno · nombre" en pequeño»).
+   Se distinguen por el título y el icono, todos en el verde de la app (su concepto: un verde y alguna nota cálida, sin pastel);
+   las filas de la comida que toca ahora, en verde claro */
+.n5 .n-hoy .n-bloque-cab { align-items: center; }
+.n5 .n-hoy .n-bloque-cab h2 { display: flex; align-items: center; gap: 10px; }
+.n5 .n-hoy .n-comida-ic { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--n-verde-suave); color: var(--n-verde-hondo); }
+html.n5[data-theme="dark"] .n-hoy .n-comida-ic { color: var(--n-verde); }
+.n5 .n-hoy .n-comida-ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.n5 .n-hoy .n-cab-nota { font-size: 13px; color: var(--n-gris); }
+.n5 .n-hoy .n-bloque.n-ahora .n-fila:not(.n-hecha) { background: var(--n-verde-suave); }
+.n5 .n-hoy .n-bloque.n-ahora .n-fila:not(.n-hecha) .n-txt > span { color: var(--n-verde-hondo); }
+html.n5[data-theme="dark"] .n-hoy .n-bloque.n-ahora .n-fila:not(.n-hecha) .n-txt > span { color: var(--n-verde); }
+.n5 .n-hoy .n-antojo-hoy .n-min-ic { background: var(--n-naranja-suave); color: var(--n-naranja-hondo); }
 
 /* Esta semana: tarjetas que se deslizan */
 .n5 .n-carrusel { display: flex; gap: 12px; margin: 0 -20px; padding: 0 20px 4px; list-style: none; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 20px; scrollbar-width: none; }
@@ -354,12 +382,20 @@ html.n5 body:has(.hoja.n-en-cocina.abierta) .n-reloj-flota { display: none; }
 
 /* ——— Semana ——— */
 .n5 .n-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 18px; }
-.n5 .n-semana .n-dias button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 10px 0 12px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font: 500 12px var(--n-titulo); text-align: center; }
+.n5 :is(.n-semana, .n-hoy) .n-dias button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 10px 0 12px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font: 500 12px var(--n-titulo); text-align: center; }
 .n5 .n-dias button b { font: 600 17px/1.2 var(--n-titulo); color: var(--n-tinta); }
-.n5 .n-semana .n-dias button[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 :is(.n-semana, .n-hoy) .n-dias button[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
 .n5 .n-dias button[aria-pressed="true"] b { color: var(--n-sobre-verde); }
 .n5 .n-dias .n-es-hoy::after { content: ''; position: absolute; bottom: 6px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--n-verde); }
 .n5 .n-dias .n-es-hoy[aria-pressed="true"]::after { background: var(--n-sobre-verde); }
+/* Hoy (v59): de ayer a dos semanas, en una tira; el último día asoma cortado para que se vea que sigue. «Hoy» ya va escrito: sin el punto */
+.n5 .n-hoy .n-dias-hoy { display: flex; gap: 6px; margin: 6px -20px 0; padding: 2px 20px 4px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding: 0 20px; scrollbar-width: none; }
+.n5 .n-hoy .n-dias-hoy::-webkit-scrollbar { display: none; }
+.n5 .n-hoy .n-dias-hoy button { flex: 0 0 50px; scroll-snap-align: start; }
+.n5 .n-hoy .n-dias-hoy .n-es-hoy::after { content: none; }
+/* Cena fuera: un punto naranja arriba, a la derecha */
+.n5 :is(.n-hoy, .n-semana) .n-dias .n-dia-fuera { position: absolute; top: 7px; right: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--n-naranja); }
+.n5 :is(.n-hoy, .n-semana) .n-dias [aria-pressed="true"] .n-dia-fuera { background: var(--n-sobre-verde); }
 /* La cena del día elegido: un botón con la foto, «Cena» y el nombre encima */
 .n5 .n-dia-cena .n-foto-tarjeta { width: 100%; height: 210px; text-align: left; }
 .n5 .n-dia-cena .n-sobre .n-que { display: block; font-size: 13.5px; color: rgba(255, 255, 255, .92); }
@@ -482,8 +518,11 @@ html.n5[data-theme="dark"] .n-cantidad .n-circulo { color: var(--n-verde); }
 html.n5 .entra > .n-chef { animation-name: n-aparece; }
 @keyframes n-aparece { from { opacity: 0; } to { opacity: 1; } }
 html.n5 #vista:has(> .n-chef) { padding-bottom: 0; }
-.n5 .n-chef:has(.n-escribir .n-adjunto) > .n-charla { --n-escribir: 222px; }
-.n5 .n-chef > .n-charla { display: grid; gap: 12px; padding: 22px 0 calc(var(--n-escribir, 172px) + var(--barra, 68px) + env(safe-area-inset-bottom) + 16px); }
+/* Lo que tapa la caja de escribir: la caja (72), con un adjunto (+50) o con la receta de la que se viene (+66) */
+.n5 .n-chef:has(.n-escribir .n-adjunto) > .n-charla { --n-escribir: 122px; }
+.n5 .n-chef:has(.n-escribir .n-chat-receta) > .n-charla { --n-escribir: 138px; }
+.n5 .n-chef:has(.n-escribir .n-adjunto):has(.n-escribir .n-chat-receta) > .n-charla { --n-escribir: 188px; }
+.n5 .n-chef > .n-charla { display: grid; gap: 12px; padding: 22px 0 calc(var(--n-escribir, 72px) + var(--barra, 68px) + env(safe-area-inset-bottom) + 16px); }
 .n5 .n-hola { padding: 18px; border-radius: 18px; background: var(--n-panel); }
 .n5 .n-hola b { display: block; font: 600 17px/1.3 var(--n-titulo); }
 .n5 .n-hola p { margin-top: 6px; font-size: 14.5px; color: var(--n-gris); }
@@ -505,6 +544,12 @@ html.n5[data-theme="dark"] .n-msg .enlace-receta { color: var(--n-verde); }
 .n5 .n-chef .n-respuestas button { min-height: 38px; padding: 0 14px; border-radius: 999px; background: var(--n-elevado); color: var(--n-tinta); font: 600 13.5px var(--n-titulo); }
 .n5 .n-chef .n-respuestas button.n-principal { background: var(--n-verde); color: var(--n-sobre-verde); }
 .n5 .n-chef .n-respuestas button[disabled] { opacity: .55; }
+/* La receta de la que preguntas, dentro de tu globo (v60): una tarjeta un tono más oscura que el verde, para que el blanco se lea */
+.n5 .n-chef .n-msg-receta { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 4px 12px 4px 4px; border-radius: 14px; background: rgb(0 0 0 / .18); color: inherit; font: 600 13.5px/1.3 var(--n-titulo); text-align: left; }
+html.n5[data-theme="dark"] .n-chef .n-msg-receta { background: rgb(255 255 255 / .3); }
+.n5 .n-chef .n-msg.n-yo:has(.n-msg-receta) { width: 86%; }
+.n5 .n-chef .n-msg-receta .n-min { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 10px; object-fit: cover; }
+.n5 .n-chef .n-msg-receta span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .n5 .n-chef .n-borrar-todo { justify-self: center; min-height: 44px; color: var(--n-gris); }
 /* La caja de escribir */
 .n5 .n-escribir { position: fixed; left: 0; right: 0; bottom: calc(var(--barra, 68px) + env(safe-area-inset-bottom)); z-index: 20; max-width: 720px; margin: 0 auto; padding: 10px 0 12px; background: var(--n-fondo); border-top: 1px solid var(--n-linea); }
@@ -520,8 +565,6 @@ html.n5[data-theme="dark"] .n-msg .enlace-receta { color: var(--n-verde); }
 .n5 .n-adjunto span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .n5 .n-chef .n-adjunto button { flex: 0 0 36px; height: 36px; display: grid; place-items: center; font-size: 18px; line-height: 1; }
 html.n5[data-theme="dark"] .n-adjunto { color: var(--n-verde); }
-.n5 .n-escribir .n-filtros { margin: 0; padding: 0 16px 10px; }
-.n5 .n-chef .n-escribir .n-filtros button { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--n-panel); color: var(--n-tinta); font: 500 13px var(--n-titulo); white-space: nowrap; }
 .n5 .n-caja { display: flex; align-items: flex-end; gap: 8px; margin: 0; padding: 0 16px; }
 .n5 .n-caja > .n-boton-c { flex: 0 0 46px; width: 46px; height: 46px; cursor: pointer; }
 .n5 .n-caja .n-buscar { flex: 1; min-height: 46px; margin: 0; padding: 0 16px; border-radius: 23px; }
@@ -649,6 +692,7 @@ html.n5 .nuevo { padding: 2px 8px; background: var(--n-verde-suave); color: var(
 html.n5[data-theme="dark"] .nuevo { background: var(--n-verde); }
 html.n5 .hoja .botones > .pill { max-width: 100%; padding: 6px 11px; border-radius: 12px; white-space: normal; font-weight: 500; line-height: 1.35; }
 html.n5 .pill { font-family: var(--n-titulo); font-weight: 500; }
+html.n5 .hoja .fila-simple .chip:not(.si) { background: var(--n-elevado); }
 /* El semáforo de un producto: sin el círculo vacío; el estado lo dice el título, con su color */
 html.n5 .semaforo { border-radius: 16px; }
 html.n5 .semaforo .luz:empty { display: none; }
