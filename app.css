@@ -1365,3 +1365,33 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 .n5 .n-chef .n-msg-receta { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 6px; padding: 4px 10px 4px 4px; border-radius: 12px; background: rgb(255 255 255 / .18); color: inherit; font: 600 13.5px/1.25 var(--n-titulo, inherit); text-align: left; }
 .n5 .n-chef .n-msg-receta .n-min { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
 .n5 .n-chef .n-msg-receta span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Hoy con los días (18/11): la tira de días, cada comida con su color e icono y el aro de lo que suma el día.
+   Provisional: lo pule Covalente en diseno5.css. */
+.n5 .n-hoy .n-dias-hoy { display: flex; gap: 6px; margin: 2px -20px 22px; padding: 2px 20px 6px; overflow-x: auto; scrollbar-width: none; scroll-padding: 0 20px; }
+.n5 .n-hoy .n-dias-hoy::-webkit-scrollbar { display: none; }
+.n5 .n-hoy .n-dias-hoy button { position: relative; flex: 0 0 50px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 10px 0 12px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font: 500 12px var(--n-titulo); text-align: center; }
+.n5 .n-hoy .n-dias-hoy button[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-hoy .n-dias-hoy .n-dia-fuera { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--n-naranja, #e8833a); }
+.n5 .n-hoy .n-bloque-cab h2 { display: flex; align-items: center; gap: 10px; }
+.n5 .n-hoy .n-comida-ic { flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--c-fondo, var(--n-panel)); color: var(--c-tinta, var(--n-verde)); }
+.n5 .n-hoy .n-comida-ic svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.n5 .n-hoy .n-comida-desayuno { --c-fondo: #fbefd5; --c-tinta: #7a5000; }
+.n5 .n-hoy :is(.n-comida-comida, .n-comida-merienda) { --c-fondo: #e6efe4; --c-tinta: #3a6636; }
+.n5 .n-hoy .n-comida-bol { --c-fondo: #dcf1e3; --c-tinta: #0b6b38; }
+.n5 .n-hoy .n-comida-cena { --c-fondo: #ebe7f6; --c-tinta: #574693; }
+html.n5[data-theme="dark"] .n-hoy .n-comida-desayuno { --c-fondo: #3a2f17; --c-tinta: #f2c97a; }
+html.n5[data-theme="dark"] .n-hoy :is(.n-comida-comida, .n-comida-merienda) { --c-fondo: #22301f; --c-tinta: #a9d3a2; }
+html.n5[data-theme="dark"] .n-hoy .n-comida-bol { --c-fondo: #17301f; --c-tinta: #8fd9a8; }
+html.n5[data-theme="dark"] .n-hoy .n-comida-cena { --c-fondo: #2a2540; --c-tinta: #c3b8f0; }
+.n5 .n-hoy .n-cab-nota { font-size: 13px; color: var(--n-gris); }
+.n5 .n-suma-aros > div { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px 10px; }
+.n5 .n-suma-aros .n-kcal { margin-top: 2px; font-size: 18px; }
+.n5 .n-suma-aros .n-prot { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--n-gris); }
+.n5 .n-aro-caja { position: relative; display: grid; place-items: center; width: 52px; height: 52px; }
+.n5 .n-aro-caja b { position: absolute; font: 600 12px var(--n-titulo); font-variant-numeric: tabular-nums; color: var(--n-tinta); }
+.n5 .n-aro { width: 52px; height: 52px; transform: rotate(-90deg); }
+.n5 .n-aro circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+.n5 .n-aro .n-aro-pista { stroke: var(--n-barra-fondo); }
+.n5 .n-g .n-aro :is(.n-aro-plan, .n-aro-comido) { stroke: var(--n-g); } .n5 .n-p .n-aro :is(.n-aro-plan, .n-aro-comido) { stroke: var(--n-p); }
+.n5 .n-aro .n-aro-plan { opacity: .35; }
