@@ -165,6 +165,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'fotos-zoom', fecha: '2026-11-18', emo: '', titulo: 'Las fotos, de cerca', texto: 'Pellizca con dos dedos cualquier foto (un plato, un ingrediente, un producto) y se abre en grande: ahí se acerca con los dedos y se mueve arrastrando. En la receta, basta con tocar la foto. El resto de la app no se amplía.', ir: 'hoy' },
   { id: 'nutrihome5', fecha: '2026-11-18', emo: '', titulo: 'NutriHome renovada', texto: 'Diseño nuevo en toda la app: fotos grandes, letra nueva y un solo verde. La receta se abre a pantalla completa, con cada ingrediente en foto y lo de cada uno. «Empezar a cocinar» va paso a paso: el calor, un temporizador que avisa al acabar, cómo saber que está hecho y la pantalla siempre encendida.', ir: 'hoy', foco: '[data-hoy-acc=cocinar], [data-hoy-acc=receta]' },
   { id: 'antojos-semana', fecha: '2026-11-18', emo: '', titulo: 'Antojos de la semana', texto: 'Al elegir el día de la compra, di lo que os apetece esos días: una cocina (comida cubana, italiana…), un plato o un ingrediente, y cuántas cenas. El menú de la compra lo incluye y la lista sale de ese menú. Si no hay receta, el Chef la crea y se pone sola.', ir: 'compra', foco: '#b-dia-compra' },
   { id: 'tiendas', fecha: '2026-11-18', emo: '', titulo: 'Compra en varias tiendas', texto: 'Lo que no vende vuestro súper sale aparte en la lista, con su tienda. Toca «¿Dónde?» o ⋯ → «Se compra en otra tienda» y la app lo recuerda para las próximas compras. En Ajustes, en vuestro súper, las otras tiendas donde compráis.', ir: 'compra', foco: '#b-anadir' },
@@ -641,7 +642,7 @@ const SUBVISTAS = ['semana', 'recetas'];   // se abren desde Hoy o Ajustes y tie
 const marcaHTML = '<span class="nombre-app"><span class="nutri">Nutri</span><span class="home">Home</span></span>';
 function puerta(error = '') {
   document.body.innerHTML = `
-    <div class="puerta">
+    <main class="puerta">
       <img class="logo" src="iconos/nutrihome-hoja-192.png" alt="">
       <h1>${marcaHTML}</h1>
       <p>Escribe la clave de casa. Solo se pide una vez en cada móvil.</p>
@@ -649,7 +650,7 @@ function puerta(error = '') {
         <input id="clave" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="clave de casa" required>
         <div class="error">${esc(error)}</div>
         <button class="boton principal ancho">Entrar</button></form>
-    </div>`;
+    </main>`;
   $('#f-clave').addEventListener('submit', e => { e.preventDefault(); guardaTexto(CLAVE, normalizaClave($('#clave').value)); location.reload(); });
 }
 
@@ -761,6 +762,52 @@ function cierraHoja(rapido) {
   $$('.hoja, .fondo-hoja').forEach(el => { el.classList.remove('abierta', 'abierto'); setTimeout(() => el.remove(), rapido ? 0 : 300); });
   if (V.repintar && !rapido) { V.repintar = false; setTimeout(pinta, 350); }   // llegó algo de otro móvil mientras la hoja estaba abierta
 }
+
+// ——— Visor de fotos: el zoom con dos dedos, solo en las fotos (ella, 18/11: «el zoom de los dedos solo en las fotos»; la página no se amplía) ———
+// Pellizcar cualquier foto la abre en grande; en la receta, también tocando la foto o un ingrediente. Dentro: pellizcar, arrastrar, doble toque y la rueda del ratón.
+const fotoGrande = src => /images\.pexels\.com/.test(src) ? src.replace(/\?.*$/, '?auto=compress&cs=tinysrgb&w=1600')
+  : /imgix\.net/.test(src) ? src.replace(/\?.*$/, '?fit=max&w=1000&h=1000') : src;
+const esFoto = el => el?.tagName === 'IMG' && !el.closest('.visor, .puerta') && !el.classList.contains('logo') && el.naturalWidth > 0;
+function abrirVisor(src, alt = '') {
+  cierraVisor(); const antes = document.activeElement;
+  const v = document.createElement('div'); v.className = 'visor'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', alt ? 'Foto: ' + alt : 'Foto');
+  v.innerHTML = `<img src="${esc(fotoGrande(src))}" alt="${esc(alt)}" draggable="false"><button type="button" class="visor-cerrar" aria-label="Cerrar la foto">${NI.cerrar}</button><p class="visor-ayuda" aria-hidden="true">Pellizca para acercar</p>`;
+  document.body.append(v);
+  const img = v.querySelector('img'); img.addEventListener('error', () => { if (img.src !== src) img.src = src; }, { once: true });   // si no hay versión grande, la de siempre
+  let s = 1, x = 0, y = 0, ini = null, toque = 0;
+  const pinta = (suave) => { img.style.transition = suave ? 'transform .2s ease-out' : ''; img.style.transform = `translate(${x}px, ${y}px) scale(${s})`; };
+  const limita = () => { s = Math.min(5, Math.max(1, s)); if (s === 1) { x = 0; y = 0; return; }
+    const mx = Math.max(0, (img.offsetWidth * s - v.clientWidth) / 2), my = Math.max(0, (img.offsetHeight * s - v.clientHeight) / 2);
+    x = Math.max(-mx, Math.min(mx, x)); y = Math.max(-my, Math.min(my, y)); };
+  // acercar hacia un punto de la pantalla (los dedos o el doble toque): ese punto de la foto se queda debajo
+  const acercaA = (ns, cx, cy, base = { s, x, y }) => { const ox = v.clientWidth / 2, oy = v.clientHeight / 2, px = (cx - ox - base.x) / base.s, py = (cy - oy - base.y) / base.s;
+    s = ns; x = cx - ox - s * px; y = cy - oy - s * py; limita(); };
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), centro = t => [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2];
+  v.addEventListener('touchstart', e => { const t = e.touches;
+    if (t.length === 2) { const [cx, cy] = centro(t); ini = { d: dist(t), s, x, y, cx, cy }; return; }
+    if (t.length !== 1) return;
+    if (Date.now() - toque < 300 && e.target === img) { e.preventDefault(); toque = 0; if (s > 1) { s = 1; limita(); } else acercaA(2.5, t[0].clientX, t[0].clientY); pinta(true); return; }
+    toque = Date.now(); ini = { px: t[0].clientX, py: t[0].clientY, x, y }; }, { passive: false });
+  v.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches; if (!ini) return;
+    if (t.length === 2 && ini.d) { const [cx, cy] = centro(t), ox = v.clientWidth / 2, oy = v.clientHeight / 2, px = (ini.cx - ox - ini.x) / ini.s, py = (ini.cy - oy - ini.y) / ini.s;   // lo que había bajo los dedos sigue bajo los dedos
+      s = Math.min(5, Math.max(1, ini.s * dist(t) / ini.d)); x = cx - ox - s * px; y = cy - oy - s * py; limita(); pinta(); }
+    else if (t.length === 1 && ini.px != null && s > 1) { x = ini.x + t[0].clientX - ini.px; y = ini.y + t[0].clientY - ini.py; limita(); pinta(); } }, { passive: false });
+  v.addEventListener('touchend', e => { const t = e.touches; ini = t.length === 1 ? { px: t[0].clientX, py: t[0].clientY, x, y } : null; if (!t.length && s < 1.05) { s = 1; limita(); pinta(true); } });
+  v.addEventListener('wheel', e => { e.preventDefault(); acercaA(Math.min(5, Math.max(1, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15))), e.clientX, e.clientY); pinta(); }, { passive: false });
+  v.addEventListener('dblclick', e => { if (e.target !== img) return; if (s > 1) { s = 1; limita(); } else acercaA(2.5, e.clientX, e.clientY); pinta(true); });
+  v.addEventListener('click', e => { if (e.target === v && s === 1) cierraVisor(); });   // tocar fuera de la foto cierra
+  v.querySelector('.visor-cerrar').addEventListener('click', () => cierraVisor());
+  v.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); cierraVisor(); } });
+  v._antes = antes; v.querySelector('.visor-cerrar').focus({ preventScroll: true });
+  setTimeout(() => v.querySelector('.visor-ayuda')?.classList.add('fuera'), 1800);
+}
+function cierraVisor() { const v = $('.visor'); if (!v) return; const antes = v._antes; v.remove(); antes?.focus?.({ preventScroll: true }); }
+// Dos dedos sobre una foto: se abre en grande. Fuera de las fotos, la página no se amplía (iOS no siempre respeta el viewport).
+document.addEventListener('touchstart', e => { if (e.touches.length !== 2 || $('.visor')) return; const f = [...e.touches].map(t => t.target.closest?.('img')).find(esFoto);
+  if (f) { e.preventDefault(); abrirVisor(f.currentSrc || f.src, f.alt); } }, { passive: false, capture: true });
+document.addEventListener('gesturestart', e => e.preventDefault());
+// Tocar la foto de la receta o la de un ingrediente (no son botones) también la abre
+document.addEventListener('click', e => { const f = e.target.closest?.('.n-portada img.n-foto, .n-ingr img, .producto-escaneado img'); if (esFoto(f)) abrirVisor(f.currentSrc || f.src, f.alt || $('#n-rec-t')?.textContent || ''); });
 
 // ——— Semana ———
 function horaComida() { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < CORTE ? 'cena' : h < 11 ? 'desayuno' : !L.COMIDAS.includes('merienda') ? (h < 19.5 ? 'comida' : 'cena') : h < 16.5 ? 'comida' : h < 19.5 ? 'merienda' : 'cena'; }

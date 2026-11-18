@@ -661,3 +661,14 @@ html.n5 .cantidad button { font-family: var(--n-titulo); font-weight: 500; }
 :root.n5[data-theme="dark"] .cantidad input, :root.n5[data-theme="dark"] .cantidad input:focus { background: none; }
 /* El buscador de antes, sin la caja que app.css le pone al campo en oscuro */
 :root.n5[data-theme="dark"] .buscador input, :root.n5[data-theme="dark"] .buscador input:focus { background: none; }
+
+/* ——— La entrada (la clave de casa): el nombre en Poppins y con los colores de la cabecera; el icono sin el halo verde ——— */
+html.n5 .puerta h1 { margin: 0 0 6px; font: 600 30px/1.2 var(--n-titulo); letter-spacing: -.01em; }
+html.n5 .puerta h1 .nutri { color: var(--n-tinta); }
+html.n5 .puerta h1 .home { color: var(--n-verde); }
+html.n5 .puerta .logo { box-shadow: 0 8px 24px rgba(0, 0, 0, .1); }
+html.n5 .puerta p { color: var(--n-gris); font-weight: 400; }
+:root.n5 .puerta input { margin: 16px 0 8px; border: 0; border-radius: 14px; background: var(--n-panel); color: var(--n-tinta); font-family: var(--n-texto); }
+:root.n5 .puerta input:focus { outline: 2px solid var(--n-verde); outline-offset: 2px; }
+/* El error con su hueco guardado (una línea), para que el botón no salte al aparecer */
+html.n5 .puerta .error { min-height: 21px; margin: 0 0 16px; color: var(--n-naranja-hondo); font-size: 14.5px; line-height: 21px; font-weight: 500; }
