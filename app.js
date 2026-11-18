@@ -165,6 +165,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'lista-ticket-chef', fecha: '2026-11-18', emo: '', titulo: 'Primero la lista, luego el ticket', texto: 'Con la lista hecha, toca «Terminar la lista»: se cierra y en la tienda solo tachas y escaneas. Al pagar, sube el ticket: lo comprado pasa a la Nevera y el Chef rehace solo el menú con lo que habéis comprado y te lo enseña.', ir: 'compra', foco: '#b-terminar' },
   { id: 'ticket-manda', fecha: '2026-11-18', emo: '', titulo: 'El ticket termina la compra', texto: 'La lista es para ir comprando. Al pagar, sube el ticket digital: lo que sale en él pasa a la Nevera, con las cantidades de verdad, y lo de la lista que no sale va a «Lo que falta». Lo de otras tiendas cuenta si lo tachaste.', ir: 'compra', foco: '#b-ticket' },
   { id: 'hoy-dias', fecha: '2026-11-18', emo: '', titulo: 'Hoy, con los días de la semana', texto: 'Arriba, los días de las dos semanas: toca uno y ves su cena, el desayuno, la merienda y la ensalada, cada uno con sus calorías, y lo que suma el día. «¿Os apetece algo?» propone la cena con los ingredientes que elijáis.', ir: 'hoy', foco: '.n-dias-hoy' },
   { id: 'compra-tienda', fecha: '2026-11-18', emo: '', titulo: 'Compra más fácil en la tienda', texto: 'Toca un producto para tacharlo. Lo que no había y lo que dejáis para otro día ya no estorba en la lista: está en «Lo que falta», debajo del ticket digital. En «¿Os queda?» también se puede decir que no. Lo que no vende Mercadona sale aparte y la tienda la elegís vosotros con «¿Dónde?».', ir: 'compra', foco: '#b-faltan' },
@@ -1307,12 +1308,16 @@ async function inventaAntojo(f, nombres) {
 // La receta que se ha inventado el Chef se guarda y se pone sola (en el móvil que la pidió), con Deshacer.
 function aplicaInvento(c) {
   const acciones = separaAcciones(c.r).acciones, i = acciones.findIndex(a => ['receta', 'cambiar', 'menu', 'plan'].includes(a.tipo));
-  if (i < 0 || (c.hechas || []).includes(i)) return;
+  const inv = Object.values(E.inventos || {}).find(v => v.id === c.id);
+  if (i < 0) { if (inv?.ticket && !inv.visto) { inv.visto = true; salva(); tostada('El Chef ha revisado el menú: lo tienes en el Chef'); } return; }
+  if ((c.hechas || []).includes(i)) return;
   const antes = fotoMenu(), ids = new Set((E.propias || []).map(r => r.id));
   const hecho = haceAccion(acciones[i]); if (!hecho) return;
   c.hechas = [...(c.hechas || []), i]; salva();
   if ($('.hoja')) V.repintar = true; else pinta();   // con una hoja abierta, al cerrarla
-  conDeshacer(hecho, () => { vuelveMenu(antes); E.propias = (E.propias || []).filter(r => ids.has(r.id)); reconstruyeRecetas(); c.hechas = (c.hechas || []).filter(x => x !== i); salva(); pinta(); });
+  const deshaz = () => { vuelveMenu(antes); E.propias = (E.propias || []).filter(r => ids.has(r.id)); reconstruyeRecetas(); c.hechas = (c.hechas || []).filter(x => x !== i); salva(); pinta(); };
+  if (inv?.ticket) { setTimeout(() => abrirMenuNuevo(inv, deshaz), 350); return; }   // el menú rehecho tras la compra se enseña entero
+  conDeshacer(hecho, deshaz);
 }
 function ajusteAutomatico() {
   const p = planActivo(), s = est(p.id), u = E.compras[0];
@@ -1931,6 +1936,9 @@ function planCompra() {
 // E.diaCompra = {f, hasta}: la lista es lo que pide el menú de hoy a «hasta» (también la semana siguiente, que se prepara sola) menos lo
 // que hay en casa. Lo de antes de ese día sale de la nevera; los platos desde ese día ya no se adaptan a la nevera: son los que se compran.
 const compraElegida = () => { const c = E.diaCompra; return c && !c.hecha && c.hasta >= hoy() ? c : null; };
+// 18/11 («terminar lista: que ya tengas tu lista hecha… que ya no puedas agregar más nada fuera de escanear; la compra termina con el ticket»).
+const listaCerrada = () => { const c = compraElegida(); return c ? !!c.cerrada : !!est(planCompra().id).listaCerrada; };
+function cierraLista(v) { const c = compraElegida(); if (c) E.diaCompra = { ...E.diaCompra, cerrada: v }; else est(planCompra().id).listaCerrada = v; salva(); }
 // Hasta qué día llega la última compra: el «hasta» del día de compra ya hecho o, si no, el final de la semana comprada. Mientras queden
 // más de dos días, Compra no propone el menú: solo lo que se acabe o apuntéis (5/11: «no entiendo por qué hay cosas por comprar si ya se compró todo ayer»).
 function compraCubre() {
@@ -2114,6 +2122,32 @@ async function pideAntojosChef(c) {
   try { E.inventos[k].id = await preguntaServidor(`Antojos de la semana: compramos ${c.f === hoy() ? 'hoy' : 'el ' + DL[fecha(c.f).getDay()]} (${c.f}) para hasta el ${c.hasta}. En el recetario no hay nada para esto y nos apetece: ${que}. Crea una receta para cada uno y ponlas en el menú esos días con un plan. Lo que no venda ${nombreSuper()}, ponlo en «comprar» con su tienda.`, true); salva(); }
   catch (e) { delete E.inventos[k]; salva(); tostada('No llego al Chef: ' + e.message); }
 }
+// 18/11 («que a la vez que el programa lee el ticket y lo agrega a la nevera, el Chef automáticamente rehaga el menú y me lo enseñe»).
+async function pideMenuTicket() {
+  const desde = hoy(), cubre = compraCubre(), hasta = cubre && cubre > desde ? (cubre < masDias(desde, 14) ? cubre : masDias(desde, 14)) : masDias(desde, 6), k = desde + '|ticket';
+  E.inventos = Object.fromEntries(Object.entries(E.inventos || {}).filter(([x]) => x >= masDias(hoy(), -14)));
+  E.inventos[k] = { t: new Date().toISOString(), por: MOVIL, ticket: true, desde, hasta }; salva();
+  try { E.inventos[k].id = await preguntaServidor(`Automático: acabamos de terminar la compra con el ticket. Rehaz el menú del ${desde} al ${hasta} con lo que hay ahora en la Nevera (enCasa: lo que compramos de verdad). Mantén los platos que salen con lo de casa y cambia los que no: si no compramos algo, usa lo que sí compramos. Respeta las cenas fuera y la comida preparada. No mandes a comprar nada. Pon un plan con todas las cenas y ensaladas de esos días, y los desayunos y meriendas que cambien.`, true); salva(); }
+  catch (e) { delete E.inventos[k]; salva(); tostada('No llego al Chef: ' + e.message); }
+}
+// El menú que ha rehecho el Chef después del ticket, a la vista y con Deshacer.
+function abrirMenuNuevo(inv, deshaz, todo = false) {
+  const desde = inv.desde || hoy(), hasta = inv.hasta || masDias(desde, 13);
+  const comidas = todo ? L.COMIDAS : L.COMIDAS.filter(x => !L.DOBLES.includes(x));
+  const dias = planes().flatMap(pl => efectivo(pl).dias.filter(d => d.f >= desde && d.f <= hasta && d.f >= hoy()).map(d => ({ pl, d })));
+  hoja(`<h2>El menú, con lo que habéis comprado</h2><div class="nota">El Chef lo ha rehecho con el ticket. Toca un plato para cambiarlo.</div>
+    ${dias.map(({ pl, d }) => `<div class="cat">${capital(diaChip(d.f))}</div><div class="hoy-plan">${filasDia(pl, d, comidas)}</div>`).join('')}
+    <button class="boton suave ancho" id="mn-todo" style="margin-top:10px">${todo ? 'Solo cenas y ensaladas' : 'Ver también desayunos y meriendas'}</button>
+    <div class="botones" style="margin-top:12px">${deshaz ? '<button class="boton" id="mn-deshacer">Deshacer</button>' : ''}<button class="boton principal" id="mn-vale">Vale</button></div>`, h => {
+    $$('[data-hoy]', h).forEach(b => b.addEventListener('click', () => {
+      const pb = planes().find(x => x.id === b.dataset.plan); if (!pb) return;
+      abrirCambiar(pb, efectivo(pb).dias.findIndex(x => x.f === b.dataset.f), b.dataset.hoy, b.dataset.q || null, () => abrirMenuNuevo(inv, deshaz, todo));
+    }));
+    $('#mn-todo', h).addEventListener('click', () => abrirMenuNuevo(inv, deshaz, !todo));
+    $('#mn-deshacer', h)?.addEventListener('click', () => { deshaz(); cierraHoja(); tostada('El menú, como estaba'); });
+    $('#mn-vale', h).addEventListener('click', () => cierraHoja());
+  });
+}
 function abrirMenuCompra(todo = false) {
   const c = compraElegida(); if (!c) return abrirDiaCompra();
   const comidas = todo ? L.COMIDAS : L.COMIDAS.filter(x => !L.DOBLES.includes(x));   // primero lo que decide la compra: cenas y ensaladas
@@ -2258,9 +2292,10 @@ function soleisComprar(filas, s) {
     .sort((a, b) => (D.productos[a].cat || '').localeCompare(D.productos[b].cat || '') || D.productos[a].n.localeCompare(D.productos[b].n));
 }
 function vCompra() {
-  const { p, s, aldia, cubre, filas, despensa, total, quitados } = lineaCompra(), c = compraElegida();
+  const { p, s, aldia, cubre, filas, despensa: despensa0, total, quitados } = lineaCompra(), c = compraElegida();
   const comprados = filas.filter(f => s.marcados[f.clave]), noHabia = filas.filter(f => s.noComprado[f.clave]), porComprar = filas.filter(f => !s.marcados[f.clave] && !s.noComprado[f.clave]);
   const conTicket = !!s.ticket, enLista = comprados.length + porComprar.length;
+  const cerrada = !aldia && !conTicket && listaCerrada(), despensa = cerrada ? [] : despensa0;   // con la lista cerrada no se añade nada
   cabecera('Compra', `${nombreSuper()} · ${filas.length} productos${esMercadona() ? '' : ' · precios de Mercadona'}`);
   const tope = topeDe(p);
   // Diseño 5 (maqueta compra.html): la foto, el nombre con la cantidad y sus etiquetas, el precio, ⋯ (no había, no lo compro, otra
@@ -2313,7 +2348,7 @@ function vCompra() {
   const noFilas = DISENO5 ? [] : noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
-  const soleis = s.compraHecha || s.soleisOculto || aldia ? [] : soleisComprar(filas, s);
+  const soleis = s.compraHecha || s.soleisOculto || aldia || cerrada ? [] : soleisComprar(filas, s);
   const pct = enLista ? Math.round(comprados.length / enLista * 100) : 0;
   const nFaltan = noHabia.length + pendientesFuera(filas).length;
   if (DISENO5) $('#cab').innerHTML = `<div class="n-compra n-cabeza"><div><p class="n-fecha">${iconoSync()}${c ? `Para ${esc(cuandoCompra(c.f))} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</p><h1>Compra</h1></div>
@@ -2324,12 +2359,12 @@ function vCompra() {
       ${tope ? `<p class="n-presupuesto${total > tope ? ' n-pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</p>${total > tope && !s.compraHecha ? '<button type="button" class="n-boton-p" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}</div>
     <ul class="n-filas n-compra-acc">
       <li class="n-fila${c || aldia ? '' : ' n-pide'}"><button type="button" class="n-fila-abre" id="b-dia-compra"><span class="n-min-ic">${NI.calendario}</span><span class="n-txt"><b>${c ? `Compra ${esc(cuandoCompra(c.f))}` : 'Día de compra'}</b><span>${c ? `Para hasta el ${diaCorto(c.hasta)}${c.antojos?.length ? ' · con vuestros antojos' : ''}` : 'Elige el día y te propongo el menú y la lista'}</span></span>${c ? '' : `<span class="n-flecha" aria-hidden="true">${NI.sigue}</span>`}</button>${c ? '<button type="button" class="n-boton-p" id="b-menu-compra">Ver el menú</button>' : ''}</li>
-      ${esMercadona() ? `<li class="n-fila"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar: con él se termina la compra'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}
+      ${esMercadona() ? `<li class="n-fila${cerrada ? ' n-pide' : ''}"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar: con él se termina la compra'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}
       <li class="n-fila"><button type="button" class="n-fila-abre" id="b-faltan"><span class="n-min-ic">${NI.lista}</span><span class="n-txt"><b>Lo que falta${nFaltan ? ` · ${nFaltan}` : ''}</b><span>${nFaltan ? 'No había o para otro día' : 'Lo que marques «No había» va aquí'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li></ul>
-    <button type="button" class="n-buscar n-anadir" id="b-anadir">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}<span>Añadir: huevos, yuca y 2 kéfir</span></button>
+    ${cerrada ? `<p class="n-nota n-cerrada">Lista cerrada: tacha lo que cojas y, al pagar, sube el ticket.</p>` : `<button type="button" class="n-buscar n-anadir" id="b-anadir">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}<span>Añadir: huevos, yuca y 2 kéfir</span></button>`}
     ${filas.length + (E.pendientes || []).length > 10 ? `<label class="n-buscar n-filtra">${NI.buscar}<input id="i-filtra" type="search" placeholder="Buscar en la compra" aria-label="Buscar en la compra" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}"></label>` : ''}
     ${compraResto()}</div>
-    <div class="n-fijo"><button type="button" class="n-pastilla" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${NI.check}Terminar la compra</button></div>` : `
+    ${cerrada && esMercadona() ? '' : `<div class="n-fijo"><button type="button" class="n-pastilla" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${NI.check}${conTicket || cerrada || aldia ? 'Terminar la compra' : 'Terminar la lista'}</button></div>`}` : `
     <section class="compra-cab" aria-label="La compra">
       <div class="compra-total"><b>${euros(total)}</b><span>${c ? `${cuandoCompra(c.f)} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</span></div>
       ${c ? `<button class="boton suave" id="b-menu-compra">Ver el menú de estos días${etiquetaNuevo('menu-compra')}</button>` : ''}
@@ -2337,14 +2372,14 @@ function vCompra() {
       ${tope ? `<span class="carro-n${total > tope ? ' pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</span>${total > tope && !s.compraHecha ? '<button class="boton" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}
     </section>
     <div class="compra-botones">
-      <button id="b-anadir">${SVG.mas}<span>Añadir</span></button>
+      ${cerrada ? '' : `<button id="b-anadir">${SVG.mas}<span>Añadir</span></button>`}
       <button id="b-dia-compra"${c || aldia ? '' : ' class="pide"'}>${I.calendario}<span>${c ? capital(diaCorto(c.f)) : 'Día de compra'}</span>${etiquetaNuevo('dia-compra')}</button>
       ${esMercadona() ? `<button id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}"${conTicket ? ' class="hecho"' : ''}>${IC_TICKET}<span>${conTicket ? 'Ticket leído' : 'Ticket'}</span></button>` : ''}
       <button id="b-mas">${IC_MAS}<span>Más</span></button>
     </div>
     ${buscadorLista(filas.length + (E.pendientes || []).length, 'Buscar en la compra')}
     ${compraResto()}
-    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
+    ${cerrada && esMercadona() ? '' : `<div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${I.caja}${conTicket || cerrada || aldia ? 'Terminar la compra' : 'Terminar la lista'}</button></div></div>`}`;
   function compraResto() { return `
     ${DISENO5 ? '' : seccionPendientes(filas)}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
@@ -2407,12 +2442,17 @@ function vCompra() {
   $$('[data-pend-quitar]').forEach(b => b.addEventListener('click', () => { descarta(E.pendientes.find(y => y.id === b.dataset.pendQuitar)); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); refrescaCompra(); }));
   $('#b-enviar-pend')?.addEventListener('click', () => compartirTexto('Para otro día', 'Para otro día · NutriHome\n' + E.pendientes.map(x => '☐ ' + x.n).join('\n'), 'Copiado: pégalo en WhatsApp'));
   $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(noHabia.map(nombreFila)));
-  $('#b-anadir').addEventListener('click', () => abrirAnadir(seccionesLista));
+  $('#b-anadir')?.addEventListener('click', () => abrirAnadir(seccionesLista));
   $('#b-mas').addEventListener('click', abrirMas);
   $('#b-escanear')?.addEventListener('click', abrirEscaner);
   activaBuscador();
   $('#b-presupuesto')?.addEventListener('click', ajustaAlPresupuesto);
-  $('#b-terminar').addEventListener('click', () => conTicket ? terminarCompra(filas) : hojaTerminar(filas));
+  $('#b-terminar')?.addEventListener('click', () => {
+    if (conTicket) return terminarCompra(filas);
+    if (aldia || cerrada) return hojaTerminar(filas);
+    cierraLista(true); vCompra(); window.scrollTo({ top: 0 });
+    conDeshacer('Lista cerrada: al pagar, sube el ticket', () => { cierraLista(false); vCompra(); });
+  });
   for (const f of noFilas) pintaAlternativa(f, s);
 }
 // «⋯» de cada fila (18/11, «¿cómo pongo que no hay o que no lo voy a comprar? Solo sale para dar check»): no había (va a «Para otro día»
@@ -2487,12 +2527,15 @@ function hojaTicketLeido(s, filas) {
 // Lo que se usa menos, en un menú «⋯»: enviar la lista, el escáner y la última compra.
 function abrirMas() {
   const fila = (id, emo, txt, sub = '') => `<button class="menu-fila" id="${id}"><span class="emo">${emo}</span><span><b>${txt}</b>${sub ? `<span class="nota" style="display:block">${sub}</span>` : ''}</span><span class="flecha">›</span></button>`;
+  const cerrada = !alDia() && listaCerrada();
   hoja(`<h2>Más</h2><div class="menu-lista">
-    ${fila('m-receta', '', 'Una receta a la lista', 'Suma sus ingredientes')}
-    ${fila('m-favoritos', '', 'Favoritos', 'Lo de siempre')}
+    ${cerrada ? `${fila('m-abrir', '', 'Volver a abrir la lista', 'Para añadir algo más')}${fila('m-sin-ticket', '', 'Terminar sin ticket', 'Con lo que has tachado')}`
+      : `${fila('m-receta', '', 'Una receta a la lista', 'Suma sus ingredientes')}${fila('m-favoritos', '', 'Favoritos', 'Lo de siempre')}`}
     ${fila('m-enviar', '📤', 'Enviar la lista', 'Lo que falta por comprar, para WhatsApp')}
     ${E.compras.length ? fila('m-ultima', '🗂️', 'Compras anteriores', 'El historial, con sus tickets') : ''}</div>`, h => {
     $('#m-receta', h)?.addEventListener('click', () => { cierraHoja(true); elegirRecetaParaLista(); });
+    $('#m-abrir', h)?.addEventListener('click', () => { cierraHoja(); cierraLista(false); refrescaCompra(); tostada('Lista abierta'); });
+    $('#m-sin-ticket', h)?.addEventListener('click', () => { cierraHoja(true); hojaTerminar(lineaCompra().filas); });
     $('#m-favoritos', h)?.addEventListener('click', () => { cierraHoja(true); abrirFavoritos(); });
     $('#m-enviar', h).addEventListener('click', () => { cierraHoja(); compartirLista(lineaCompra().filas); });
     $('#m-ultima', h)?.addEventListener('click', abrirHistorial);
@@ -2774,7 +2817,7 @@ function anadeALista(items) {
 
 // Terminar la compra: lo marcado con ✓ pasa a «En casa» (con lo que dice el ticket, si se subió); lo marcado con ✕ sigue en la lista;
 // lo del ticket que no estaba en la lista también pasa a «En casa». Queda un resumen, para Claude y para «Última compra».
-function terminarCompra(filas, silencioso = false) {
+function terminarCompra(filas, silencioso = false, chef = false) {
   const { s, p, aldia } = lineaCompra();
   const res = { f: new Date().toISOString(), si: [], no: [], extra: [], estimado: 0 };
   for (const f of filas) {
@@ -2803,25 +2846,25 @@ function terminarCompra(filas, silencioso = false) {
   }
   res.estimado = +res.estimado.toFixed(2);
   s.noHabia = Object.fromEntries(Object.keys(s.noComprado).filter(k => s.noComprado[k]).map(k => [k, true]));   // para avisar en Semana
-  s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.ticketCant = {}; s.ticket = null; s.compraHecha ||= !aldia;   // con la compra grande hecha, esto era reponer: la semana sigue sin comprar
+  s.listaCerrada = false; s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.ticketCant = {}; s.ticket = null; s.compraHecha ||= !aldia;   // con la compra grande hecha, esto era reponer: la semana sigue sin comprar
   if (E.diaCompra && !E.diaCompra.hecha) E.diaCompra = { ...E.diaCompra, hecha: true };   // la próxima vez, se elige otro día
   V.filtroCompra = 'todo';
   res.menu = adaptaMenu(p);   // los platos con cosas que no había se cambian por otros que podáis hacer
   res.menu = [...(res.menu || []), ...autoMenu()];   // y la semana entera, a lo que ha entrado en la Nevera (05/11)
   E.compras = [res, ...E.compras].slice(0, 20); salva();
   if (silencioso) return res;
-  hojaCompra(res, n);
+  hojaCompra(res, n, chef);
   vCompra();
 }
 
 // Resumen de una compra (al terminarla o desde «Última compra»): lo que no había, lo de fuera de la lista y el ticket.
 const listaSimple = (l, emo = '•') => `<div class="lista">${l.map(x => `<div class="producto fila-simple"><div class="sinfoto">${emo}</div><div class="info"><div class="pn">${esc(x)}</div></div></div>`).join('')}</div>`;
-function hojaCompra(res, nCasa = null) {
+function hojaCompra(res, nCasa = null, chef = false) {
   if (!res) return;
   const t = res.ticket, chips = l => listaSimple(l);
   hoja(`<h2>${nCasa != null ? '🧾 Compra terminada' : '🗂️ Compra del ' + fechaCorta(iso(new Date(res.f)))}</h2>
     <div class="tabla-n" style="grid-template-columns:repeat(3,1fr)"><div><b>✓ ${res.si.length}</b><span>comprados</span></div><div><b>✕ ${res.no.length}</b><span>no había</span></div><div><b>＋ ${res.extra.length}</b><span>extra</span></div></div>
-    ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${res.menu?.filter(x => x.a).length ? ` El menú se ha ajustado: ${res.menu.filter(x => x.a).length} plato${res.menu.filter(x => x.a).length === 1 ? '' : 's'} cambiado${res.menu.filter(x => x.a).length === 1 ? '' : 's'}.` : res.no.length ? ' Lo que no había queda en «Para otro día».' : ''}</p>` : ''}
+    ${nCasa != null ? `<p class="nota">${nCasa} productos pasan a «En casa».${chef ? ' El Chef está rehaciendo el menú con lo que habéis comprado: te lo enseño en cuanto lo tenga.' : res.menu?.filter(x => x.a).length ? ` El menú se ha ajustado: ${res.menu.filter(x => x.a).length} plato${res.menu.filter(x => x.a).length === 1 ? '' : 's'} cambiado${res.menu.filter(x => x.a).length === 1 ? '' : 's'}.` : res.no.length ? ' Lo que no había queda en «Para otro día».' : ''}</p>` : ''}
     ${t ? `<p class="nota">🧾 Ticket${t.fecha ? ' del ' + fechaCorta(t.fecha) : ''}: <b>${euros(t.total)}</b>${t.cuadra === false ? ' · ⚠️ no me cuadra el total' : ''}</p>` : ''}
     ${t?.lineas?.length ? `<details class="emparejados"><summary>🧾 Ver el ticket · ${t.lineas.length} renglones</summary>${t.lineas.map(([n, d, imp, kg]) => `<div class="par"><span>${esc((kg ? String(kg).replace('.', ',') + ' kg ' : n > 1 ? n + ' × ' : '') + d)}</span><span class="nota">${euros(imp)}</span></div>`).join('')}</details>` : ''}
     ${res.no.length ? `<h3>✕ No había</h3>${chips(res.no)}` : ''}
@@ -3078,7 +3121,9 @@ async function muestraTicket(t) {
       salva(); cierraHoja();
       V.filtroCompra = 'todo';
       if (V.pestana !== 'compra') location.hash = 'compra';
-      terminarCompra(lineaCompra().filas);   // el resumen dice qué platos se han cambiado por lo que no había
+      const chef = !!servidor();
+      terminarCompra(lineaCompra().filas, false, chef);
+      if (chef) pideMenuTicket();   // el Chef rehace el menú con lo comprado y lo enseña al llegar
     });
   });
 }
@@ -4530,6 +4575,8 @@ function conLoDeCasa(r) {
 // Lo que el cerebro necesita saber para contestar: menú próximo, lo que hay, la lista, pendientes, personas.
 // Calorías y proteína de la ración de la primera persona (la de la otra sale por escala), para que el Chef cuadre un menú con los objetivos.
 const kcalProt = r => { const m = L.macrosReceta(r, L.QUIEN[0], D.productos, fac); return ` ~${r0(m.kcal)} kcal/${r0(m.p)} g prot`; };
+// Hasta dónde ve el Chef el menú: 8 días, o hasta el final de la compra si llega más lejos (como mucho, 14).
+const finMenu = h => { const x = E.diaCompra?.hasta || ''; return x > masDias(h, 8) ? (x < masDias(h, 14) ? x : masDias(h, 14)) : masDias(h, 8); };
 function contextoParaClaude(texto = '') {
   const p = planActivo(), pe = efectivo(p), h = hoy(), s = est(p.id), per = perfiles();
   const plato = v => L.esDoble(v) ? L.QUIEN.map(q => `${NOM[q]}: ${recetas[v[q]]?.n || '—'}`).join(' / ') : v && v.fuera ? 'fuera' : recetas[L.idDe(v)]?.n || (v && v.libre) || '—';
@@ -4547,7 +4594,7 @@ function contextoParaClaude(texto = '') {
     antojosDeLaSemana: compraElegida()?.antojos?.map(a => `${a.t} (${vecesTxt(a.veces || 1)})`) || null,
     recetasPropias: (E.propias || []).map(r => r.n),
     // De 4 días antes (para no repetir) a 8 después, aunque cambie de semana: un menú de 5 días cae muchas veces entre dos.
-    menuSemanaEntera: planes().flatMap(pl => efectivo(pl).dias).filter(d => d.f >= masDias(h, -4) && d.f <= masDias(h, 8)).map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
+    menuSemanaEntera: planes().flatMap(pl => efectivo(pl).dias).filter(d => d.f >= masDias(h, -4) && d.f <= finMenu(h)).map(d => ({ dia: `${DL[fecha(d.f).getDay()]} ${d.f}${d.f === h ? ' (hoy)' : d.f === masDias(h, -1) ? ' (ayer)' : ''}`, ...Object.fromEntries(L.COMIDAS.map(c => [c, plato(d[c])])) })),
     recetasCompletas: pideMucho(texto) ? [] : recetasParaPregunta(texto, pe, h).map(recetaParaChef),   // para un menú entero basta con la lista de recetas
     notasDeLaCasa: E.notasChef || [],   // lo que nos han dicho de sus costumbres: vale siempre
     todasLasRecetas: Object.values(recetas).filter(r => !r.retirada).map(r => `${r.id}: ${r.n} (${(r.tipo || []).join('/')})${conLoDeCasa(r)}${r.soloEnsalada ? (r.acomp ? ' [acompañamiento: no vale solo como comida o cena]' : ' [solo ensalada: no vale sola como comida o cena]') : ''}${r.noche ? ' [se prepara la noche antes]' : ''}${dietaOk(r, 'vegana') ? ' [vegana]' : dietaOk(r, 'vegetariana') ? ' [vegetariana]' : ''}${kcalProt(r)}${sePuedeHacer(r) ? '' : ' [no tienen el aparato]'}${noHabitual(r).length ? ` [NO LO COMPRAN: ${noHabitual(r).map(nombreFalta).join(', ')}]` : ''}`),
@@ -4770,7 +4817,7 @@ async function esperaRespuesta(id) {
         const r = await fetch(`${servidor()}/casa/${casaId}/respuesta/${id}`, { cache: 'no-store' });
         if (r.status === 200) { llega((await descifraSync((await r.json()).blob)).texto); return; }
       } catch { /* siguiente intento */ }
-      if (!nube && Date.now() - t0 > (pideMucho(x.q) ? 110000 : 35000)) {   // un menú entero tarda más en el Mac
+      if (!nube && Date.now() - t0 > (/^Automático: acabamos de terminar la compra/.test(x.q) ? 250000 : pideMucho(x.q) ? 110000 : 35000)) {   // un menú entero tarda más en el Mac (el de después del ticket, unos 2 min)
         nube = true;
         try {
           const r = await fetch(`${servidor()}/casa/${casaId}/rapido`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
