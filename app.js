@@ -24,6 +24,7 @@ function aplicaTema() {
 aplicaTema(); mqOscuro.addEventListener?.('change', aplicaTema);
 const r0 = n => Math.round(n);
 const euros = n => n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+const coma = n => String(n).replace('.', ',');   // 3.1 → «3,1»
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const MOVIL = leeTexto('nutrihome.movil') || (m => (guardaTexto('nutrihome.movil', m), m))(uid());   // este móvil (no se sincroniza)
 
@@ -164,12 +165,13 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'nutrihome5', fecha: '2026-11-18', emo: '', titulo: 'NutriHome renovada', texto: 'Diseño nuevo en toda la app: fotos grandes, letra nueva y un solo verde. La receta se abre a pantalla completa, con cada ingrediente en foto y lo de cada uno. «Empezar a cocinar» va paso a paso: el calor, un temporizador que avisa al acabar, cómo saber que está hecho y la pantalla siempre encendida.', ir: 'hoy', foco: '[data-hoy-acc=cocinar], [data-hoy-acc=receta]' },
   { id: 'antojos-semana', fecha: '2026-11-18', emo: '', titulo: 'Antojos de la semana', texto: 'Al elegir el día de la compra, di lo que os apetece esos días: una cocina (comida cubana, italiana…), un plato o un ingrediente, y cuántas cenas. El menú de la compra lo incluye y la lista sale de ese menú. Si no hay receta, el Chef la crea y se pone sola.', ir: 'compra', foco: '#b-dia-compra' },
   { id: 'tiendas', fecha: '2026-11-18', emo: '', titulo: 'Compra en varias tiendas', texto: 'Lo que no vende vuestro súper sale aparte en la lista, con su tienda. Toca «¿Dónde?» o ⋯ → «Se compra en otra tienda» y la app lo recuerda para las próximas compras. En Ajustes, en vuestro súper, las otras tiendas donde compráis.', ir: 'compra', foco: '#b-anadir' },
-  { id: 'cubanas', fecha: '2026-11-18', emo: '', titulo: 'Comida cubana', texto: 'Recetas nuevas: frijoles negros con arroz blanco, maduros y pollo; congrí con lomo al mojo y aguacate; ropa vieja de pollo; bistec encebollado con chicharritas al air fryer; y ensalada de aguacate a la cubana. El plátano macho está en Mercadona; los frijoles Goya, en la tienda que digáis.', ir: 'recetas', foco: '.rec-busca' },
-  { id: 'antojo', fecha: '2026-11-18', emo: '', titulo: 'Tengo un antojo', texto: 'Elige lo que te apetece comer sí o sí (filetes de cerdo y patatas, pasta con gambas…) y te propongo la cena que lo lleva, primero las que salen con lo de casa. La pones en el día que quieras y lo que falte va a la compra. Si ninguna convence, el Chef se inventa una con eso. Está en la cena de Hoy («Antojo»), en «Cambiar», en Recetas y en el Chef.', ir: 'hoy', foco: '[data-hoy-acc=antojo]' },
-  { id: 'recetas-lupa', fecha: '2026-11-18', emo: '', titulo: 'Recetas: busca con la lupa', texto: 'Fuera la fila de tipos. Escribe en la lupa («air fryer», «pollo», «cena», «10 minutos») y elige entre lo que sale. Lo elegido se queda arriba y se quita con la ×. También «Con lo que tenéis en casa».', ir: 'recetas', foco: '.rec-busca' },
-  { id: 'no-habia', fecha: '2026-11-18', emo: '', titulo: 'Compra: «no había» y «no lo compro»', texto: 'Cada producto tiene sus tres puntos: «No había» lo apunta para otro día y te propone otra cosa; «No lo compro» lo saca de la lista.', ir: 'compra', foco: '.fila-mas' },
+  { id: 'cubanas', fecha: '2026-11-18', emo: '', titulo: 'Comida cubana', texto: 'Recetas nuevas: frijoles negros con arroz blanco, maduros y pollo; congrí con lomo al mojo y aguacate; ropa vieja de pollo; bistec encebollado con chicharritas al air fryer; y ensalada de aguacate a la cubana. El plátano macho está en Mercadona; los frijoles Goya, en la tienda que digáis.', ir: 'recetas', foco: '#rec-caja' },
+  { id: 'antojo', fecha: '2026-11-18', emo: '', titulo: 'Tengo un antojo', texto: 'Elige lo que te apetece comer sí o sí (filetes de cerdo y patatas, pasta con gambas…) y te propongo la cena que lo lleva, primero las que salen con lo de casa. La pones en el día que quieras y lo que falte va a la compra. Si ninguna convence, el Chef se inventa una con eso. Está en la cena de Hoy («Antojo»), en «Cambiar», en Recetas y en el Chef.', ir: 'hoy', foco: '[data-hoy-acc=antojo], [data-hoy-acc=mas]' },
+  { id: 'recetas-lupa', fecha: '2026-11-18', emo: '', titulo: 'Recetas: busca con la lupa', texto: 'Fuera la fila de tipos. Escribe en la lupa («air fryer», «pollo», «cena», «10 minutos») y elige entre lo que sale. Lo elegido se queda arriba y se quita con la ×. También «Con lo que tenéis en casa».', ir: 'recetas', foco: '#rec-caja' },
+  { id: 'no-habia', fecha: '2026-11-18', emo: '', titulo: 'Compra: «no había» y «no lo compro»', texto: 'Cada producto tiene sus tres puntos: «No había» lo apunta para otro día y te propone otra cosa; «No lo compro» lo saca de la lista.', ir: 'compra', foco: '.fila-mas, .n-mas' },
   { id: 'nevera-sola', fecha: '2026-11-18', emo: '', titulo: 'Lo que se acaba va solo a la compra', texto: 'Cuando el menú gasta del todo algo de la Nevera, entra solo en la próxima compra. Si no lo vais a comprar más, la papelera lo quita sin apuntarlo.', ir: 'casa' },
   { id: 'objetivos', fecha: '2026-11-18', emo: '', titulo: 'El objetivo de cada uno', texto: 'En Ajustes, cada uno elige su objetivo (perder grasa, bajar de peso, mantenerse o ganar músculo) y cómo come (de todo, vegetariana, vegana, sin pescado o sin cerdo). Las calorías, las raciones y el menú se ajustan solos.', ir: 'nosotros', origen: true },
   { id: 'desayunos-escuela', fecha: '2026-11-17', emo: '', titulo: 'Desayunos y meriendas, también nuevos', texto: '27 desayunos (tostas, huevos, overnight oats, tortitas, algo de air fryer) y 20 meriendas ligeras con proteína, explicados paso a paso como las cenas. El Huel sin sabor sigue escondido en tortitas y boles, nunca en batido.', ir: 'recetas', origen: true },
@@ -181,7 +183,7 @@ const NOVEDADES = [   // la más nueva, arriba
   { id: 'nutrihome4', fecha: '2026-11-05', emo: '', titulo: 'NutriHome 4', texto: 'Hoy, de un vistazo: lo que suma el día, la cena con su bol de ensalada y la semana en fotos. El Chef tiene pestaña y contesta aunque el ordenador esté apagado. En Compra, lo marcado se queda tachado. Y 46 recetas nuevas de creadores de recetas fáciles.', ir: 'hoy', foco: '.medidor' },
   { id: 'lector-ticket', fecha: '2026-11-05', emo: '', titulo: 'El ticket se lee mucho mejor', texto: 'Ahora reconoce casi todo lo del ticket (antes, 7 de cada 10 cosas; ahora, más de 9): entiende las abreviaturas de la caja, lo que va al peso y los platos de «Listo para comer». Lo que reconoce entra en la Nevera con su nombre, su foto y su sección.', ir: 'casa' },
   { id: 'nevera-clasificada', fecha: '2026-11-04', emo: '', titulo: 'Todo en su sitio en la Nevera', texto: 'Lo del ticket que no es de la app (burrata, gazpacho, ternera…) ya no va a «Otras cosas»: sale en su sección, con su foto cuando Mercadona lo reconoce.', ir: 'casa' },
-  { id: 'marcar-compra', fecha: '2026-11-04', emo: '', titulo: 'Marcar lo que vais comprando', texto: 'En Compra, toca el círculo de cada producto al meterlo en el carro: se tacha y baja a «Comprado». Al terminar, el ticket lo confirma y lo pasa a la Nevera.', ir: 'compra', foco: '.marca-compra' },
+  { id: 'marcar-compra', fecha: '2026-11-04', emo: '', titulo: 'Marcar lo que vais comprando', texto: 'En Compra, toca el círculo de cada producto al meterlo en el carro: se tacha y baja a «Comprado». Al terminar, el ticket lo confirma y lo pasa a la Nevera.', ir: 'compra', foco: '.marca-compra, .n-marcar' },
   { id: 'dia-compra', fecha: '2026-11-03', emo: '', titulo: 'Día de la compra', texto: 'En Compra, elige qué día vais a comprar y para cuántos días: la lista sale entera, con el menú, lo que se acabó en casa y lo que soléis comprar.', ir: 'compra', foco: '#b-dia-compra' },
   { id: 'privacidad', fecha: '2026-11-03', emo: '', titulo: 'Privacidad', texto: 'En Ajustes, qué guarda la app, dónde y quién lo ve.', ir: 'nosotros', ajuste: 'privacidad' },
   { id: 'chat-receta', fecha: '2026-10-30', emo: '', titulo: 'La receta, sin subir', texto: 'Mientras habláis con el Chef, la receta de la que se habla (o la cena de hoy) está fija encima de donde se escribe: tocadla y se abre encima del chat. Los nombres de receta de los mensajes también se pueden tocar, y «Otras» busca cualquier receta sin salir del chat.', ir: 'hoy' },
@@ -208,16 +210,16 @@ const NOVEDADES = [   // la más nueva, arriba
   { id: 'sin-repetir', fecha: '2026-10-19', emo: '🔁', titulo: 'El menú no repite y te avisa', texto: 'Lo que coméis se descuenta de En casa. Comidas y cenas siempre con plato principal (la ensalada acompaña). No repite lo de esa semana; y si con lo que hay no llega, elige el que menos haya que comprar y te lo apunta en Compra.', ir: 'semana' },
   { id: 'no-hay', fecha: '2026-10-19', emo: '🚫', titulo: 'Dile al Chef lo que no hay', texto: 'Escríbele «no hay albóndigas» y te sale un botón: lo quita de En casa y cambia los platos que lo llevaban.', ir: 'claude' },
   { id: 'detalle', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Paso a paso detallado', texto: 'Todas las recetas tienen «Resumen» y «Paso a paso detallado»: qué fuego, cuánto tiempo y cómo saber que está hecho.', ir: 'recetas', foco: '.receta-tarjeta' },
-  { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias' },
+  { id: 'chat', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef, como un chat', texto: 'Escribe abajo, como en WhatsApp, o toca una pregunta: «¿Cómo hago la cena?» le manda la receta de hoy y te la explica paso a paso.', ir: 'claude', foco: '.sugerencias, .n-escribir .n-filtros' },
   { id: 'ensaladas', fecha: '2026-10-19', emo: '🥗', titulo: 'Cenas con ensalada', texto: 'Todas las cenas llevan su ensalada, distinta cada día y con lo que tenéis en casa.', ir: 'semana' },
-  { id: 'chef-hace', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef te explica y te ayuda', texto: 'Pregúntale cómo se hace cualquier plato de la semana y te lo explica paso a paso. Si le pides algo («añade los huevos a lo que hay en casa»), te sale un botón para hacerlo.', ir: 'claude', foco: '.charla' },
+  { id: 'chef-hace', fecha: '2026-10-19', emo: '💬', titulo: 'El Chef te explica y te ayuda', texto: 'Pregúntale cómo se hace cualquier plato de la semana y te lo explica paso a paso. Si le pides algo («añade los huevos a lo que hay en casa»), te sale un botón para hacerlo.', ir: 'claude', foco: '.charla, .n-charla' },
   { id: 'casa-buscar', fecha: '2026-10-19', emo: '🏠', titulo: 'Añadir a En casa', texto: '«Añadir algo que tenéis» busca en Mercadona y coloca cada cosa en su sección. Lo que borras ya no vuelve solo.', ir: 'casa', foco: '#b-anadir-casa' },
   { id: 'recetas-claras', fecha: '2026-10-19', emo: '👩‍🍳', titulo: 'Recetas paso a paso', texto: 'Cada receta dice qué preparar antes, el fuego, el tiempo y cómo saber que está hecho. Y abajo, «¿Dudas?» para preguntar al Chef sobre esa receta.', ir: 'recetas', foco: '.receta-tarjeta' },
   { id: 'vaciar-compra', fecha: '2026-10-18', emo: '🧹', titulo: 'Compra sin acumular', texto: '«Quitados», «¿Os queda?» y «Para otro día» se vacían u ocultan desde su título, con «Deshacer». Los pendientes salen plegados.', ir: 'compra', foco: '.cat-accion' },
   { id: 'cocina', fecha: '2026-10-18', emo: '🍳', titulo: 'Lo que tenéis en la cocina', texto: 'En Recetas, marca los aparatos que tienes: solo verás lo que puedes hacer y el menú se adapta.', ir: 'recetas', foco: '.cocina' },
-  { id: 'se-acabo', fecha: '2026-10-18', emo: '🛒', titulo: '«Se acabó»', texto: 'En «En casa», toca el carrito cuando algo se termine: pasa solo a la próxima compra.', ir: 'casa', foco: '.casa-fila .icono' },
+  { id: 'se-acabo', fecha: '2026-10-18', emo: '🛒', titulo: '«Se acabó»', texto: 'En «En casa», toca el carrito cuando algo se termine: pasa solo a la próxima compra.', ir: 'casa', foco: '.casa-fila .icono, .n-carro' },
   { id: 'amigos', fecha: '2026-10-18', emo: '👥', titulo: 'Invita a tus amigos', texto: 'En Ajustes, «Invitar a amigos»: cada casa tiene su menú, su compra y su Chef.', ir: 'nosotros', ajuste: 'amigos', foco: '#f-invitar', origen: true },
-  { id: 'chef', fecha: '2026-10-18', emo: '💬', titulo: 'El Chef contesta aquí', texto: 'Pregúntale en la pestaña Chef: responde dentro de la app en un minuto.', ir: 'claude', foco: '.charla' },
+  { id: 'chef', fecha: '2026-10-18', emo: '💬', titulo: 'El Chef contesta aquí', texto: 'Pregúntale en la pestaña Chef: responde dentro de la app en un minuto.', ir: 'claude', foco: '.charla, .n-charla' },
   { id: 'sincro', fecha: '2026-10-18', emo: '☁️', titulo: 'Todos los móviles a la vez', texto: 'Lo que marca uno lo ven los demás de la casa al momento.' },
 ];
 const VISTAS_NOV = 'nutrihome.novedades';   // en cada móvil, no se sincroniza: cada uno las ve una vez
@@ -246,7 +248,7 @@ function llevaA(n) {
   if (V.pestana === n.ir) brilla(); else { location.hash = n.ir; setTimeout(brilla, 700); }
 }
 const pillAparato = r => !r ? '' : !sePuedeHacer(r) ? `<span class="pill malo">⚠️ necesita ${esc(nombreAparato(r.ap))}</span>` : conHorno(r) ? '<span class="pill">🔥 en horno</span>' : '';
-const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙' };
+const COMIDA_EMO = { desayuno: '☀️', comida: '🍽️', merienda: '🍎', cena: '🌙', bol: '🥗' };   // bol: la ensalada de la cena (sin él salía «undefined»)
 // Secciones de la tienda, en el orden en que se recorre Mercadona.
 const SECCIONES = ['Fruta y verdura', 'Panadería y pastelería', 'Carne', 'Marisco y pescado', 'Charcutería y quesos', 'Huevos, leche y mantequilla',
   'Postres y yogures', 'Arroz, legumbres y pasta', 'Conservas, caldos y cremas', 'Aceite, especias y salsas', 'Cereales y galletas', 'Aperitivos',
@@ -656,7 +658,7 @@ function pintaMarco() {
   document.body.innerHTML = `
     <header class="cabecera" id="cab"></header>
     <main id="vista"></main>
-    <nav class="pestanas" aria-label="Secciones"><div class="dentro">
+    <nav class="pestanas${DISENO5 ? ' n-pestanas' : ''}" aria-label="Secciones"><div class="dentro">
       ${PESTANAS.map(([k, t]) => `<button data-p="${k}"><span class="ic">${SVG[k === 'nosotros' ? 'ajustes' : k]}</span><span>${t}</span></button>`).join('')}
     </div></nav>
     <div class="tostada" id="tostada" role="status"></div>
@@ -738,18 +740,24 @@ function activaLetreros(raiz = document) {
 const letrero = (clave, emo, html, cls = '') => E.avisos[clave] ? '' : `<div class="aviso ${cls}" data-aviso="${esc(clave)}"><span class="emo">${emo}</span><div>${html}</div><button class="cerrar-aviso" aria-label="Quitar">×</button></div>`;
 
 // ——— Hoja inferior ———
-function hoja(html, alAbrir) {
+// Con `pantalla` (diseño 5: la receta y el modo cocinar), a pantalla completa y sin asa ni ×: la pantalla trae su botón de volver.
+function hoja(html, alAbrir, o = {}) {
   cierraHoja(true);
   const fondo = document.createElement('div'); fondo.className = 'fondo-hoja';
-  const h = document.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true');
-  h.innerHTML = `<div class="asa"></div><button class="cerrar" aria-label="Cerrar">×</button>${html}`;
+  const h = document.createElement('div'); h.className = o.pantalla ? 'hoja n-pantalla' : 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true');
+  h.innerHTML = o.pantalla ? html : `<div class="asa"></div><button class="cerrar" aria-label="Cerrar">×</button>${html}`;
   document.body.append(fondo, h);
+  nombraHoja(h); $$('#cab, #vista, .pestanas').forEach(el => { el.inert = true; });   // lo de detrás no se toca ni lo lee el lector de pantalla
   requestAnimationFrame(() => { fondo.classList.add('abierto'); h.classList.add('abierta'); });
-  fondo.addEventListener('click', () => cierraHoja()); h.querySelector('.cerrar').addEventListener('click', () => cierraHoja());
+  fondo.addEventListener('click', () => cierraHoja()); h.querySelector('.cerrar')?.addEventListener('click', () => cierraHoja());
   if (alAbrir) alAbrir(h);
   return h;
 }
+// La hoja se llama como su primer título (role=dialog con nombre)
+function nombraHoja(h) { const t = h.querySelector('h1, h2'); if (t) { t.id ||= 'hoja-t'; h.setAttribute('aria-labelledby', t.id); } else h.removeAttribute('aria-labelledby'); }
 function cierraHoja(rapido) {
+  $$('#cab, #vista, .pestanas').forEach(el => { el.inert = false; });
+  if (!rapido && V.despierta) { V.despierta.release?.().catch?.(() => {}); V.despierta = null; }   // el modo cocinar deja de mantener la pantalla encendida
   $$('.hoja, .fondo-hoja').forEach(el => { el.classList.remove('abierta', 'abierto'); setTimeout(() => el.remove(), rapido ? 0 : 300); });
   if (V.repintar && !rapido) { V.repintar = false; setTimeout(pinta, 350); }   // llegó algo de otro móvil mientras la hoja estaba abierta
 }
@@ -795,12 +803,13 @@ function vSemana() {
   };
   const puntos = x => L.COMIDAS.map(c => { const v = x[c]; return `<i class="${s.hechos[x.f + '|' + c] ? 'h' : v && v.fuera ? 'f' : ''}"></i>`; }).join('');
   const avisos = [...banners, ...consejosDia(pe, i)].filter(Boolean);   // un aviso a la vez: el que más corre
-  $('#vista').innerHTML = `
+  if (DISENO5) pintaSemana5(p, pe, i, avisos[0] || '');
+  else $('#vista').innerHTML = `
     ${avisos.slice(0, 1).join('')}
     <div class="dias" role="group">${pe.dias.map(x => { const dd = fecha(x.f); return `<button class="dia-btn${x.f === h ? ' hoy' : ''}" data-f="${x.f}" aria-pressed="${x.f === V.dia}"><span class="ds">${x.f === h ? 'hoy' : DS[dd.getDay()]}</span><span class="dn">${dd.getDate()}</span><span class="puntos">${puntos(x)}</span></button>`; }).join('')}</div>
     <div class="tarjeta anillos${L.QUIEN.length === 1 ? ' una' : ''}"><div class="anillos-cab"><b>${L.QUIEN.length === 1 ? 'Lo que comes' : 'Lo que coméis'} ${d.f === h ? 'hoy' : 'este día'}</b><span class="leyenda"><i class="l1"></i>kcal <i class="l2"></i>proteína</span></div>${L.QUIEN.map(q => caja(q, tot(q))).join('')}</div>
     ${L.COMIDAS.map(c => tarjetaComida(p, d, i, c, s, d.f === h && c === horaComida())).join('')}`;
-  $$('.dia-btn').forEach(b => b.addEventListener('click', () => { V.dia = b.dataset.f; vSemana(); }));
+  $$('.dia-btn, .n-dias [data-f]').forEach(b => b.addEventListener('click', () => { V.dia = b.dataset.f; vSemana(); }));
   $$('[data-acc]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, i, b.dataset.acc, b.dataset.q || null)));
   $('#b-siguiente')?.addEventListener('click', siguienteSemana);
   $('#b-ajustar')?.addEventListener('click', () => { const c = adaptaMenu(p); vSemana(); hojaCambiosMenu(c); });
@@ -809,7 +818,48 @@ function vSemana() {
   $('#b-ajustar-aparatos')?.addEventListener('click', () => { const c = ajustaPorAparatos(p); vSemana(); hojaCambiosMenu(c); });
   $('#b-preparar')?.addEventListener('click', () => { siguienteSemana(); location.hash = 'compra'; });
   activaLetreros();
-  $('.dia-btn[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  $(':is(.dia-btn, .n-dias [data-f])[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+// Semana (maqueta semana.html): los días arriba; el día elegido con su cena en foto y el resto en filas; lo que suma; las cenas
+// de la semana en rejilla (cada una abre su receta) y la próxima compra.
+function pintaSemana5(p, pe, i, aviso) {
+  const d = pe.dias[i], s = est(p.id), h = hoy(), vos = L.QUIEN.length > 1, f0 = fecha(pe.dias[0].f), f1 = fecha(pe.dias.at(-1).f);
+  const rango = f0.getMonth() === f1.getMonth() ? `Del ${f0.getDate()} al ${f1.getDate()} de ${MES[f1.getMonth()]}` : `Del ${f0.getDate()} de ${MES[f0.getMonth()]} al ${f1.getDate()} de ${MES[f1.getMonth()]}`;
+  $('#cab').innerHTML = `<nav class="n-volver" aria-label="Volver"><button type="button" class="n-boton-c" id="b-volver" aria-label="Volver">${NI.volver}</button></nav>
+    <div class="n-semana n-cabeza"><div><p class="n-fecha">${iconoSync()}${rango}</p><h1>Semana</h1></div></div>`;
+  $('#b-volver').addEventListener('click', () => { location.hash = V.anterior && V.anterior !== V.pestana ? V.anterior : 'hoy'; });
+  const fd = fecha(d.f), nomDia = d.f === h ? 'Hoy' : `${capital(DL[fd.getDay()])} ${fd.getDate()}`;
+  const vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, cenaHecha = !!s.hechos[d.f + '|cena'];
+  const cena = rc ? `<button type="button" class="n-foto-tarjeta${cenaHecha ? ' n-hecha' : ''}" data-acc="cena" aria-label="Cena: ${esc(rc.n)}">${fotoPlato(rc, 900, 'n-foto')}
+      <span class="n-etiqueta">${NI.reloj}${rc.min} min · ${esc(minus(APARATO[rc.ap] || 'Cocina'))}</span><span class="n-sobre"><span class="n-que">Cena${cenaHecha ? ' · hecha' : ''}</span><span class="n-nombre">${esc(rc.n)}</span></span></button>`
+    : `<button type="button" class="n-fuera" data-acc="cena">${vc?.fuera ? (vos ? 'Cenáis fuera' : 'Cenas fuera') : vc?.libre ? esc(vc.libre) : 'Cena sin elegir'}</button>`;
+  const filas = [];
+  for (const c of L.COMIDAS.filter(x => x !== 'cena')) {
+    const v = d[c]; if (v == null) continue;
+    const hecho = !!s.hechos[d.f + '|' + c], nomC = L.NOMBRE_COMIDA[c] || 'Ensalada';
+    for (const q of L.esDoble(v) ? L.QUIEN.filter(x => v[x]) : [null]) {
+      const r = v.fuera ? null : recetas[q ? L.recetaDe(v, q) : L.idDe(v)], quien = q && vos ? ' · ' + esc(NOM[q]) : c === 'bol' && vos ? ' · para los dos' : '';
+      filas.push(`<li class="n-fila${hecho ? ' n-hecha' : ''}"><button type="button" class="n-fila-abre" data-acc="${c}"${q ? ` data-q="${q}"` : ''}>${r ? fotoPlato(r, 160, 'n-min') : `<span class="n-min-ic">${ICONO_COMIDA[c] || NI.luna}</span>`}<span class="n-txt"><b>${v.fuera ? 'Fuera' : esc(r?.n || v.libre || '—')}</b><span>${nomC}${quien}${hecho ? ' · hecho' : ''}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li>`);
+    }
+  }
+  const cenas = pe.dias.map(x => {
+    const v = x.cena, r = v && !v.fuera && !L.esDoble(v) ? recetas[L.idDe(v)] : null, fx = fecha(x.f), et = x.f === h ? 'Hoy' : `${capital(DS[fx.getDay()])} ${fx.getDate()}`, hecha = !!s.hechos[x.f + '|cena'];
+    return `<li${hecha ? ' class="n-hecha"' : ''}${x.f === d.f ? ' aria-current="date"' : ''}>${r ? `<button type="button" data-cena-f="${x.f}" aria-label="${et}: ${esc(r.n)}"><span class="n-foto-tarjeta">${fotoPlato(r, 400, 'n-foto')}<span class="n-etiqueta">${et}</span></span><span class="n-nombre">${esc(r.n)}</span><span class="n-dato">${r.min} min · ${esc(minus(APARATO[r.ap] || 'cocina'))}</span></button>`
+      : `<button type="button" data-f-cena="${x.f}"><span class="n-fuera">${v?.fuera ? (vos ? 'Cenáis fuera' : 'Cenas fuera') : 'Sin cena'}</span><span class="n-nombre">${et}</span></button>`}</li>`;
+  }).join('');
+  const c = compraElegida(), sig = c ? c.f : masDias(pe.dias.at(-1).f, 1), nLista = (() => { try { return lineaCompra().filas.length; } catch { return 0; } })();
+  $('#vista').innerHTML = `<div class="n-semana n-cuerpo">
+    ${aviso}
+    <div class="n-dias" role="group" aria-label="Día">${pe.dias.map(x => { const dd = fecha(x.f); return `<button type="button" data-f="${x.f}"${x.f === h ? ' class="n-es-hoy"' : ''} aria-pressed="${x.f === d.f}" aria-label="${capital(DL[dd.getDay()])} ${dd.getDate()}${x.f === h ? ', hoy' : ''}">${capital(DS[dd.getDay()])}<b>${dd.getDate()}</b></button>`; }).join('')}</div>
+    <section class="n-bloque n-dia-cena" aria-labelledby="n-t-dia"><div class="n-bloque-cab"><h2 id="n-t-dia">${nomDia}</h2><button type="button" class="n-enlace" id="b-chef-dia">Cambiar con el Chef</button></div>
+      ${cena}${filas.length ? `<ul class="n-filas">${filas.join('')}</ul>` : ''}</section>
+    ${sumaHoy5(p, d, d.f === h ? 'Lo que suma hoy' : 'Lo que suma ese día')}
+    <section class="n-bloque" aria-labelledby="n-t-cenas"><div class="n-bloque-cab"><h2 id="n-t-cenas">Las cenas de la semana</h2></div><ul class="n-rejilla">${cenas}</ul></section>
+    <section class="n-bloque" aria-label="Próxima compra"><ul class="n-filas"><li class="n-fila"><a class="n-fila-abre" href="#compra"><span class="n-min-ic">${NI.compra}</span><span class="n-txt"><b>${c ? 'Compra' : 'Próxima compra'}: ${esc(cuandoCompra(sig))}</b><span>${nLista ? `${nLista} producto${nLista > 1 ? 's' : ''} en la lista` : 'La lista, en Compra'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></a></li></ul></section>
+  </div>`;
+  $$('#vista [data-cena-f]').forEach(b => b.addEventListener('click', () => { const f = b.dataset.cenaF, v = pe.dias.find(x => x.f === f).cena; abrirReceta(L.idDe(v), { plan: p.id, f, c: 'cena' }); }));
+  $$('#vista [data-f-cena]').forEach(b => b.addEventListener('click', () => abrirAcciones(p, pe.dias.findIndex(x => x.f === b.dataset.fCena), 'cena', null)));
+  $('#b-chef-dia').addEventListener('click', () => irAClaude(`Para ${d.f === h ? 'hoy' : `el ${DL[fd.getDay()]} ${fd.getDate()}`}, `));
 }
 
 // ——— El menú se adapta a la compra ———
@@ -1448,6 +1498,7 @@ function elegirFoto(r) {
   });
 }
 function abrirReceta(id, ctx) {
+  if (DISENO5) return abrirReceta5(id, ctx);
   const r = recetas[id];
   if (!r) return;
   const solo = ctx?.q || null;   // en los desayunos y meriendas de cada uno, solo su ración
@@ -1513,6 +1564,202 @@ function abrirReceta(id, ctx) {
       E.propias = E.propias.filter(x => x.id !== r.id); reconstruyeRecetas(); salva(); cierraHoja(); tostada('Receta borrada'); pinta();
     });
   });
+}
+// ——— Diseño 5 (Covalente, aprobado el 18/11): la receta a pantalla completa (receta.html) y el modo cocinar (cocinar.html) ———
+// Los pasos de una receta como objetos {t, calor, tiempo, listo, usa}: los de escuela tal cual; los demás, solo con el texto.
+const pasosReceta = r => r.cocina?.length ? r.cocina : (r.detalle?.length ? r.detalle : r.pasos || []).map(t => typeof t === 'string' ? { t } : t);
+const sinListo = t => String(t || '').replace(/^\s*(está\s+)?(hech[oa]|list[oa])\s+cuando\s+/i, '');
+// «12–14 min» → 720 s (el menor); «30 s», «1 h», «2-3 minutos». Sin tiempo claro, 0 (sin temporizador).
+const segundosDe = t => { const m = String(t || '').toLowerCase().replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*(?:(?:[–-]|a)\s*\d+(?:\.\d+)?\s*)?(horas?|h|min(?:utos?)?|seg(?:undos?)?|s)\b/); if (!m) return 0; const n = +m[1]; return Math.round(/^h/.test(m[2]) ? n * 3600 : /^s/.test(m[2]) ? n : n * 60); };
+const reloj = s => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
+const rangoTiempo = t => { const m = String(t || '').match(/(\d+)\s*[–-]\s*(\d+)\s*min/); return m ? `Entre ${m[1]} y ${m[2]} minutos` : t; };
+
+// Un temporizador a la vez, que flota abajo por toda la app; al acabar vibra, pita y se queda avisando hasta que se toca.
+const RELOJ = { fin: 0, txt: '', clave: '', t: null, ac: null };
+function ponReloj(seg, txt, clave) {
+  try { RELOJ.ac ||= new (window.AudioContext || window.webkitAudioContext)(); RELOJ.ac.resume?.(); } catch {}   // se abre con el toque: iOS no deja sonar si no
+  Object.assign(RELOJ, { fin: Date.now() + seg * 1000, txt, clave, sonando: false });
+  clearInterval(RELOJ.t); RELOJ.t = setInterval(tickReloj, 500); tickReloj();
+}
+function paraReloj() { clearInterval(RELOJ.t); Object.assign(RELOJ, { fin: 0, clave: '', sonando: false }); $('#n-reloj')?.remove(); $$('[data-reloj-vivo]').forEach(el => { el.textContent = el.dataset.relojVivo; el.closest('.n-temporizador')?.classList.remove('n-fin'); }); $$('[data-coc="reloj"]').forEach(b => { b.innerHTML = NI.play; b.setAttribute('aria-label', 'Empezar el temporizador'); }); }
+function tickReloj() {
+  const quedan = Math.ceil((RELOJ.fin - Date.now()) / 1000);
+  let el = $('#n-reloj');
+  if (!el) { el = document.createElement('button'); el.id = 'n-reloj'; el.type = 'button'; el.className = 'n-reloj-flota'; el.addEventListener('click', paraReloj); document.body.append(el); }
+  if (quedan <= 0 && !RELOJ.sonando) {
+    RELOJ.sonando = true; el.classList.add('n-sonando'); el.setAttribute('aria-live', 'assertive');
+    try { navigator.vibrate?.([500, 200, 500, 200, 500]); } catch {}
+    try { const a = RELOJ.ac; if (a) for (const t of [0, .45, .9, 1.6, 2.05, 2.5]) { const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + t; o.frequency.value = 880; g.gain.setValueAtTime(.001, t0); g.gain.exponentialRampToValueAtTime(.35, t0 + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + .3); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + .35); } } catch {}
+  }
+  el.innerHTML = RELOJ.sonando ? `${NI.reloj}<b>¡Listo!</b><span>${esc(RELOJ.txt)} · tocar para parar</span>` : `${NI.reloj}<b>${reloj(quedan)}</b><span>${esc(RELOJ.txt)}</span>`;
+  el.setAttribute('aria-label', RELOJ.sonando ? `Temporizador terminado: ${RELOJ.txt}. Parar` : `Temporizador de ${RELOJ.txt}: quedan ${reloj(quedan)}. Parar`);
+  $$('[data-reloj-vivo]').forEach(v => { if (v.dataset.clave === RELOJ.clave) { v.textContent = RELOJ.sonando ? '0:00' : reloj(quedan); v.closest('.n-temporizador')?.classList.toggle('n-fin', RELOJ.sonando); } });
+}
+
+const chipsPaso = (x, clave) => {
+  const seg = segundosDe(x.tiempo);
+  const c = [x.calor ? `<span class="n-chip">${NI.fuego}${esc(x.calor)}</span>` : '',
+    x.tiempo ? (seg ? `<button type="button" class="n-chip n-reloj" data-reloj="${seg}" data-reloj-clave="${esc(clave)}" aria-label="Poner un temporizador de ${esc(x.tiempo)}">${NI.reloj}${esc(x.tiempo)}</button>` : `<span class="n-chip">${NI.reloj}${esc(x.tiempo)}</span>`) : ''].join('');
+  return c ? `<div class="n-chips">${c}</div>` : '';
+};
+// En la receta, el ingrediente con su nombre de cocina («Aceite en spray»); el de Mercadona es para Compra.
+const NOMBRE_ING = Object.fromEntries('pechuga_pollo:Pechuga de pollo|contramuslo_pollo:Contramuslo de pollo|pavo_filetes:Pechuga de pavo|lomo_cerdo:Lomo de cerdo|entrecot:Entrecot de añojo|anojo_filetes:Filetes de añojo|pavo_lonchas:Pavo en lonchas|salmon:Salmón|gambas:Gambas peladas|merluza:Merluza|huevos:Huevos|claras:Claras de huevo|queso_batido:Queso batido|yogur_proteinas:Yogur +Proteínas|yogur_griego_ligero:Yogur griego ligero|yogur_natural:Yogur natural|kefir:Kéfir|leche_soja:Bebida de soja|queso_burgos:Queso de Burgos|mozzarella_light:Mozzarella light|feta:Queso feta|grana_padano:Grana padano|cottage:Queso cottage|arroz:Arroz integral cocido|pan_integral:Pan integral|wraps:Tortillas integrales|uva:Uva sin semillas|brotes:Brotes tiernos|lechuga_romana:Lechuga romana|champinon:Champiñones laminados|esparragos:Espárragos verdes|pimientos_asados:Pimientos asados|tomate_seco:Tomate seco|aceite_oliva:Aceite de oliva|aceite_spray:Aceite en spray|crema_balsamico:Crema de balsámico|almendras:Almendras|hummus:Hummus|quinoa:Quinoa cocida|duo_canonigos_rucula:Canónigos y rúcula|ensalada_gourmet:Ensalada gourmet|salsa_mostaza_miel:Salsa miel y mostaza|anacardos:Anacardos|tomate_untar:Tomate para untar|pasta_integral:Macarrón integral|jamon_serrano:Jamón serrano|nata_ligera:Nata ligera|lomo_cerdo_tierno:Lomo de cerdo tierno|noquis_pollo_verduras:Ñoquis con pollo|bebida_avena:Bebida de avena|cocktail_frutos_secos:Frutos secos|yogur_prot_arandanos:Yogur +Proteínas arándanos|tomate_frito:Tomate frito|soja_texturizada:Soja texturizada|seitan:Seitán|picada_vacuno:Carne picada de vacuno|aceitunas_negras:Aceitunas negras|piquillos:Pimientos del piquillo|sesamo:Sésamo|vinagre_jerez:Vinagre de Jerez|aceitunas_verdes:Aceitunas verdes|remolacha:Remolacha cocida|crema_cacahuete:Crema de cacahuete|cacao:Cacao puro|huel:Huel|albondigas_patatas:Albóndigas con patatas|frijoles_negros:Frijoles negros|chicharritas:Chicharritas'.split('|').map(x => x.split(':')));
+// «200 g (1 patata)» → la cantidad y, debajo, la equivalencia
+const cantConEquiv = t => { const duro = x => esc(x).replace(/(\d|≈) (?=\S)/g, '$1&nbsp;'), m = /^(.+?) \((.+)\)$/.exec(t); return m ? `${duro(m[1])}<small>${duro(m[2])}</small>` : duro(t); };   // la cifra no se separa de su unidad
+// Una fila de ingrediente: la foto del producto, el nombre (con lo que se usa si falta, o «no hay en casa») y la cantidad de cada uno.
+function filaIngrediente(ing, quienes, hay, nota = '') {
+  const x = D.productos[ing[0]] || { n: ing[0] }, necesita = quienes.reduce((t, q) => t + (L.gramos(ing, q, fac) || 0), 0), inf = infinito(ing[0]);
+  const propio = (hay[ing[0]] || 0) >= necesita * 0.7, sust = !propio && !inf && hayDe(ing[0], hay) >= necesita * 0.7 ? grupoDe(ing[0]).slice(1).find(m => (hay[m] || 0) > 0) : null;
+  const extra = propio && (E.casa?.[ing[0]] || 0) < necesita * 0.7 ? (E.casaExtra || []).find(e => equivDe(e)?.k === ing[0]) : null;
+  const con = sust ? nombreCorto(D.productos[sust]) : extra ? extra.n : '', falta = !inf && !propio && !sust;
+  const corto = NOMBRE_ING[ing[0]], sub = nota || (con ? 'Con ' + minus(con) : '');
+  return `<li${falta ? ' class="n-falta"' : ''}>${x.foto ? `<img src="${esc(x.foto)}" alt="" loading="lazy" decoding="async">` : '<span class="n-ing-ic" aria-hidden="true"></span>'}${inf ? '' : `<span class="n-hay${falta ? ' n-falta' : ''}"><span class="n-oculto">${falta ? 'Falta' : 'En casa'}</span></span>`}<span class="n-n">${esc(corto || nombreCorto(x))}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${quienes.map(q => { const g = L.gramos(ing, q, fac); return `<span class="n-q n-${q.toLowerCase()}">${quienes.length > 1 ? `<span class="n-oculto">${esc(NOM[q])}: </span>` : ''}${g ? cantConEquiv(L.cantidadTexto(ing[0], g, D.productos)) : '—'}</span>`; }).join('')}</li>`;
+}
+const cabIngr = (quienes, t) => `<li class="n-cabecera" aria-hidden="true"><span class="n-n">${t}</span>${quienes.map(q => `<span class="n-q n-${q.toLowerCase()}">${esc(NOM[q])}</span>`).join('')}</li>`;
+
+function abrirReceta5(id, ctx) {
+  const r = recetas[id];
+  if (!r) return;
+  const quienes = ctx?.q ? [ctx.q] : L.QUIEN, una = quienes.length === 1, hay = hayEnCasa(), vos = L.QUIEN.length > 1;
+  const mac = Object.fromEntries(quienes.map(q => [q, L.macrosReceta(r, q, D.productos, fac)]));
+  const p = ctx?.plan ? planes().find(x => x.id === ctx.plan) : null, hecho = p ? !!est(p.id).hechos[ctx.f + '|' + ctx.c] : false;
+  const pasos = pasosReceta(r), plan = planActivo();
+  const avisos = [noHabitual(r).length ? `Lleva ${esc(enumera(noHabitual(r).map(nombreFalta), 3))}, que no ${vos ? 'soléis' : 'sueles'} comprar` : '',
+    !sePuedeHacer(r) ? `Necesita ${esc(nombreAparato(r.ap))}, que no ${vos ? 'tenéis' : 'tienes'} marcado en la cocina` : conHorno(r) ? 'Sin air fryer, en el horno: 200 °C con ventilador, 5 o 10 minutos más y dándole la vuelta a mitad' : '',
+    r.nota ? esc(r.nota) : ''].filter(Boolean);
+  const bm = (t, v, max) => `<div class="n-bm"><span>${t}</span><div class="n-barra" role="img" aria-label="${t} ${r0(v)} g"><b style="width:${Math.max(0, Math.min(100, Math.round(v / max * 100)))}%"></b></div><span>${r0(v)} g</span></div>`;
+  const suma = `<div class="n-suma">${quienes.map(q => { const x = mac[q], o = obj[q]; return `<div class="n-${q.toLowerCase()}"><p class="n-quien"><i aria-hidden="true"></i>${esc(NOM[q])}</p><p class="n-kcal">${r0(x.kcal)} <small>kcal</small></p>
+      <div class="n-barras">${bm('Proteína', x.p, o.prot * 0.4)}${bm('Hidratos', x.hc, o.hc * 0.4)}${bm('Grasa', x.g, o.grasa * 0.4)}</div></div>`; }).join('')}</div>`;
+  const AVISO_IC = nic('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.1"/>');
+  const redondo = (a, ic, t, pulsado) => `<button type="button" data-rec="${a}"${pulsado == null ? '' : ` aria-pressed="${pulsado}"`}><span class="n-c">${ic}</span>${t}</button>`;
+  const redondos = p ? redondo('cambiar', NI.cambiar, 'Cambiar') + redondo('compra', NI.compra, 'A la compra') + redondo('chef', NI.chef, 'Al Chef') + redondo('hecho', NI.check, 'Hecha', hecho)
+    : redondo('fav', NI.corazon, 'Favorita', !!r.fav) + (ctx ? '' : redondo('menu', NI.calendario, 'Al menú')) + redondo('compra', NI.compra, 'A la compra') + redondo('chef', NI.chef, 'Al Chef');
+  const menu = [['compartir', 'Compartir la receta'], p ? ['fav', r.fav ? 'Quitar de favoritas' : 'Favorita'] : null, r.propia ? ['foto', 'Cambiar la foto'] : null, r.propia ? ['editar', 'Editar'] : null, r.propia ? ['claude', 'Mandarla al Chef para ajustarla'] : null, r.propia ? ['borrar', 'Borrar'] : null].filter(Boolean);
+  hoja(`<article class="n-receta" aria-labelledby="n-rec-t">
+    <header class="n-portada">${fotoPlato(r, 900, 'n-foto')}
+      <div class="n-arriba"><button type="button" class="n-boton-c" data-rec="volver" aria-label="Volver">${NI.volver}</button>
+        <button type="button" class="n-boton-c" data-rec="menu-mas" aria-label="Más opciones" aria-expanded="false" aria-controls="n-rec-menu">${NI.mas}</button></div>
+      <ul class="n-menu" id="n-rec-menu" hidden>${menu.map(([a, t]) => `<li><button type="button" data-rec="${a}">${t}</button></li>`).join('')}</ul>
+      <div class="n-sobre"><h1 id="n-rec-t"${r.n.length > 38 ? ' class="n-largo"' : ''}>${esc(r.n)}</h1>${r.tipo0?.includes('cena') || r.tipo?.includes('cena') ? '' : `<p>${esc(capital(yJunta([...new Set((r.tipo0 || r.tipo || []).map(t => (L.NOMBRE_COMIDA[t] || t).toLowerCase()))])))}</p>`}</div></header>
+    <div class="n-cuerpo">
+      <ul class="n-datos"><li>${NI.reloj}${r.min} min</li><li>${NI.aparato}${esc(APARATO[r.ap] || 'Cocina')}</li>${r.propia ? '<li>Vuestra</li>' : ''}</ul>
+      <div class="n-redondos">${redondos}</div>
+      ${avisos.length ? `<section class="n-seccion">${avisos.map(a => `<p class="n-nota">${AVISO_IC}<span>${a}</span></p>`).join('')}</section>` : ''}
+      <section class="n-seccion" aria-label="Lo que aporta">${suma}</section>
+      ${r.prep?.length ? `<section class="n-seccion"><div class="n-antes"><h2>Antes de empezar</h2><ul>${r.prep.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></section>` : ''}
+      <section class="n-seccion" aria-labelledby="n-t-ing"><h2 id="n-t-ing">Ingredientes</h2>
+        <ul class="n-ingr">${cabIngr(quienes, una ? 'Cantidad' : 'Para los dos')}${r.ing.map(ing => filaIngrediente(ing, quienes, hay)).join('')}${[...(r.otros || []), ...(r.basicos || [])].map(t => `<li><span class="n-n n-otro">${esc(capital(t))}</span></li>`).join('')}</ul></section>
+      <section class="n-seccion" aria-labelledby="n-t-pasos"><h2 id="n-t-pasos">Pasos</h2>
+        <ol class="n-pasos">${pasos.map((x, n) => `<li class="n-paso"><span class="n-num" aria-hidden="true">${n + 1}</span><div><p>${esc(x.t)}</p>${chipsPaso(x, r.id + '|' + n)}${x.usa?.length ? `<p class="n-usa">${esc(capital(yJunta(x.usa.map(k => minus(nombreCorto(D.productos[k] || { n: k }))))))}</p>` : ''}${x.listo ? `<p class="n-listo">${NI.check}<span>${esc(capital(sinListo(x.listo)))}</span></p>` : ''}</div></li>`).join('') || '<li class="n-paso"><div><p>Sin pasos apuntados.</p></div></li>'}</ol></section>
+      ${r.truco ? `<section class="n-seccion"><div class="n-truco"><h2>El truco</h2><p>${esc(r.truco)}</p></div></section>` : ''}
+      ${r.fuente?.n ? `<p class="n-fuente">Inspirada en ${/^https:\/\//.test(r.fuente.url || '') ? `<a href="${esc(r.fuente.url)}" target="_blank" rel="noopener">${esc(r.fuente.n)}</a>` : esc(r.fuente.n)}</p>` : ''}
+      ${ctx ? '' : `<section class="n-seccion n-poner" id="n-poner" aria-labelledby="n-t-poner"><h2 id="n-t-poner">Ponerla en el menú</h2><div class="n-poner-campos">
+        <select id="s-dia" class="n-select" aria-label="Día">${plan.dias.map(d => `<option value="${d.f}">${capital(DS[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}</option>`).join('')}</select>
+        <select id="s-com" class="n-select" aria-label="Comida">${(r.tipo || L.COMIDAS).map(c => `<option value="${c}">${L.NOMBRE_COMIDA[c]}</option>`).join('')}</select>
+        ${vos ? `<select id="s-quien" class="n-select" aria-label="Para quién"><option value="">Los dos</option>${L.QUIEN.map(q => `<option value="${q}">${esc(NOM[q])}</option>`).join('')}</select>` : ''}
+        <button type="button" class="n-boton-p" id="b-poner">Poner</button></div></section>`}
+    </div>
+    ${pasos.length && (r.cocina?.length || r.detalle?.length || pasos.length > 1) ? `<div class="n-fijo"><button type="button" class="n-pastilla" data-rec="cocinar">${NI.play}Empezar a cocinar</button></div>` : ''}
+  </article>`, h => {
+    const menuEl = $('#n-rec-menu', h), botonMas = $('[data-rec="menu-mas"]', h);
+    const cierraMenu = () => { menuEl.hidden = true; botonMas.setAttribute('aria-expanded', 'false'); };
+    $$('[data-reloj]', h).forEach(b => b.addEventListener('click', () => { ponReloj(+b.dataset.reloj, r.n, b.dataset.relojClave); tostada(`Temporizador: ${b.textContent.trim()}`); }));
+    $('#b-poner', h)?.addEventListener('click', () => {
+      const f = $('#s-dia', h).value, c = $('#s-com', h).value, q = $('#s-quien', h)?.value || '', s = est(plan.id), k = f + '|' + c;
+      if (q) { const v = efectivo(plan).dias.find(d => d.f === f)[c]; const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[q] = r.id; s.cambios[k] = base; }
+      else s.cambios[k] = r.id;
+      salva(); cierraHoja(); tostada('Puesta en el menú'); repinta();
+    });
+    $$('[data-rec]', h).forEach(b => b.addEventListener('click', e => {
+      const a = b.dataset.rec;
+      if (a !== 'menu-mas') cierraMenu();
+      if (a === 'volver') cierraHoja();
+      if (a === 'menu-mas') { menuEl.hidden = !menuEl.hidden; b.setAttribute('aria-expanded', String(!menuEl.hidden)); if (!menuEl.hidden) $('button', menuEl)?.focus(); }
+      if (a === 'cocinar') abrirCocinar(r.id, ctx);
+      if (a === 'cambiar' && p) abrirCambiar(p, efectivo(p).dias.findIndex(d => d.f === ctx.f), ctx.c, ctx.q || null);
+      if (a === 'hecho' && p) { cierraHoja(); alternaHecho(p, ctx.f, ctx.c); }
+      if (a === 'compra') elegirRaciones(r);
+      if (a === 'chef') irAClaude('', null, { receta: recetaParaChef(r) });
+      if (a === 'menu') { const s = $('#n-poner', h); s.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#s-dia', h).focus({ preventScroll: true }); }
+      if (a === 'compartir') compartirTexto(r.n, recetaParaCompartir(r), 'Receta copiada: pégala donde quieras');
+      if (a === 'fav') {
+        E.favRecetas = r.fav ? E.favRecetas.filter(x => x !== r.id) : [...E.favRecetas, r.id];
+        reconstruyeRecetas(); salva(); tostada(r.fav ? 'En vuestras favoritas' : 'Quitada de favoritas'); if (V.pestana === 'recetas') vRecetas();
+        if (b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', String(!!r.fav)); else b.textContent = r.fav ? 'Quitar de favoritas' : 'Favorita';
+      }
+      if (a === 'foto') elegirFoto(r);
+      if (a === 'editar') editorReceta(r);
+      if (a === 'claude') irAClaude(textoReceta(r));
+      if (a === 'borrar') {
+        if (!confirm(`¿Borro la receta «${r.n}» de este móvil?`)) return;
+        E.propias = E.propias.filter(x => x.id !== r.id); reconstruyeRecetas(); salva(); cierraHoja(); tostada('Receta borrada'); pinta();
+      }
+    }));
+    h.addEventListener('keydown', e => { if (e.key === 'Escape' && !menuEl.hidden) { e.stopPropagation(); cierraMenu(); botonMas.focus(); } });
+    $('[data-rec="volver"]', h).focus({ preventScroll: true });
+  }, { pantalla: true });
+}
+
+// El modo cocinar: un paso cada vez, con el calor, el temporizador, cómo saber que está hecho, lo que se usa y lo que viene después.
+// La pantalla no se apaga mientras está abierto (si el móvil lo permite).
+async function mantenDespierta() { try { if (!V.despierta && navigator.wakeLock) { V.despierta = await navigator.wakeLock.request('screen'); V.despierta.addEventListener?.('release', () => { V.despierta = null; }); } } catch { V.despierta = null; } }
+function abrirCocinar(id, ctx, paso = 0) {
+  const r = recetas[id];
+  if (!r) return;
+  const pasos = pasosReceta(r);
+  if (!pasos.length) return abrirReceta5(id, ctx);
+  const n = Math.max(0, Math.min(paso, pasos.length - 1)), x = pasos[n], sig = pasos[n + 1], ultimo = !sig;
+  const quienes = ctx?.q ? [ctx.q] : L.QUIEN, hay = hayEnCasa(), clave = r.id + '|' + n, seg = segundosDe(x.tiempo), mio = !!RELOJ.fin && RELOJ.clave === clave;
+  const usa = (x.usa || []).map(k => r.ing.find(i => i[0] === k)).filter(Boolean);
+  const p = ctx?.plan ? planes().find(y => y.id === ctx.plan) : null, hecho = p ? !!est(p.id).hechos[ctx.f + '|' + ctx.c] : false;
+  const html = `<div class="n-cocinar">
+    <div class="n-coc-cab"><button type="button" class="n-boton-c" data-coc="salir" aria-label="Salir del modo cocinar">${NI.cerrar}</button>
+      <h1 id="n-coc-t">Paso ${n + 1} de ${pasos.length}<span>${esc(r.n)}</span></h1>
+      <button type="button" class="n-boton-c" data-coc="ing" aria-label="Ver los ingredientes">${NI.lista}</button>
+      <div class="n-progreso" role="img" aria-label="Paso ${n + 1} de ${pasos.length}">${pasos.map((_, i) => `<i${i <= n ? ' class="n-ya"' : ''}></i>`).join('')}</div></div>
+    <div class="n-coc-cuerpo">
+      <p class="n-coc-texto">${esc(x.t)}</p>
+      ${x.calor ? `<div class="n-chips"><span class="n-chip">${NI.fuego}${esc(x.calor)}</span></div>` : ''}
+      ${seg ? `<div class="n-temporizador"><div class="n-t"><b data-reloj-vivo="${reloj(seg)}" data-clave="${esc(clave)}" aria-live="off">${reloj(mio ? Math.ceil((RELOJ.fin - Date.now()) / 1000) : seg)}</b><span>${esc(rangoTiempo(x.tiempo))}</span></div>
+        <button type="button" data-coc="reloj" aria-label="${mio ? 'Parar el temporizador' : `Empezar el temporizador de ${esc(x.tiempo)}`}">${mio ? NI.cerrar : NI.play}</button></div>` : x.tiempo ? `<div class="n-chips"><span class="n-chip">${NI.reloj}${esc(x.tiempo)}</span></div>` : ''}
+      ${x.listo ? `<div class="n-listo-caja">${NI.check}<div><b>Está hecho cuando…</b><p>${esc(capital(sinListo(x.listo)))}</p></div></div>` : ''}
+      ${usa.length ? `<section class="n-seccion" aria-labelledby="n-t-usa"><h2 id="n-t-usa">En este paso</h2><ul class="n-ingr">${cabIngr(quienes, 'Ingrediente')}${usa.map(i => filaIngrediente(i, quienes, hay)).join('')}</ul></section>` : ''}
+      ${sig ? `<section class="n-seccion" aria-labelledby="n-t-luego"><h2 id="n-t-luego">${seg ? 'Mientras se hace' : 'Lo siguiente'}</h2><div class="n-despues"><span class="n-txt"><small>Paso ${n + 2}</small><b>${esc(sig.t.length > 140 ? sig.t.slice(0, 137).replace(/\s+\S*$/, '') + '…' : sig.t)}</b></span></div></section>`
+        : r.truco ? `<section class="n-seccion"><div class="n-truco"><h2>El truco</h2><p>${esc(r.truco)}</p></div></section>` : ''}
+    </div>
+    <nav class="n-fijo n-dos" aria-label="Pasos"><button type="button" class="n-circulo" data-coc="antes" aria-label="${n ? 'Paso anterior' : 'Volver a la receta'}">${NI.volver}</button>
+      <button type="button" class="n-pastilla" data-coc="sig">${ultimo ? (p && !hecho ? `${NI.check}Terminado` : `${NI.check}Terminar`) : `Siguiente paso${NI.sigue}`}</button></nav></div>`;
+  const activa = h => {
+    $$('[data-coc]', h).forEach(b => b.addEventListener('click', () => {
+      const a = b.dataset.coc;
+      if (a === 'salir' || (a === 'antes' && !n)) abrirReceta5(id, ctx);
+      if (a === 'ing') { abrirReceta5(id, ctx); requestAnimationFrame(() => $('#n-t-ing')?.scrollIntoView({ block: 'start' })); }
+      if (a === 'antes' && n) abrirCocinar(id, ctx, n - 1);
+      if (a === 'sig') {
+        if (!ultimo) return abrirCocinar(id, ctx, n + 1);
+        cierraHoja();
+        if (p && !hecho) alternaHecho(p, ctx.f, ctx.c); else tostada('¡Que aproveche!');
+      }
+      if (a === 'reloj') {
+        if (RELOJ.fin && RELOJ.clave === clave) paraReloj();
+        else { ponReloj(seg, `${r.n} · paso ${n + 1}`, clave); b.innerHTML = NI.cerrar; b.setAttribute('aria-label', 'Parar el temporizador'); }
+      }
+    }));
+    // Deslizar a los lados para cambiar de paso.
+    let x0 = null, y0 = 0; const zona = $('.n-cocinar', h);
+    zona.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    zona.addEventListener('touchend', e => {
+      if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * .6) return;
+      if (dx < 0 && !ultimo) abrirCocinar(id, ctx, n + 1); else if (dx > 0 && n) abrirCocinar(id, ctx, n - 1);
+    });
+    $('[data-coc="sig"]', h).focus({ preventScroll: true });
+    mantenDespierta();
+  };
+  const abierta = $('.hoja.n-pantalla.n-en-cocina');
+  if (abierta) { abierta.innerHTML = html; abierta.scrollTop = 0; activa(abierta); return; }   // de paso a paso, sin volver a abrir la hoja
+  const h = hoja(html, activa, { pantalla: true });
+  h.classList.add('n-en-cocina');
 }
 const nombreCorto = x => x.n.replace(/ Hacendado| ultracongelad[oa]s?| lavad[oa]s?| IGP/g, '').replace(/\s+/g, ' ');
 const textoReceta = r => `Receta para NutriHome: ${r.n}\n\nIngredientes (una ración):\n${r.txt?.ing || r.ing.map(i => `${i[1]} g de ${nombreCorto(D.productos[i[0]])}`).join('\n')}\n\nCómo se hace:\n${r.txt?.pasos || r.pasos.join('\n')}`;
@@ -1942,11 +2189,11 @@ function activaBuscador() {
   const i = $('#i-filtra'); if (!i) { V.filtra = ''; return; }
   const filtra = () => {
     const q = L.normaliza(i.value.trim()); V.filtra = i.value; V.filtraDe = V.pestana;
-    $$('#vista .lista').forEach(l => {
+    $$('#vista .lista, #vista .n-lista').forEach(l => {
       let vis = 0;
-      l.querySelectorAll('.producto').forEach(f => { const si = !q || L.normaliza(f.innerText).includes(q); f.style.display = si ? '' : 'none'; if (si) vis++; });
+      l.querySelectorAll('.producto, .n-fila').forEach(f => { const si = !q || L.normaliza(f.innerText).includes(q); f.style.display = si ? '' : 'none'; if (si) vis++; });
       l.style.display = vis ? '' : 'none';
-      const cab = l.previousElementSibling; if (cab?.classList.contains('cat')) cab.style.display = vis ? '' : 'none';
+      const cab = l.previousElementSibling; if (cab?.classList.contains('cat') || cab?.classList.contains('n-sec-cab')) cab.style.display = vis ? '' : 'none';
     });
   };
   i.addEventListener('input', filtra); if (i.value) filtra();
@@ -1965,6 +2212,21 @@ function vCompra() {
   const conTicket = !!s.ticket, enLista = comprados.length + porComprar.length;
   cabecera('Compra', `${nombreSuper()} · ${filas.length} productos${esMercadona() ? '' : ' · precios de Mercadona'}`);
   const tope = topeDe(p);
+  // Diseño 5 (maqueta compra.html): la foto, el nombre con la cantidad y sus etiquetas, el precio, ⋯ (no había, no lo compro, otra
+  // tienda) y el círculo del carro a la derecha.
+  const filaHTML5 = f => {
+    const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '', nom = nombreFila(f);
+    const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img, niv = f.manual ? nivelDe(f) : null;
+    const tags = [f.fijo ? ['De siempre'] : null, f.despensa ? ['Despensa'] : null, f.otro && f.para ? ['Para ' + f.para] : null, niv ? [L.NIVEL[niv].t, 'n-' + niv] : null, f.manual ? ['Añadido'] : null,
+      f.proxima ? [f.por ? (f.por.length > 28 ? f.por.slice(0, 27) + '…' : f.por) : 'Se acabó', 'n-acabo'] : null, estado === 'no' ? ['No había', 'n-malo'] : null].filter(Boolean).map(([t, c]) => `<em class="n-tag${c ? ' ' + c : ''}">${esc(t)}</em>`).join('');
+    const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
+    return `<li class="n-fila${estado === 'si' ? ' n-hecha' : estado === 'no' ? ' n-no' : ''}" data-fila="${esc(f.clave)}"><button type="button" class="n-fila-abre" data-info="${esc(f.clave)}">${foto ? `<img class="n-min n-prod" src="${esc(foto)}" alt="" loading="lazy" width="52" height="52">` : `<span class="n-min-ic">${f.otro ? NI.lista : NI.compra}</span>`}<span class="n-txt"><b>${esc(nom)}</b><span>${esc(cant)}${tags}</span></span>${f.precio ? `<span class="n-precio">${euros(f.precio)}</span>` : ''}</button>
+      ${f.tienda === null ? `<button type="button" class="n-chip n-donde" data-tienda-fila="${esc(f.clave)}" aria-label="¿Dónde se compra ${esc(nom)}?">¿Dónde?</button>` : ''}
+      <button type="button" class="n-mas" data-fila-mas="${esc(f.clave)}" aria-label="No había, no lo compro u otra tienda: ${esc(nom)}">${NI.mas}</button>
+      <button type="button" class="n-marcar${estado === 'si' ? ' n-hecho' : ''}" data-check="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="En el carro: ${esc(nom)}">${NI.check}</button></li>`;
+  };
+  const listaFilas = l => DISENO5 ? `<ul class="n-filas n-lista">${l.map(filaHTML5).join('')}</ul>` : `<div class="lista">${l.map(filaHTML).join('')}</div>`;
+  const cabSec = (t, n, emo = '', extra = '') => DISENO5 ? `<div class="n-sec-cab"><h2>${t}</h2><span>${n}</span>${extra}</div>` : `<div class="cat${emo ? '' : ' cat-tienda'}">${emo ? `<span class="emo">${emo}</span>` : ''}${t}<span class="num">${n}</span>${extra}</div>`;
   const filaHTML = f => {
     const x = f.k ? D.productos[f.k] : null, estado = s.marcados[f.clave] ? 'si' : s.noComprado[f.clave] ? 'no' : '';
     const foto = x && x.foto ? x.foto : f.m ? f.m.foto : f.img;
@@ -1986,10 +2248,12 @@ function vCompra() {
   const porTiendas = lista => {
     const g = new Map(); for (const f of lista) { const t = f.tienda || ''; if (!g.has(t)) g.set(t, []); g.get(t).push(f); }
     return [...g].sort(([a], [b]) => !a - !b || nombreTienda(a).localeCompare(nombreTienda(b), 'es')).map(([t, fs]) => t
-      ? `<div class="cat cat-tienda">En ${esc(nombreTienda(t))}<span class="num">${fs.length}</span></div><div class="lista">${fs.map(filaHTML).join('')}</div>`
-      : `<div class="cat cat-tienda">${sinTienda()}<span class="num">${fs.length}</span></div><p class="nota" style="margin:-2px 0 8px">Toca «¿Dónde?» y elige la tienda: lo recuerdo para las próximas compras.</p><div class="lista">${fs.map(filaHTML).join('')}</div>`).join('');
+      ? `${DISENO5 ? '<section class="n-sec n-tienda">' : ''}${cabSec('En ' + esc(nombreTienda(t)), fs.length)}${listaFilas(fs)}${DISENO5 ? '</section>' : ''}`
+      : `${DISENO5 ? '<section class="n-sec n-tienda">' : ''}${cabSec(sinTienda(), fs.length)}<p class="${DISENO5 ? 'n-nota' : 'nota'}"${DISENO5 ? '' : ' style="margin:-2px 0 8px"'}>Toca «¿Dónde?» y elige la tienda: lo recuerdo para las próximas compras.</p>${listaFilas(fs)}${DISENO5 ? '</section>' : ''}`).join('');
   };
   const porSecciones = lista => {
+    if (DISENO5) { const g = new Map(); for (const f of lista) { if (!g.has(f.seccion)) g.set(f.seccion, []); g.get(f.seccion).push(f); }
+      return [...g].map(([sec, fs]) => `<section class="n-sec">${cabSec(esc(sec), fs.length)}${listaFilas(fs)}</section>`).join(''); }
     let sec = '', html = ''; const cuenta = {};
     for (const f of lista) cuenta[f.seccion] = (cuenta[f.seccion] || 0) + 1;
     for (const f of lista) { if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; } html += filaHTML(f); }
@@ -1999,7 +2263,20 @@ function vCompra() {
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
   const soleis = s.compraHecha || s.soleisOculto || aldia ? [] : soleisComprar(filas, s);
-  $('#vista').innerHTML = `
+  const pct = enLista ? Math.round(comprados.length / enLista * 100) : 0;
+  if (DISENO5) $('#cab').innerHTML = `<div class="n-compra n-cabeza"><div><p class="n-fecha">${iconoSync()}${c ? `Para ${esc(cuandoCompra(c.f))} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</p><h1>Compra</h1></div>
+    <div class="n-botones"><button type="button" class="n-boton-c" id="b-escanear" aria-label="¿Es buena compra? Escanear un código">${nic('<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8"/>')}</button><button type="button" class="n-boton-c" id="b-mas" aria-label="Más: favoritos, receta a la lista, enviar la lista…">${NI.mas}</button></div></div>`;
+  $('#vista').innerHTML = DISENO5 ? `<div class="n-compra n-cuerpo">
+    <div class="n-resumen"><div class="n-linea"><b>${comprados.length} <small>de ${enLista} en el carro</small></b><span class="n-total">${total ? 'Unos ' + euros(total) : ''}</span></div>
+      ${enLista ? `<div class="n-barra" role="img" aria-label="${pct} % de la lista en el carro"><b style="width:${pct}%"></b></div>` : ''}
+      ${tope ? `<p class="n-presupuesto${total > tope ? ' n-pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</p>${total > tope && !s.compraHecha ? '<button type="button" class="n-boton-p" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}</div>
+    <ul class="n-filas n-compra-acc">
+      <li class="n-fila${c || aldia ? '' : ' n-pide'}"><button type="button" class="n-fila-abre" id="b-dia-compra"><span class="n-min-ic">${NI.calendario}</span><span class="n-txt"><b>${c ? `Compra ${esc(cuandoCompra(c.f))}` : 'Día de compra'}</b><span>${c ? `Para hasta el ${diaCorto(c.hasta)}${c.antojos?.length ? ' · con vuestros antojos' : ''}` : 'Elige el día y te propongo el menú y la lista'}</span></span>${c ? '' : `<span class="n-flecha" aria-hidden="true">${NI.sigue}</span>`}</button>${c ? '<button type="button" class="n-boton-p" id="b-menu-compra">Ver el menú</button>' : ''}</li>
+      ${esMercadona() ? `<li class="n-fila"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar y marcamos la lista solos'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}</ul>
+    <button type="button" class="n-buscar n-anadir" id="b-anadir">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}<span>Añadir: huevos, yuca y 2 kéfir</span></button>
+    ${filas.length + (E.pendientes || []).length > 10 ? `<label class="n-buscar n-filtra">${NI.buscar}<input id="i-filtra" type="search" placeholder="Buscar en la compra" aria-label="Buscar en la compra" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}"></label>` : ''}
+    ${compraResto()}</div>
+    <div class="n-fijo"><button type="button" class="n-pastilla" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${NI.check}Terminar la compra</button></div>` : `
     <section class="compra-cab" aria-label="La compra">
       <div class="compra-total"><b>${euros(total)}</b><span>${c ? `${cuandoCompra(c.f)} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</span></div>
       ${c ? `<button class="boton suave" id="b-menu-compra">Ver el menú de estos días${etiquetaNuevo('menu-compra')}</button>` : ''}
@@ -2013,17 +2290,21 @@ function vCompra() {
       <button id="b-mas">${IC_MAS}<span>Más</span></button>
     </div>
     ${buscadorLista(filas.length + (E.pendientes || []).length, 'Buscar en la compra')}
-    ${seccionPendientes(filas)}
+    ${compraResto()}
+    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
+  function compraResto() { return `
+    ${DISENO5 ? '' : seccionPendientes(filas)}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="lista">${recetasLista}</div>` : ''}
-    ${noHabia.length ? `<div class="cat"><span class="emo">✕</span>No había<span class="num">${noHabia.length}</span></div><div class="lista">${noHabia.map(filaHTML).join('')}</div>
+    ${noHabia.length ? `${DISENO5 ? '<section class="n-sec">' : ''}${cabSec('No había', noHabia.length, '✕')}${listaFilas(noHabia)}${DISENO5 ? '</section>' : ''}
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
     ${enLista ? porSecciones(filas.filter(f => !s.noComprado[f.clave] && f.tienda === pri)) + porTiendas(filas.filter(f => !s.noComprado[f.clave] && f.tienda !== pri)) : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
+    ${DISENO5 ? seccionPendientes(filas) : ''}
     ${soleis.length ? `<div class="cat"><span class="emo">🔁</span>Lo que soléis comprar<span class="num">${soleis.length}</span><button class="cat-accion" id="b-ocultar-soleis">Ocultar</button></div><p class="nota" style="margin:-2px 0 8px">Está en vuestros tickets y no en la lista ni en casa.</p><div class="lista">${soleis.map(k => `<div class="producto fila-simple">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(D.productos[k].cat)}</div>`}<div class="info"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="pc">${euros(D.productos[k].precio)}</div></div><button class="chip" data-soleis="${k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
     ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button></div>`).join('')}</div>` : ''}
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista<span class="num">${quitados.length}</span><button class="cat-accion" id="b-vaciar-quitados">Vaciar</button></div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver</button><button class="icono" data-olvidar="${k}" aria-label="Quitar de aquí">${I.papelera}</button></div>`).join('')}</div>` : ''}
-    <div class="barra-accion"><div class="dentro"><button class="boton principal ancho" id="b-terminar"${filas.length || conTicket ? '' : ' disabled'}>${I.caja}Terminar la compra</button></div></div>`;
+  `; }
   activaLetreros();
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
   $$('[data-fila-mas]').forEach(b => b.addEventListener('click', () => opcionesFila(filas.find(f => f.clave === b.dataset.filaMas))));
@@ -2073,6 +2354,7 @@ function vCompra() {
   $('#b-enviar-no')?.addEventListener('click', () => compartirNoHabia(noHabia.map(nombreFila)));
   $('#b-anadir').addEventListener('click', () => abrirAnadir(seccionesLista));
   $('#b-mas').addEventListener('click', abrirMas);
+  $('#b-escanear')?.addEventListener('click', abrirEscaner);
   activaBuscador();
   $('#b-presupuesto')?.addEventListener('click', ajustaAlPresupuesto);
   $('#b-terminar').addEventListener('click', () => conTicket ? terminarCompra(filas) : hojaTerminar(filas));
@@ -2238,7 +2520,7 @@ async function buscaParaAnadir(texto, seccionesLista, enviado = false) {
 
 // Deslizar un producto a la izquierda lo quita de la lista (con «Deshacer»).
 function deslizaParaQuitar(fila, alQuitar) {
-  const el = fila.querySelector('.producto');
+  const el = fila.querySelector('.producto') || fila;   // diseño 5: la fila entera
   let x0 = null, y0 = 0, dx = 0, horizontal = null;
   el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; horizontal = null; el.style.transition = 'none'; }, { passive: true });
   el.addEventListener('touchmove', e => {
@@ -2356,7 +2638,7 @@ function infoProducto(clave, f) {
       ${x ? `<div class="nota">${esc(x.env)} · ${euros(x.precio)}</div>` : f.m ? `<div class="nota">${esc(f.m.env)} · ${euros(f.m.precio)} · ${emojiSeccion(f.m.cat)} ${esc(f.m.cat)}</div>` : f.otro ? `<div class="nota">Para «${esc(f.para)}»</div>` : ''}</div></div>
     ${v ? semaforoHTML(v) : f.nivel ? `<div class="botones" style="margin-top:10px">${pillNivel(f.nivel)} ${L.NIVEL[f.nivel].t}</div>` : ''}
     ${x ? `${usos.length ? `<h3>${I.calendario} Para</h3><div class="botones">${usos.map(u => `<span class="pill">${COMIDA_EMO[u.c]} ${DS[fecha(u.f).getDay()]} ${fecha(u.f).getDate()} · ${esc(u.r.n)}</span>`).join('')}</div>` : ''}
-      <div class="tabla-n"><div><b>${x.m[0]}</b><span>kcal</span></div><div><b>${x.m[1]} g</b><span>proteína</span></div><div><b>${x.m[2]} g</b><span>hidratos</span></div><div><b>${x.m[3]} g</b><span>grasa</span></div></div>` : ''}
+      <div class="tabla-n"><div><b>${coma(x.m[0])}</b><span>kcal</span></div><div><b>${coma(x.m[1])} g</b><span>proteína</span></div><div><b>${coma(x.m[2])} g</b><span>hidratos</span></div><div><b>${coma(x.m[3])} g</b><span>grasa</span></div></div>` : ''}
     ${!x && !f.nivel && !f.otro && !NO_COMIDA.has(f.seccion) ? `<button class="boton suave" id="b-escanear-info" style="margin-top:10px">🔎 ¿Es bueno? Escanéalo</button>` : ''}
     ${f.k || f.extra ? `<div class="cantidad"><button id="b-menos" aria-label="Uno menos">−</button><label class="t"><input id="i-cant" type="number" inputmode="numeric" min="0" value="${f.k || f.m ? f.envases : f.n || 1}" aria-label="Cantidad">
       <span>${esc(f.k ? (L.porPieza(x) ? L.plural(x.ud, 2) : x.env) : f.m ? f.m.env : 'unidades')}${f.precio ? ' · ' + euros(f.precio) : ''}</span></label><button class="mas" id="b-mas" aria-label="Uno más">＋</button></div>` : ''}
@@ -2841,9 +3123,9 @@ function abrirEscaner() {
       E.escaneos = [{ ean, n: nombre, nivel: v.nivel, img, f: new Date().toISOString() }, ...E.escaneos.filter(x => x.ean !== ean)].slice(0, 12); salva();
       res.innerHTML = `<div class="producto-escaneado" style="margin-top:14px">${img ? `<img src="${esc(img)}" alt="">` : ''}<div><b>${esc(nombre)}</b></div></div>
         ${semaforoHTML(v)}
-        <div class="tabla-n"><div><b>${v.kcal}</b><span>kcal</span></div><div><b>${r0(nut.p * 10) / 10} g</b><span>proteína</span></div><div><b>${nut.az != null ? r0(nut.az * 10) / 10 + ' g' : '—'}</b><span>azúcar</span></div><div><b>${r0(nut.g * 10) / 10} g</b><span>grasa</span></div></div>
+        <div class="tabla-n"><div><b>${v.kcal}</b><span>kcal</span></div><div><b>${coma(r0(nut.p * 10) / 10)} g</b><span>proteína</span></div><div><b>${nut.az != null ? coma(r0(nut.az * 10) / 10) + ' g' : '—'}</b><span>azúcar</span></div><div><b>${coma(r0(nut.g * 10) / 10)} g</b><span>grasa</span></div></div>
         <details class="por-que"><summary>Por qué esta nota</summary>
-          <p class="nota">Puntos: ${v.pts > 0 ? '+' : ''}${v.pts} (bueno con 2 o más, «mejor no» con −2 o menos). Por cada 100 g: ${[`${v.kcal} kcal`, `${r0(nut.p * 10) / 10} g de proteína`, nut.az != null && `${r0(nut.az * 10) / 10} g de azúcar`, nut.sat != null && `${r0(nut.sat * 10) / 10} g de grasa saturada`, nut.f != null && `${r0(nut.f * 10) / 10} g de fibra`, nut.sal != null && `${r0(nut.sal * 100) / 100} g de sal`, nut.nova && `NOVA ${nut.nova}`, nut.nutri && `Nutri-Score ${String(nut.nutri).toUpperCase()}`].filter(Boolean).join(' · ')}.</p>
+          <p class="nota">Puntos: ${v.pts > 0 ? '+' : ''}${v.pts} (bueno con 2 o más, «mejor no» con −2 o menos). Por cada 100 g: ${[`${v.kcal} kcal`, `${coma(r0(nut.p * 10) / 10)} g de proteína`, nut.az != null && `${coma(r0(nut.az * 10) / 10)} g de azúcar`, nut.sat != null && `${coma(r0(nut.sat * 10) / 10)} g de grasa saturada`, nut.f != null && `${coma(r0(nut.f * 10) / 10)} g de fibra`, nut.sal != null && `${r0(nut.sal * 100) / 100} g de sal`, nut.nova && `NOVA ${nut.nova}`, nut.nutri && `Nutri-Score ${String(nut.nutri).toUpperCase()}`].filter(Boolean).join(' · ')}.</p>
           <p class="nota">Suma: mucha proteína para sus calorías, fibra, poco procesado, Nutri-Score A o B. Resta: azúcar (7 g o más), grasa saturada (2,5 g o más), más de 400 kcal, sal (1,5 g o más), ultraprocesado (NOVA 4), Nutri-Score D o E.</p>
           <p class="nota">Datos: ${local ? 'la ficha de Mercadona y Open Food Facts' : 'Open Food Facts'} · <a href="https://world.openfoodfacts.org/product/${esc(ean)}" target="_blank" rel="noopener">ver la ficha</a></p></details>
         <div class="botones" style="margin-top:12px"><button class="boton ${v.nivel === 'malo' ? '' : 'principal'}" id="b-escaneo-lista">${I.carro}${v.nivel === 'malo' ? 'Añadir igualmente' : 'A la lista'}</button></div>`;
@@ -2890,7 +3172,8 @@ function vCasa() {
       <div class="info"><div class="pn">${esc(nombreCorto(p))}</div><div class="pc">${esc(cantidadCasa(k, g))}</div></div>
       <div class="mini-cant"><button data-menos="${k}" aria-label="Menos">−</button><button data-mas="${k}" aria-label="Más">＋</button></div>
       <button class="icono" data-acabado="${k}" aria-label="Se acabó: ${esc(nombreCorto(p))} a la compra" title="Se acabó: a la próxima compra">${I.carro}</button><button class="icono" data-casa-quitar="${k}" aria-label="Quitar sin comprar: ${esc(nombreCorto(p))}">${I.papelera}</button></div>`; };
-  $('#vista').innerHTML = `
+  if (DISENO5) pintaNevera5(items, extra, porSec, secs);
+  else $('#vista').innerHTML = `
     <button class="boton principal ancho" id="b-anadir-casa" style="margin:4px 0 12px">➕ Añadir algo que tenéis</button>
     ${buscadorLista(items.length + extra.length + E.casaOtros.length, 'Buscar en casa')}
     ${letrero('casa-ayuda-1811', '💡', '<b>Carrito:</b> se acabó y va a la compra. <b>Papelera:</b> lo quitas sin comprarlo. Lo que gasta el menú, cuando se acaba, entra solo en la compra.')}
@@ -2912,6 +3195,58 @@ function vCasa() {
   $$('[data-otro-acabado]').forEach(b => b.addEventListener('click', () => { const t = E.casaOtros[+b.dataset.otroAcabado]; quitarConVuelta('🛒 A la próxima compra: ' + t, () => { E.casaOtros.splice(E.casaOtros.indexOf(t), 1); apuntaProxima({ texto: t, n: t }); }); }));
   $$('[data-otro-casa]').forEach(b => b.addEventListener('click', () => { const t = E.casaOtros[+b.dataset.otroCasa]; quitarConVuelta('🗑️ ' + t, () => { E.casaOtros.splice(E.casaOtros.indexOf(t), 1); }); }));
   $('#b-anadir-casa').addEventListener('click', abrirAnadirCasa);
+  $$('[data-casa-cant]').forEach(b => b.addEventListener('click', () => abrirCantidadCasa(b.dataset.casaCant, paso)));
+}
+// Lo que gasta el menú que queda de hoy y mañana (sin lo ya hecho ni lo de fuera), en gramos por producto: para «Se está acabando».
+function gastoProximo() {
+  const g = {}, h = hoy(), dias = [h, masDias(h, 1)];
+  for (const f of dias) {
+    const pl = planes().find(x => x.dias.some(y => y.f === f)); if (!pl) continue;
+    const d = efectivo(pl).dias.find(y => y.f === f), s = est(pl.id);
+    for (const c of L.COMIDAS) {
+      const v = d[c]; if (!v || v.fuera || s.hechos[f + '|' + c]) continue;
+      for (const q of L.QUIEN) { const r = recetas[L.esDoble(v) ? L.recetaDe(v, q) : L.idDe(v)]; if (!r) continue;
+        for (const ing of r.ing) { const x = L.gramos(ing, q, fac) || 0; if (x) (g[ing[0]] ||= { g: 0, hoy: false }).g += x, f === h && (g[ing[0]].hoy = true); } }
+    }
+  }
+  return g;
+}
+// Nevera (maqueta nevera.html): arriba lo que se está acabando (lo gasta el menú de hoy o de mañana); luego todo por secciones.
+// Cada fila: tocarla cambia la cantidad; el carrito, se acabó (a la compra); la papelera, fuera sin comprarlo.
+function pintaNevera5(items, extra, porSec, secs) {
+  const vos = L.QUIEN.length > 1, gasto = gastoProximo(), n = items.length + extra.length + E.casaOtros.length;
+  $('#cab').innerHTML = `<div class="n-nevera n-cabeza"><div><p class="n-fecha">${iconoSync()}Lo que ${vos ? 'tenéis' : 'tienes'} en casa</p><h1>Nevera</h1></div>
+    <div class="n-botones"><button type="button" class="n-boton-c" id="b-anadir-casa" aria-label="Añadir algo que ${vos ? 'tenéis' : 'tienes'}">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}</button></div></div>`;
+  const acaba = items.filter(({ k, g }) => gasto[k] && !infinito(k) && g <= gasto[k].g * 1.05).map(x => x.k);
+  const botones = (attrA, attrQ, nom) => `<button type="button" class="n-carro" ${attrA} aria-label="${esc(nom)} se acabó: a la próxima compra">${NI.compra}</button><button type="button" class="n-papelera" ${attrQ} aria-label="Quitar sin comprarlo: ${esc(nom)}">${I.papelera.replace('class="i"', 'class="n-svg" aria-hidden="true"')}</button>`;
+  const fila = ({ k, g, x }, poco) => {
+    if (x) { const eq = x.usado && equivDe(x); return `<li class="n-fila">${x.foto ? `<img class="n-min n-prod" src="${esc(x.foto)}" alt="" loading="lazy" width="52" height="52">` : `<span class="n-min-ic">${NI.compra}</span>`}<span class="n-txt"><b>${esc(x.n)}</b>${eq ? `<span>Quedan unos ${r0(eq.g - x.usado)} g</span>` : ''}</span>${botones(`data-extra-acabado="${esc(x.id)}"`, `data-extra-quitar="${esc(x.id)}"`, x.n)}</li>`; }
+    const p = D.productos[k], nom = nombreCorto(p), gs = gasto[k];
+    const sub = poco ? `${capital(cantidadCasa(k, g))}: ${gs.hoy ? 'lo gasta el menú de hoy' : 'lo gasta el menú de mañana'}` : capital(cantidadCasa(k, g));
+    return `<li class="n-fila"><button type="button" class="n-fila-abre" data-casa-cant="${k}" aria-label="${esc(nom)}: ${esc(cantidadCasa(k, g))}. Cambiar la cantidad">${p.foto ? `<img class="n-min n-prod" src="${esc(p.foto)}" alt="" loading="lazy" width="52" height="52">` : `<span class="n-min-ic">${NI.compra}</span>`}<span class="n-txt"><b>${esc(nom)}</b><span${poco ? ' class="n-poco"' : ''}>${esc(sub)}</span></span></button>${botones(`data-acabado="${k}"`, `data-casa-quitar="${k}"`, nom)}</li>`;
+  };
+  const sec = (t, filas, id) => `<section class="n-sec" aria-labelledby="${id}"><div class="n-sec-cab"><h2 id="${id}">${t}</h2><span>${filas.length}</span></div><ul class="n-filas n-lista">${filas.join('')}</ul></section>`;
+  $('#vista').innerHTML = `<div class="n-nevera n-cuerpo">
+    ${n > 10 ? `<label class="n-buscar n-filtra">${NI.buscar}<input id="i-filtra" type="search" placeholder="Buscar en casa" aria-label="Buscar en casa" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}"></label>` : ''}
+    <p class="n-pista">${NI.compra}<span>Cuando algo se acabe, toca su carrito y entra en la próxima compra. Lo que gasta el menú entra solo.</span></p>
+    ${acaba.length ? sec('Se está acabando', items.filter(x => acaba.includes(x.k)).map(x => fila(x, true)), 'n-s-acaba') : ''}
+    ${secs.map((s, i) => { const xs = porSec[s].filter(y => !y.k || !acaba.includes(y.k)); return xs.length ? sec(esc(s), xs.map(y => fila(y)), 'n-s' + i) : ''; }).join('')}
+    ${E.casaOtros.length ? sec('Otras cosas', E.casaOtros.map((t, i) => `<li class="n-fila"><span class="n-min-ic">${NI.lista}</span><span class="n-txt"><b>${esc(t)}</b></span>${botones(`data-otro-acabado="${i}"`, `data-otro-casa="${i}"`, t)}</li>`), 'n-s-otros') : ''}
+    ${!n ? `<div class="n-vacio">Todavía no hay nada. Toca + para añadir lo que ${vos ? 'tenéis' : 'tienes'}.</div>` : ''}</div>`;
+}
+// Cambiar la cantidad de algo de la Nevera (diseño 5: la fila ya no lleva − y ＋).
+function abrirCantidadCasa(k, paso) {
+  const p = D.productos[k]; if (!p) return;
+  const pinta = h => { $('#cc-cant', h).textContent = capital(cantidadCasa(k, E.casa[k] || 0)); };
+  hoja(`<h2>${esc(nombreCorto(p))}</h2><p class="nota">En casa</p>
+    <div class="n-cantidad"><button type="button" class="n-circulo" data-cc="-" aria-label="Menos">−</button><b id="cc-cant" aria-live="polite"></b><button type="button" class="n-circulo" data-cc="+" aria-label="Más">＋</button></div>`, h => {
+    pinta(h);
+    $$('[data-cc]', h).forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.cc === '+') { E.casa[k] = (E.casa[k] || 0) + paso(k); alta(k); }
+      else { E.casa[k] = Math.max(0, (E.casa[k] || 0) - paso(k)); if (E.casa[k] <= 0.5) { delete E.casa[k]; baja(k); apuntaProxima({ k, n: nombreCorto(p) }); salva(); cierraHoja(); vCasa(); tostada('Se acabó: a la lista de la compra'); return; } }
+      salva(); pinta(h); vCasa();
+    }));
+  });
 }
 // Añadir a «En casa» lo que se olvidó: se busca en Mercadona (o en los productos de la app) y cada cosa va a su sección.
 function abrirAnadirCasa() {
@@ -3038,8 +3373,26 @@ function vRecetas() {
     return true;
   };
   const pasaFiltros = (r, fs = V.filtros) => fs.every(k => !opc(k) || opc(k).test(r));
-  $('#vista').innerHTML = `
-    <div class="rec-busca">
+  const k5 = (viejo, nuevo) => DISENO5 ? nuevo : viejo;   // diseño 5: las mismas piezas con las clases de la maqueta (recetas.html)
+  if (DISENO5) {
+    $('#cab').innerHTML = `<nav class="n-volver" aria-label="Volver"><button type="button" class="n-boton-c" id="b-volver" aria-label="Volver">${NI.volver}</button><button type="button" class="n-boton-c" id="b-nueva" aria-label="Nueva receta">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}</button></nav>
+      <div class="n-recetas n-cabeza"><div><p class="n-fecha">${iconoSync()}${todas.length} recetas</p><h1>Recetas</h1></div></div>`;
+    $('#b-volver').addEventListener('click', () => { location.hash = V.anterior && V.anterior !== V.pestana ? V.anterior : 'hoy'; });
+    $('#vista').innerHTML = `<div class="n-recetas n-cuerpo">
+      <div class="n-busca" id="rec-caja"><label class="n-buscar">${NI.buscar}<input id="i-busca" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="rec-sug" aria-label="Buscar recetas" placeholder="Busca un plato o un ingrediente" value="${esc(V.busca)}" enterkeyhint="search" autocomplete="off"></label>
+        <div id="rec-sug" class="n-sug" role="listbox" aria-label="Sugerencias" hidden></div></div>
+      <div id="rec-activos" class="n-filtros" role="group" aria-label="Filtros elegidos"></div>
+      <div id="rec-pregunta"></div>
+      <div class="n-rec-linea"><button type="button" class="n-enlace" id="b-cocina">${V.verCocina ? 'Listo' : `${vos ? 'Vuestra' : 'Tu'} cocina · ${APARATOS_CASA.filter(([k]) => aparatosCasa().includes(k)).length} aparatos`}</button>${raras.length ? `<button type="button" class="n-enlace" id="b-ver-raras">${V.verRaras ? 'Ocultar' : 'Ver'} las ${raras.length} con cosas que no ${vos ? 'soléis' : 'sueles'} comprar</button>` : ''}</div>
+      <div class="n-panel n-cocina"${V.verCocina || ocultas && V.verOcultas || sinAp ? '' : ' hidden'}><p class="n-panel-t">Lo que ${vos ? 'tenéis' : 'tienes'} en la cocina <span>toca para quitar o poner</span></p>
+        <div class="n-chips">${APARATOS_CASA.map(([k, n]) => `<button type="button" class="n-chip" data-aparato="${k}" aria-pressed="${aparatosCasa().includes(k)}">${esc(n.replace(/^\S+\s/, ''))}</button>`).join('')}</div>
+        ${ocultas ? `<p class="n-nota">${ocultas} receta${ocultas > 1 ? 's necesitan' : ' necesita'} algo que no ${vos ? 'tenéis' : 'tienes'}. <button type="button" class="n-enlace" id="b-ver-ocultas">${V.verOcultas ? 'Ocultarlas' : 'Verlas'}</button></p>` : ''}
+        ${sinAp ? `<p class="n-nota">${sinAp} plato${sinAp > 1 ? 's' : ''} de esta semana no se ${sinAp > 1 ? 'pueden' : 'puede'} hacer. <button type="button" class="n-enlace" id="b-cambiar-sinap">Cambiar${sinAp > 1 ? 'los' : 'lo'}</button></p>` : ''}</div>
+      <section class="n-bloque" id="rec-casa" aria-labelledby="n-t-casa" hidden><div class="n-bloque-cab"><h2 id="n-t-casa">Con lo que ${vos ? 'tenéis' : 'tienes'} en casa</h2></div><ul class="n-carrusel" id="rec-carrusel"></ul></section>
+      <section class="n-bloque" aria-labelledby="n-t-todas"><div class="n-bloque-cab"><h2 id="n-t-todas">Todas</h2><p id="rec-cuenta" class="n-cuenta" aria-live="polite"></p></div><ul class="n-rejilla" id="rec-rejilla"></ul></section>
+      <div id="rec-vacio"></div></div>`;
+  } else $('#vista').innerHTML = `
+    <div class="rec-busca" id="rec-caja">
       <div class="buscador">${I.buscar}<input id="i-busca" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="rec-sug" aria-label="Buscar recetas" placeholder="Busca un plato, un ingrediente o un tipo" value="${esc(V.busca)}" enterkeyhint="search" autocomplete="off"></div>
       <div id="rec-sug" class="rec-sug" role="listbox" aria-label="Sugerencias" hidden></div>
     </div>
@@ -3063,12 +3416,12 @@ function vRecetas() {
     for (const g of [...new Set(OPC.map(o => o.grupo))]) {
       let xs = ops.filter(o => o.grupo === g);
       if (g === 'Ingrediente' && !t) xs = xs.sort((a, b) => b.n - a.n).slice(0, 8);
-      if (xs.length) grupos.push([g, xs.map(o => `<button type="button" role="option" aria-selected="false" class="rec-sug-op" data-sug="${esc(o.k)}"><span class="rec-sug-n">${esc(o.t)}</span><span class="rec-sug-c">${o.n}</span></button>`)]);
+      if (xs.length) grupos.push([g, xs.map(o => `<button type="button" role="option" aria-selected="false" class="${k5('rec-sug-op', 'n-sug-op')}" data-sug="${esc(o.k)}"><span class="${k5('rec-sug-n', 'n-sug-n')}">${esc(o.t)}</span><span class="${k5('rec-sug-c', 'n-sug-c')}">${o.n}</span></button>`)]);
     }
     if (t) { const rs = todas.filter(r => visible(r, t) && L.normaliza(r.n).includes(t)).slice(0, 6);
-      if (rs.length) grupos.push(['Recetas', rs.map(r => `<button type="button" role="option" aria-selected="false" class="rec-sug-op rec-sug-receta" data-sug-receta="${r.id}">${fotoPlato(r, 120, 'rec-sug-foto')}<span class="rec-sug-n">${esc(r.n)}</span><span class="rec-sug-c">${r.min} min</span></button>`)]); }
-    sug.innerHTML = grupos.map(([g, xs]) => `<div class="rec-sug-grupo" role="group" aria-label="${esc(g)}"><div class="rec-sug-t" aria-hidden="true">${esc(g)}</div>${xs.join('')}</div>`).join('')
-      || `<p class="rec-sug-nada">${t ? 'Nada con eso. Busca otra palabra o pregúntaselo al Chef.' : 'No hay más opciones con lo elegido.'}</p>`;
+      if (rs.length) grupos.push(['Recetas', rs.map(r => `<button type="button" role="option" aria-selected="false" class="${k5('rec-sug-op rec-sug-receta', 'n-sug-op n-sug-receta')}" data-sug-receta="${r.id}">${fotoPlato(r, 120, k5('rec-sug-foto', 'n-sug-foto'))}<span class="${k5('rec-sug-n', 'n-sug-n')}">${esc(r.n)}</span><span class="${k5('rec-sug-c', 'n-sug-c')}">${r.min} min</span></button>`)]); }
+    sug.innerHTML = grupos.map(([g, xs]) => `<div class="${k5('rec-sug-grupo', 'n-sug-grupo')}" role="group" aria-label="${esc(g)}"><div class="${k5('rec-sug-t', 'n-sug-t')}" aria-hidden="true">${esc(g)}</div>${xs.join('')}</div>`).join('')
+      || `<p class="${k5('rec-sug-nada', 'n-sug-nada')}">${t ? 'Nada con eso. Busca otra palabra o pregúntaselo al Chef.' : 'No hay más opciones con lo elegido.'}</p>`;
     $$('[role="option"]', sug).forEach((b, i) => { b.id = 'rec-op-' + i; });
     V.sugIdx = -1; inp.removeAttribute('aria-activedescendant');
     sug.hidden = !V.sugAbierta; inp.setAttribute('aria-expanded', String(!!V.sugAbierta));
@@ -3077,19 +3430,26 @@ function vRecetas() {
     const pregunta = V.busca.trim(), t = limpia(pregunta);
     const lista = todas.filter(r => visible(r, t) && pasaFiltros(r) && (!t || textoBusca(r).includes(t)));
     const esPregunta = /^(¿)?\s*(c[oó]mo|qu[eé]|puedo|se puede|receta)/i.test(pregunta) || (t && !lista.length);
-    $('#rec-activos').innerHTML = V.filtros.map(k => opc(k) ? `<button type="button" class="chip rec-activo" data-quita-filtro="${esc(k)}" aria-label="Quitar «${esc(opc(k).t)}»">${esc(opc(k).t)}<span class="rec-x" aria-hidden="true">×</span></button>` : '').join('')
-      + (V.filtros.length > 1 ? '<button type="button" class="ver-todo" id="b-quita-filtros">Quitar todo</button>' : '');
-    $('#rec-pregunta').innerHTML = esPregunta && pregunta ? `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>` : '';
+    $('#rec-activos').innerHTML = V.filtros.map(k => opc(k) ? `<button type="button" class="${k5('chip rec-activo', 'n-activo')}" data-quita-filtro="${esc(k)}" aria-label="Quitar «${esc(opc(k).t)}»">${esc(opc(k).t)}<span class="${k5('rec-x', 'n-x')}" aria-hidden="true">×</span></button>` : '').join('')
+      + (V.filtros.length > 1 ? `<button type="button" class="${k5('ver-todo', 'n-enlace')}" id="b-quita-filtros">Quitar todo</button>` : '');
+    $('#rec-pregunta').innerHTML = esPregunta && pregunta ? (DISENO5 ? `<div class="n-panel n-pregunta"><p><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</p><button type="button" class="n-boton-p" id="b-preguntar">Preguntar</button></div>`
+      : `<div class="tarjeta pregunta"><span class="emo">🤔</span><div><b>${lista.length ? '¿No es ninguna?' : 'No la tengo todavía.'}</b> Pregúntaselo al Chef y la añado.</div><button class="boton principal" id="b-preguntar">${I.enviar}Preguntar</button></div>`) : '';
     $('#rec-cuenta').textContent = V.filtros.length || t ? `${lista.length} receta${lista.length === 1 ? '' : 's'}` : '';
-    $('#rec-rejilla').innerHTML = lista.map(r => { const g = L.macrosReceta(r, 'G', D.productos, fac);
+    const tarjeta5 = r => { const nh = noHabitual(r); return `<li${sePuedeHacer(r) && !nh.length ? '' : ' class="n-no-puedo"'}><button type="button" data-receta="${r.id}"><span class="n-foto-tarjeta">${fotoPlato(r, 400, 'n-foto')}${r.fav ? `<span class="n-fav" role="img" aria-label="Favorita">${NI.corazon}</span>` : ''}</span><span class="n-nombre">${esc(r.n)}</span><span class="n-dato">${nh.length ? `Lleva ${esc(enumera(nh.map(nombreFalta), 2))}` : `${r.min} min · ${esc(minus(APARATO[r.ap] || 'cocina'))}${r.propia ? ' · vuestra' : ''}`}</span></button></li>`; };
+    if (DISENO5) {
+      const casa = !V.filtros.length && !t ? todas.filter(r => enCasa.has(r.id) && visible(r, '') && !(r.tipo0 || r.tipo).every(x => x === 'bebida')).sort((x, y) => ((y.tipo0 || y.tipo).includes('cena') - (x.tipo0 || x.tipo).includes('cena')) || (!!y.fav - !!x.fav)).slice(0, 12) : [];
+      $('#rec-casa').hidden = !casa.length; $('#rec-carrusel').innerHTML = casa.map(tarjeta5).join('');
+      $('#n-t-todas').textContent = V.filtros.length || t ? 'Resultados' : 'Todas';
+    }
+    $('#rec-rejilla').innerHTML = lista.map(r => { if (DISENO5) return tarjeta5(r); const g = L.macrosReceta(r, 'G', D.productos, fac);
       const nh = noHabitual(r);
       return `<button class="rt${sePuedeHacer(r) && !nh.length ? '' : ' no-puedo'}" data-receta="${r.id}">${fotoPlato(r, 400, 'rt-foto')}${r.fav ? `<span class="rt-fav" aria-label="Favorita">${I.corazon}</span>` : ''}
         <span class="rt-nombre">${esc(r.n)}</span><span class="rt-datos">${nh.length ? `Lleva ${esc(enumera(nh.map(nombreFalta), 2))}` : `${r.min} min · ${r0(g.kcal)} kcal${r.propia ? ' · vuestra' : ''}`}</span></button>`; }).join('');
     const ings = V.filtros.filter(k => k.startsWith('i:')).map(k => ING_REC.find(([x]) => 'i:' + x === k)).filter(Boolean);
-    $('#rec-vacio').innerHTML = (lista.length ? '' : `<div class="vacio"><span class="emo">🔍</span>${V.filtros.includes('c:fav') ? 'Toca el corazón de una receta para guardarla aquí.' : 'No hay recetas con eso. Quita algún filtro o busca otra palabra.'}</div>`)
-      + (ings.length ? `<div class="tarjeta antojo-rec"><b>¿Un antojo de ${esc(yJunta(ings.map(([x]) => x.toLowerCase())))}?</b><span class="nota">Elige la cena que lo lleva, ponla en el día que quieras o que el Chef invente una.</span><button class="boton principal" id="b-antojo-rec">${IC.chispas}Tengo un antojo</button></div>` : '');
+    $('#rec-vacio').innerHTML = (lista.length ? '' : `<div class="${k5('vacio', 'n-vacio')}">${DISENO5 ? '' : '<span class="emo">🔍</span>'}${V.filtros.includes('c:fav') ? 'Toca el corazón de una receta para guardarla aquí.' : 'No hay recetas con eso. Quita algún filtro o busca otra palabra.'}</div>`)
+      + (ings.length ? DISENO5 ? `<div class="n-panel n-antojo"><p><b>¿Un antojo de ${esc(yJunta(ings.map(([x]) => x.toLowerCase())))}?</b> Elige la cena que lo lleva, ponla en el día que quieras o que el Chef invente una.</p><button type="button" class="n-boton-p" id="b-antojo-rec">${NI.chispas}Tengo un antojo</button></div>` : `<div class="tarjeta antojo-rec"><b>¿Un antojo de ${esc(yJunta(ings.map(([x]) => x.toLowerCase())))}?</b><span class="nota">Elige la cena que lo lleva, ponla en el día que quieras o que el Chef invente una.</span><button class="boton principal" id="b-antojo-rec">${IC.chispas}Tengo un antojo</button></div>` : '');
     $('#b-antojo-rec')?.addEventListener('click', () => abrirAntojo(null, ings.map(([t, re]) => ({ t, re }))));
-    $$('[data-receta]', $('#rec-rejilla')).forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
+    $$('#rec-rejilla [data-receta], #rec-carrusel [data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
     $$('[data-quita-filtro]').forEach(b => b.addEventListener('click', () => { V.filtros = V.filtros.filter(k => k !== b.dataset.quitaFiltro); pintaLista(); }));
     $('#b-quita-filtros')?.addEventListener('click', () => { V.filtros = []; pintaLista(); });
     $('#b-preguntar')?.addEventListener('click', () => irAClaude(`${/^¿/.test(pregunta) ? pregunta : '¿' + capital(pregunta) + '?'} Explícamelo y, si vale, ponla en NutriHome.`));
@@ -3104,7 +3464,7 @@ function vRecetas() {
   inp.addEventListener('focus', abre);
   inp.addEventListener('click', abre);
   inp.addEventListener('input', () => { V.busca = inp.value; V.sugAbierta = true; pintaLista(); });
-  inp.addEventListener('blur', e => { if (e.relatedTarget && !e.relatedTarget.closest('.rec-busca')) cierra(); });   // con el dedo, se cierra al tocar fuera (abajo)
+  inp.addEventListener('blur', e => { if (e.relatedTarget && !e.relatedTarget.closest('#rec-caja')) cierra(); });   // con el dedo, se cierra al tocar fuera (abajo)
   inp.addEventListener('keydown', e => {
     const ops = $$('[role="option"]', sug);
     if (e.key === 'Escape') { cierra(); return; }
@@ -3112,12 +3472,12 @@ function vRecetas() {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' || !ops.length) return;
     e.preventDefault(); abre();
     V.sugIdx = e.key === 'ArrowDown' ? (V.sugIdx + 1) % ops.length : V.sugIdx <= 0 ? ops.length - 1 : V.sugIdx - 1;
-    ops.forEach((b, i) => { b.setAttribute('aria-selected', String(i === V.sugIdx)); b.classList.toggle('activa', i === V.sugIdx); });
+    ops.forEach((b, i) => { b.setAttribute('aria-selected', String(i === V.sugIdx)); b.classList.toggle(k5('activa', 'n-activa'), i === V.sugIdx); });
     if (V.sugIdx >= 0) { inp.setAttribute('aria-activedescendant', ops[V.sugIdx].id); ops[V.sugIdx].scrollIntoView({ block: 'nearest' }); } else inp.removeAttribute('aria-activedescendant');
   });
   sug.addEventListener('mousedown', e => e.preventDefault());   // que tocar una opción no quite el foco antes de elegirla
   sug.addEventListener('click', e => { const b = e.target.closest('[role="option"]'); if (b) elige(b); });
-  if (!V.sugFuera) { V.sugFuera = true; document.addEventListener('pointerdown', e => { if (V.sugAbierta && !e.target.closest('.rec-busca')) { V.sugAbierta = false; const s2 = $('#rec-sug'); if (s2) s2.hidden = true; $('#i-busca')?.setAttribute('aria-expanded', 'false'); } }, true); }
+  if (!V.sugFuera) { V.sugFuera = true; document.addEventListener('pointerdown', e => { if (V.sugAbierta && !e.target.closest('#rec-caja')) { V.sugAbierta = false; const s2 = $('#rec-sug'); if (s2) s2.hidden = true; $('#i-busca')?.setAttribute('aria-expanded', 'false'); } }, true); }
   pintaLista();
   $('#b-nueva').addEventListener('click', () => editorReceta(null));
   $('#b-cocina').addEventListener('click', () => { V.verCocina = !V.verCocina; vRecetas(); });
@@ -3163,6 +3523,41 @@ function privacidadHTML(amiga) {
   <h2 class="cat">Borrarlo</h2>${li([
     'De este móvil: quitad la app de la pantalla de inicio o borrad los datos de la web en el navegador.',
     amiga ? 'Del servidor, o para cualquier pregunta sobre vuestros datos: escribid a quien os invitó.' : 'Del servidor: se borra desde el ordenador de casa.'])}`;
+}
+// Ajustes (maqueta ajustes.html): vosotros en dos tarjetas y el resto en grupos de filas (la cocina, la compra, la casa y la app).
+// Cada fila abre su página, que lleva arriba el botón de volver.
+function pintaAjustes5({ p, paginas, sup, amiga, varios, conSuple, tema, nNotas, nAp, estadoSync }) {
+  const fila = (attr, ic, t, val = '') => `<li><button type="button" ${attr}><span class="n-ic">${ic.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}</span><span class="n-n">${t}</span>${val ? `<span class="n-v">${val}</span>` : ''}<span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li>`;
+  if (V.ajuste) {
+    $('#cab').innerHTML = `<nav class="n-volver" aria-label="Volver"><button type="button" class="n-boton-c" id="b-volver" aria-label="Volver a Ajustes">${NI.volver}</button></nav>
+      <div class="n-ajustes n-cabeza"><div><p class="n-fecha">Ajustes</p><h1>${paginas[V.ajuste][0]}</h1></div></div>`;
+    $('#b-volver').addEventListener('click', () => { V.ajuste = null; vNosotros(); window.scrollTo({ top: 0 }); });
+    $('#vista').innerHTML = `<div class="n-ajustes n-cuerpo n-ajuste-pagina">${paginas[V.ajuste][1].replace(/<(\/?)h3\b/g, '<$1h2')}</div>`;   // debajo del h1 de la página, los títulos son h2
+    return;
+  }
+  $('#cab').innerHTML = `<div class="n-ajustes n-cabeza"><div><p class="n-fecha">${iconoSync()}${amiga ? (varios ? 'Vuestra casa' : 'Tu casa') : 'Vuestra casa'}</p><h1>Ajustes</h1></div></div>`;
+  const c = E.diaCompra && !E.diaCompra.hecha && E.diaCompra.hasta >= hoy() ? E.diaCompra : null;
+  $('#vista').innerHTML = `<div class="n-ajustes n-cuerpo">
+    <section class="n-bloque" aria-labelledby="n-t-vos"><div class="n-bloque-cab"><h2 id="n-t-vos">${varios ? 'Vosotros' : 'Tus datos'}</h2></div>
+      <div class="n-personas">${L.QUIEN.map(q => `<button type="button" class="n-persona" data-ajuste="${q}"><span class="n-ini n-${q.toLowerCase()}" aria-hidden="true">${ini(q)}</span><span class="n-nombre">${esc(p[q].nombre)}</span><span class="n-dato">${miles(obj[q].kcal)} kcal al día</span><span class="n-dato">${obj[q].prot} g de proteína</span><em class="n-tag">${esc(capital(p[q].tca ? 'mantenerse' : OBJ_TXT[p[q].objetivo || 'perder']))}${p[q].dieta && p[q].dieta !== 'todo' ? ' · ' + esc((DIETAS.find(([v]) => v === p[q].dieta) || DIETAS[0])[1].toLowerCase()) : ''}</em></button>`).join('')}</div></section>
+    <section class="n-bloque" aria-labelledby="n-t-coc"><div class="n-bloque-cab"><h2 id="n-t-coc">La cocina</h2></div><ul class="n-grupo">
+      ${fila('data-ir-recetas', SVG.recetas, 'Todas las recetas', String(todasRecetas().filter(r => !r.retirada).length))}
+      ${fila('data-ir-cocina', SVG.casa, 'Vuestra cocina', `${nAp} aparatos`)}
+      ${fila('data-ajuste="chef"', SVG.claude, 'Lo que el Chef sabe de ' + (varios ? 'vosotros' : 'ti'), nNotas ? String(nNotas) : '')}
+      ${conSuple ? fila('data-ajuste="salud"', SVG.pesa, 'Creatina y gimnasio') : ''}</ul></section>
+    <section class="n-bloque" aria-labelledby="n-t-com"><div class="n-bloque-cab"><h2 id="n-t-com">La compra</h2></div><ul class="n-grupo">
+      ${fila('data-ajuste="super"', SVG.tienda, varios ? 'Vuestro súper y tiendas' : 'Tu súper y tiendas', esc((SUPERS.find(([k]) => k === sup) || SUPERS[0])[1]))}
+      ${fila('data-ir-dia-compra', SVG.semana, 'Día de la compra', c ? esc(capital(diaCorto(c.f))) : '')}
+      ${fila('data-ir-favoritos', SVG.estrella, 'Lo de siempre')}</ul></section>
+    <section class="n-bloque" aria-labelledby="n-t-casa"><div class="n-bloque-cab"><h2 id="n-t-casa">La casa</h2></div><ul class="n-grupo">
+      ${fila('data-ajuste="amigos"', amiga ? SVG.llave : SVG.nosotros, amiga ? 'Clave de casa' : 'Invitar a amigos', !amiga && E.invitaciones.length ? String(E.invitaciones.length) : '')}
+      ${fila('data-ajuste="movil"', SVG.nube, 'Sincronización y este móvil', `<i class="n-punto${V.sync === 'ok' ? '' : ' n-mal'}" aria-hidden="true"></i>${estadoSync}`)}
+      ${fila('data-ajuste="privacidad"', SVG.escudo, 'Privacidad')}</ul></section>
+    <section class="n-bloque" aria-labelledby="n-t-app"><div class="n-bloque-cab"><h2 id="n-t-app">La app</h2></div><ul class="n-grupo">
+      <li class="n-tema"><span class="n-ic">${SVG.tema.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}</span><span class="n-n" id="n-t-tema">Apariencia</span><div class="n-segmento" role="radiogroup" aria-labelledby="n-t-tema">${[['claro', 'Claro'], ['oscuro', 'Oscuro'], ['auto', 'Auto']].map(([k, n]) => `<button type="button" role="radio" data-tema="${k}" aria-checked="${tema === k}">${n}</button>`).join('')}</div></li>
+      <li><button type="button" id="b-novedades"><span class="n-ic">${SVG.estrella.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}</span><span class="n-n">Novedades</span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li>
+      ${conSuple ? '' : fila('data-ajuste="salud"', SVG.info, 'Cómo lo calculo')}</ul></section>
+    <p class="n-pie-app">NutriHome · Fotos de los platos: Pexels</p></div>`;
 }
 function vNosotros() {
   const p = perfiles(), h = hoy(), cr = E.creatina[h] || {}, sup = E.super || 'mercadona', amiga = !!D.amiga, varios = L.QUIEN.length > 1;
@@ -3224,7 +3619,8 @@ function vNosotros() {
   const icono = (svg, cls = '') => `<span class="af-ic ${cls}">${svg}</span>`;
   const estadoSync = !servidor() ? 'Solo este móvil' : V.sync === 'ok' ? 'Al día' : V.sync === 'error' ? 'Sin conexión' : 'Conectando…';
   if (V.ajuste && !paginas[V.ajuste]) V.ajuste = null;
-  if (V.ajuste) { cabecera(paginas[V.ajuste][0]); $('#vista').innerHTML = `<div class="ajuste-pagina">${paginas[V.ajuste][1]}</div>`; }
+  if (DISENO5) pintaAjustes5({ p, paginas, sup, amiga, varios, conSuple, tema, nNotas, nAp, estadoSync });
+  else if (V.ajuste) { cabecera(paginas[V.ajuste][0]); $('#vista').innerHTML = `<div class="ajuste-pagina">${paginas[V.ajuste][1]}</div>`; }
   else {
     cabecera('Ajustes');
     $('#vista').innerHTML = `
@@ -3251,6 +3647,9 @@ function vNosotros() {
   }
   $$('[data-ajuste]').forEach(b => b.addEventListener('click', () => { V.ajuste = b.dataset.ajuste; vNosotros(); window.scrollTo({ top: 0 }); }));
   $('[data-ir-cocina]')?.addEventListener('click', () => { V.verCocina = true; location.hash = 'recetas'; });
+  $('[data-ir-recetas]')?.addEventListener('click', () => { location.hash = 'recetas'; });
+  $('[data-ir-dia-compra]')?.addEventListener('click', () => { location.hash = 'compra'; setTimeout(abrirDiaCompra, 350); });
+  $('[data-ir-favoritos]')?.addEventListener('click', abrirFavoritos);
   $$('input[data-campo]').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(i.value.replace(',', '.'));
     if (!isFinite(v) || v <= 0) return;
@@ -3604,7 +4003,7 @@ function conRecetas(t) {
   let html = '', k = 0;
   for (const [a, b, id, negrita] of marcasRecetas(t)) {
     const dentro = negrita != null ? `<b>${esc(negrita)}</b>` : esc(t.slice(a, b));
-    html += esc(t.slice(k, a)) + (id ? `<button class="enlace-receta" data-receta="${esc(id)}">${dentro}</button>` : dentro); k = b;
+    html += esc(t.slice(k, a)) + (id ? (DISENO5 ? `<a class="enlace-receta" href="#" data-receta="${esc(id)}">${dentro}</a>` : `<button class="enlace-receta" data-receta="${esc(id)}">${dentro}</button>`) : dentro); k = b;
   }
   return (html + esc(t.slice(k))).replace(/\n/g, '<br>');
 }
@@ -3655,7 +4054,8 @@ function vClaude() {
   const ra = adj && recetas[adj.id], rh = !ra && recetaDeLaCharla(deHoy), rr = ra || rh || (d && !est(p.id).hechos[d.f + '|cena'] ? cena : null);
   if (!rr) rapidas.push(['', 'Ver una receta', null, null, null, abrirOtrasRecetas]);
   document.body.classList.toggle('con-receta', !!rr);
-  const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + '… <button class="ver-todo" data-ver="1">ver todo</button>' : esc(q);
+  const corto = q => q.length > 220 ? esc(q.slice(0, 180).trim()) + `… <button class="${DISENO5 ? 'n-enlace' : 'ver-todo'}" data-ver="1">ver todo</button>` : esc(q);
+  if (DISENO5) return pintaChef5({ fh, charla, antes, rapidas, rr, ra, rh, adj, corto, conServidor });
   const burbujas = charla.map(c => { const { texto: rt, acciones } = separaAcciones(c.r || '');
     return `<div class="burbuja yo" data-q="${esc(c.id)}">${corto(c.q)}<button class="borrar" data-borrar="${esc(c.id)}" aria-label="Borrar">×</button></div>${c.r ? `<div class="burbuja el">${conRecetas(rt)}${acciones.map((a, i) => { const hecha = (c.hechas || []).includes(i), rg = hecha && a.tipo === 'receta' && recetaGuardada(a);
       return rg ? `<button class="boton accion-chef" data-receta="${esc(rg.id)}">✓ Guardada · Ver la receta</button>` : `<button class="boton principal accion-chef" data-accion="${esc(c.id)}|${i}"${hecha ? ' disabled' : ''}>${hecha ? '✓ Hecho' : esc(textoAccion(a))}</button>`; }).join('')}</div>` : `<div class="burbuja el pensando" data-charla="${esc(c.id)}">El Chef está escribiendo…</div>`}`; }).join('');
@@ -3672,6 +4072,10 @@ function vClaude() {
         <textarea id="t-claude" rows="1" placeholder="Escribe al Chef…" enterkeyhint="send">${esc(V.borrador || '')}</textarea>
         <button class="enviar-chat" aria-label="Enviar">${I.enviar}</button></form>
     </div></div>`;
+  activaChef(rapidas, conServidor);
+}
+// Lo que hace el chat (con el diseño de siempre y con el 5): enviar, preguntas rápidas, adjuntos, acciones del Chef y borrar.
+function activaChef(rapidas, conServidor) {
   const ta = $('#t-claude');
   const crece = () => { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; };
   crece();
@@ -3698,7 +4102,7 @@ function vClaude() {
   $('#i-foto-claude')?.addEventListener('change', e => { V.adjunto = e.target.files[0] || null; vClaude(); });
   $('#b-quitar-adjunto')?.addEventListener('click', () => { V.adjunto = null; vClaude(); });
   $('#b-quitar-datos')?.addEventListener('click', () => { V.datos = null; vClaude(); });
-  $$('#hilo [data-receta], .chat-barra [data-receta]').forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
+  $$('#hilo [data-receta], .chat-barra [data-receta], .n-escribir [data-receta]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); abrirReceta(b.dataset.receta); }));   // en el diseño 5 el nombre de la receta es un enlace en la línea
   $('#b-otras-recetas')?.addEventListener('click', abrirOtrasRecetas);
   $$('[data-accion]').forEach(b => b.addEventListener('click', () => {
     const [id, i] = b.dataset.accion.split('|'), c = (E.charla || []).find(x => x.id === id); if (!c) return;
@@ -3707,12 +4111,43 @@ function vClaude() {
     c.hechas = [...(c.hechas || []), +i]; salva(); tostada('✓ ' + hecho); vClaude();
   }));
   $$('[data-borrar]').forEach(b => b.addEventListener('click', () => { E.charla = (E.charla || []).filter(c => c.id !== b.dataset.borrar); salva(); vClaude(); }));
-  $$('[data-ver]').forEach(b => b.addEventListener('click', e => { const c = (E.charla || []).find(x => x.id === e.target.closest('.burbuja').dataset.q); if (c) hoja(`<h2>Tu mensaje</h2><p style="white-space:pre-wrap">${esc(c.q)}</p>`); }));
+  $$('[data-ver]').forEach(b => b.addEventListener('click', e => { const c = (E.charla || []).find(x => x.id === e.target.closest('[data-q]').dataset.q); if (c) hoja(`<h2>Tu mensaje</h2><p style="white-space:pre-wrap">${esc(c.q)}</p>`); }));
   $('#b-borrar-charla')?.addEventListener('click', () => { if (confirm('¿Borro toda la conversación con el Chef?')) { E.charla = []; salva(); vClaude(); } });
   $$('[data-charla]').forEach(b => esperaRespuesta(b.dataset.charla));
   $('#b-ver-antes')?.addEventListener('click', () => { V.verAntes = true; vClaude(); });
   // Lo último, a la vista.
   requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight));
+}
+// Chef (maqueta chef.html): la conversación en burbujas (lo tuyo a la derecha, el Chef con su nombre y sus botones) y abajo las
+// preguntas rápidas y la caja para escribir.
+function pintaChef5({ fh, charla, antes, rapidas, rr, ra, rh, adj, corto, conServidor }) {
+  $('#cab').innerHTML = `<div class="n-chef n-cabeza"><div><p class="n-fecha">${iconoSync()}${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}</p><h1>${NOMBRE_AGENTE}</h1></div></div>`;
+  const hora = t => { const d = new Date(t); return isNaN(d) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  let ultHora = '';
+  const msgs = charla.map(c => {
+    const { texto: rt, acciones } = separaAcciones(c.r || ''), hh = hora(c.t), sello = hh && hh.slice(0, 2) !== ultHora ? `<p class="n-hora">${hh}</p>` : '';
+    if (hh) ultHora = hh.slice(0, 2);
+    const botones = acciones.map((x, i) => { const hecha = (c.hechas || []).includes(i), rg = hecha && x.tipo === 'receta' && recetaGuardada(x);
+      return rg ? `<button type="button" data-receta="${esc(rg.id)}">Guardada · Ver la receta</button>` : `<button type="button" class="n-principal" data-accion="${esc(c.id)}|${i}"${hecha ? ' disabled' : ''}>${hecha ? 'Hecho' : esc(textoAccion(x))}</button>`; }).join('');
+    return `${sello}<div class="n-msg n-yo" data-q="${esc(c.id)}"><p>${corto(c.q)}</p><button type="button" class="n-borrar" data-borrar="${esc(c.id)}" aria-label="Borrar este mensaje">×</button></div>
+      ${c.r ? `<div class="n-msg n-del-chef"><span class="n-quien">${NOMBRE_AGENTE}</span><p>${conRecetas(rt)}</p>${botones ? `<div class="n-respuestas">${botones}</div>` : ''}</div>`
+        : `<div class="n-msg n-del-chef n-pensando" data-charla="${esc(c.id)}"><span class="n-quien">${NOMBRE_AGENTE}</span><p>Está escribiendo…</p></div>`}`;
+  }).join('');
+  const adjuntos = [rr ? `<div class="n-chat-receta"><button type="button" class="n-chat-receta-abre" data-receta="${esc(rr.id)}">${fotoPlato(rr, 160, 'n-min')}<span class="n-txt"><span>${ra ? 'Va con tu mensaje' : rh ? 'En la conversación' : 'Cena de hoy'}</span><b>${esc(rr.n)}</b></span></button>${ra ? '<button type="button" class="n-quitar" id="b-quitar-datos" aria-label="Quitar la receta del mensaje">×</button>' : ''}<button type="button" class="n-enlace" id="b-otras-recetas">Otras</button></div>`
+      : adj ? `<div class="n-adjunto"><span>${esc(adj.nombre)}</span><button type="button" id="b-quitar-datos" aria-label="Quitar">×</button></div>` : '',
+    V.datos?.compra ? `<div class="n-adjunto"><span>Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}</span><button type="button" id="b-quitar-datos" aria-label="Quitar">×</button></div>` : '',
+    V.adjunto ? `<div class="n-adjunto"><span>${esc(V.adjunto.name || 'foto')}</span><button type="button" id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''].join('');
+  $('#vista').innerHTML = `<div class="n-chef n-cuerpo">
+    <div class="n-charla" id="hilo" role="log" aria-label="Conversación con el Chef">${antes && !V.verAntes ? `<button type="button" class="n-enlace n-antes" id="b-ver-antes">Ver la conversación anterior (${antes})</button>` : ''}
+      ${charla.length ? `${msgs}<button type="button" class="n-enlace n-borrar-todo" id="b-borrar-charla">Borrar la conversación</button>`
+        : `<div class="n-hola"><b>Pregúntale al Chef</b><p>«¿Qué hay hoy para cenar?», «hoy cenamos fuera», «no tengo pepino, ¿qué uso?», «apunta detergente en la compra»…</p></div>`}</div>
+    <section class="n-escribir" aria-label="Escribir al Chef">${adjuntos}
+      <div class="n-filtros" role="group" aria-label="Preguntas rápidas">${rapidas.map((x, i) => `<button type="button" data-rapida="${i}">${esc(x[1])}</button>`).join('')}</div>
+      <form class="n-caja" id="f-chat">${D.perfiles.bot ? `<label class="n-boton-c" for="i-foto-claude" aria-label="Mandar una foto">${nic('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>')}</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">` : ''}
+        <label class="n-buscar"><textarea id="t-claude" rows="1" placeholder="Escribe al Chef" aria-label="Escribe al Chef" enterkeyhint="send">${esc(V.borrador || '')}</textarea></label>
+        <button type="submit" class="n-enviar" aria-label="Enviar">${nic('<path d="M5 12h14M13 6l6 6-6 6"/>')}</button></form>
+    </section></div>`;
+  activaChef(rapidas, conServidor);
 }
 // ——— Hoy (05/11/2026: «la pantalla de inicio es un desastre… mucho texto; utiliza gráficas») ———
 // Un panel para mirar, no para leer: arriba, lo que suma el día de cada uno (anillos: kcal por fuera, proteína por dentro; claro = el
@@ -3840,7 +4275,8 @@ function activaHoy(p, d) {
 // Se monta pantalla a pantalla y solo se ve en el móvil que lo activa (…/alameda/?diseno=5; ?diseno=0 lo quita), para enseñar cada una
 // antes de publicarla. El marcado lleva el prefijo n- y la estructura de las maquetas (tu-estilo/); el CSS es de Covalente, en su capa
 // al final de app.css, dentro de las raíces .n-hoy, .n-receta y .n-cocinar.
-const DISENO5 = (() => { try { const q = new URLSearchParams(location.search).get('diseno'); if (q) localStorage.setItem('nutrihome.diseno', q); return localStorage.getItem('nutrihome.diseno') === '5'; } catch { return false; } })();
+// El diseño 5 (Covalente, aprobado por ella el 18/11) es el de todos; con ?diseno=4 se vuelve al anterior en ese móvil (y con ?diseno=5, al nuevo).
+const DISENO5 = (() => { try { const q = new URLSearchParams(location.search).get('diseno'); if (q) localStorage.setItem('nutrihome.diseno', q); return localStorage.getItem('nutrihome.diseno') !== '4'; } catch { return true; } })();
 document.documentElement.classList.toggle('n5', DISENO5);
 const nic = d => `<svg class="n-svg" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const NI = { buscar: nic('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>'), reloj: nic('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2.5h4"/>'),
@@ -3850,7 +4286,8 @@ const NI = { buscar: nic('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4
   aparato: nic('<rect x="5" y="4" width="14" height="16" rx="3"/><path d="M8 9h8M9 14h6"/>'), volver: nic('<path d="M15 5l-7 7 7 7"/>'), cerrar: nic('<path d="M6 6l12 12M18 6 6 18"/>'),
   lista: nic('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'), sigue: nic('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   compra: nic('<path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>'), chef: nic('<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>'),
-  chispas: nic('<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>') };
+  chispas: nic('<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
+  corazon: nic('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>'), calendario: nic('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>') };
 const miles = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const minus = t => t ? t.charAt(0).toLowerCase() + t.slice(1) : '';
 // Hoy (maqueta hoy.html): la cena en una tarjeta de foto con sus acciones, lo que suma el día, lo de mañana, el resto del día en filas
@@ -3888,10 +4325,10 @@ function cenaHoy5(p, d) {
       ${circ('cambiar', 'Cambiar la cena', NI.cambiar)}${circ('hecho', 'Cena hecha', NI.check, hecha)}${circ('mas', 'Más opciones de la cena', NI.mas)}</div></section>`;
 }
 // Lo que suma el día de cada uno: kcal del menú de hoy frente a su objetivo (la barra clara, el menú; la llena, lo ya comido) y la proteína.
-function sumaHoy5(p, d) {
+function sumaHoy5(p, d, titulo = 'Lo que suma hoy') {
   const s = est(p.id), comido = { ...d }, pct = (x, m) => Math.max(0, Math.min(100, Math.round(x / m * 100)));
   for (const c of L.COMIDAS) if (!s.hechos[d.f + '|' + c]) comido[c] = null;
-  return `<section class="n-bloque" aria-labelledby="t-suma"><div class="n-bloque-cab"><h2 id="t-suma">Lo que suma hoy</h2></div><div class="n-suma">${L.QUIEN.map(q => {
+  return `<section class="n-bloque" aria-labelledby="t-suma"><div class="n-bloque-cab"><h2 id="t-suma">${titulo}</h2></div><div class="n-suma">${L.QUIEN.map(q => {
     const t = L.totalesDia(d, q, recetas, D.productos, fac), e = L.totalesDia(comido, q, recetas, D.productos, fac), o = obj[q];
     return `<div class="n-${q.toLowerCase()}"><p class="n-quien"><i aria-hidden="true"></i>${esc(NOM[q])}</p><p class="n-kcal">${miles(t.kcal)} <small>de ${miles(o.kcal)} kcal</small></p>
       <div class="n-barra" role="img" aria-label="El menú de hoy, ${pct(t.kcal, o.kcal)} % de las kcal del día; comido, ${pct(e.kcal, o.kcal)} %"><span class="n-plan" style="width:${pct(t.kcal, o.kcal)}%"></span><b style="width:${pct(e.kcal, o.kcal)}%"></b></div>
@@ -3950,8 +4387,6 @@ function abrirMasCena(p, d, i) {
     }));
   });
 }
-// Hasta que esté el modo cocinar, «Empezar a cocinar» abre la receta en el paso a paso.
-const empiezaCocinar = id => { V.detalle = true; abrirReceta(id); };
 function activaHoy5(p, d) {
   $$('#cab [data-ir], #vista [data-ir]').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.ir; }));
   if (!d) return;
@@ -3963,8 +4398,8 @@ function activaHoy5(p, d) {
   $$('#vista [data-hoy-acc]').forEach(b => b.addEventListener('click', e => {
     e.preventDefault();
     const a = b.dataset.hoyAcc;
-    if (a === 'receta' && rc) { V.detalle = true; abrirReceta(rc.id); }
-    if (a === 'cocinar' && rc) empiezaCocinar(rc.id);
+    if (a === 'receta' && rc) abrirReceta(rc.id, { plan: p.id, f: d.f, c: 'cena' });
+    if (a === 'cocinar' && rc) abrirCocinar(rc.id, { plan: p.id, f: d.f, c: 'cena' });
     if (a === 'hecho') alternaHecho(p, d.f, 'cena');
     if (a === 'fuera') alternaFuera(p, d.f, 'cena');
     if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);

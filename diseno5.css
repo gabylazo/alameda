@@ -1,1 +1,663 @@
-/* Diseño 5 (Covalente): pendiente de aprobación. */
+
+/* ——— Covalente · diseño 5 (18/11/2026): Hoy y, debajo, las otras ocho pantallas, la barra y las hojas ———
+   La pantalla aprobada el 18/11: blanco, paneles gris claro, un verde vivo, la foto grande con el nombre
+   encima, filas con un círculo para marcar y Poppins en los títulos. Solo con html.n5 (…/alameda/?diseno=5) y solo en lo que lleva n-:
+   las demás pantallas siguen como están. La barra de pestañas y los tokens globales van al final, con las nueve pantallas. */
+@font-face { font-family: "Poppins"; font-weight: 400; font-display: swap; src: url(fuentes/poppins-400.woff2) format("woff2"); }
+@font-face { font-family: "Poppins"; font-weight: 500; font-display: swap; src: url(fuentes/poppins-500.woff2) format("woff2"); }
+@font-face { font-family: "Poppins"; font-weight: 600; font-display: swap; src: url(fuentes/poppins-600.woff2) format("woff2"); }
+@font-face { font-family: "Poppins"; font-weight: 700; font-display: swap; src: url(fuentes/poppins-700.woff2) format("woff2"); }
+html.n5 {
+  --n-fondo: #ffffff; --n-panel: #f4f5f3; --n-linea: #e6e8e4; --n-tinta: #1a1c1a; --n-gris: #636862; --n-tenue: #8b908a;
+  --n-verde: #0e8043; --n-verde-hondo: #0b6a37; --n-verde-suave: #e7f4ec; --n-verde-plan: #b7dcc4; --n-naranja: #e8590c;
+  --n-g: #c2185b; --n-p: #1e63c4; --n-sobre-foto: rgba(255, 255, 255, .94); --n-barra-fondo: #e1e4df; --n-sobre-verde: #ffffff;
+  --n-elevado: #ffffff; --n-naranja-suave: #fdf0e7; --n-naranja-hondo: #9a3a06;
+  --n-titulo: "Poppins", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --n-texto: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+html.n5[data-theme="dark"] {
+  --n-fondo: #121212; --n-panel: #1f1f21; --n-linea: #2c2c2e; --n-tinta: #f2f2f2; --n-gris: #a1a1a6; --n-tenue: #8e8e93;
+  --n-verde: #5cc08f; --n-verde-hondo: #4aa97a; --n-verde-suave: #1b3226; --n-verde-plan: #2f5a43; --n-naranja: #f0955a;
+  --n-g: #ec93b0; --n-p: #8fb2e6; --n-sobre-foto: rgba(28, 28, 30, .92); --n-barra-fondo: #2c2c2e; --n-sobre-verde: #0c1a12;
+  --n-elevado: #2c2c2e; --n-naranja-suave: #3a2618; --n-naranja-hondo: #f4a873;
+}
+html.n5:has(.n-hoy), html.n5:has(.n-hoy) body { background: var(--n-fondo); }
+
+/* El marco: la cabecera y la vista de siempre, sin su relleno ni sus estilos cuando llevan la pantalla nueva */
+html.n5 .cabecera:has(> .n-cabeza) { max-width: 720px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px 0; background: none; border-radius: 0; color: var(--n-tinta); }
+html.n5 #vista:has(> .n-cuerpo) { padding: 0 20px 24px; }
+.n5 .n-hoy { color: var(--n-tinta); font: 15px/1.45 var(--n-texto); -webkit-font-smoothing: antialiased; }
+.n5 .n-hoy :is(h1, h2, h3) { font-family: var(--n-titulo); letter-spacing: -.01em; }
+.n5 .n-hoy :where(p, ul) { margin: 0; }
+.n5 .n-hoy a { color: inherit; font-weight: inherit; text-decoration: none; }
+.n5 .n-hoy button { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: inherit; }
+.n5 .n-hoy :focus-visible { outline: 3px solid var(--n-verde); outline-offset: 2px; }
+.n5 .n-hoy .n-svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.n5 .n-hoy .n-oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Cabecera: la fecha, Hoy y, a la derecha, la lupa y vosotros dos */
+.n5 .n-cabeza { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.n5 .n-cabeza .n-fecha { font-size: 14px; color: var(--n-gris); }
+.n5 .n-cabeza h1 { margin: 0; font-size: 30px; line-height: 1.2; font-weight: 700; color: var(--n-tinta); }
+.n5 .n-botones { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-boton-c { flex: 0 0 42px; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--n-panel); color: var(--n-tinta); }
+.n5 .n-boton-c .n-svg { width: 20px; height: 20px; }
+.n5 .n-hoy .n-quienes { display: flex; min-height: 42px; align-items: center; }
+.n5 .n-quienes span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--n-fondo); color: #fff; font: 600 14px var(--n-titulo); }
+.n5 .n-quienes span + span { margin-left: -8px; }
+.n5 .n-quienes .n-g { background: #c2185b; } .n5 .n-quienes .n-p { background: #1e63c4; }
+
+/* Bloques */
+.n5 .n-bloque { margin-top: 28px; }
+.n5 .n-bloque-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.n5 .n-bloque-cab h2 { margin: 0; font-size: 19px; line-height: 1.25; font-weight: 600; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-enlace { min-height: 36px; color: var(--n-verde); font: 500 14px var(--n-titulo); }
+
+/* La cena: la foto grande con el nombre encima */
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-foto-tarjeta { position: relative; display: block; overflow: hidden; border-radius: 18px; background: #333; }
+.n5 .n-foto-tarjeta .n-foto { display: block; width: 100%; height: 100%; object-fit: cover; }
+.n5 .n-foto-tarjeta span.n-foto.sin-foto { display: grid; place-items: center; background: var(--n-verde-suave); color: var(--n-verde); }
+.n5 .n-foto-tarjeta span.n-foto.sin-foto .n-svg { width: 34px; height: 34px; }
+.n5 .n-foto-tarjeta .n-sobre { position: absolute; inset: auto 0 0 0; padding: 60px 16px 16px; color: #fff; background: linear-gradient(to top, rgba(0, 0, 0, .72), rgba(0, 0, 0, 0)); }
+.n5 .n-foto-tarjeta .n-sobre h3 { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 600; color: #fff; }
+.n5 .n-foto-tarjeta .n-sobre p { margin: 4px 0 0; font-size: 14px; color: rgba(255, 255, 255, .92); }
+.n5 .n-etiqueta { position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; background: var(--n-sobre-foto); color: var(--n-tinta); font: 500 12.5px var(--n-titulo); }
+.n5 .n-etiqueta .n-svg { width: 15px; height: 15px; color: var(--n-verde); }
+.n5 .n-cena .n-foto-tarjeta { height: 270px; }
+.n5 .n-aviso { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; color: var(--n-gris); }
+.n5 .n-aviso::before { content: ''; flex: 0 0 8px; height: 8px; border-radius: 50%; background: var(--n-naranja); }
+.n5 .n-fuera { padding: 22px 18px 18px; border-radius: 18px; background: var(--n-panel); font: 500 16px/1.4 var(--n-titulo); }
+.n5 .n-fuera .n-acciones { margin-top: 16px; }
+.n5 .n-fuera .n-circulo { background: var(--n-fondo); }
+
+.n5 .n-acciones { display: flex; gap: 10px; margin-top: 14px; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-pastilla { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border-radius: 999px; background: var(--n-verde); color: var(--n-sobre-verde); font: 600 16px var(--n-titulo); text-align: center; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-pastilla:active { background: var(--n-verde-hondo); }
+/* Con tres círculos (cambiar, hecho y más) no cabe «Empezar a cocinar» en una línea: círculos de 48, el botón sin el icono */
+.n5 .n-hoy .n-acciones:has(> :nth-child(4)) { gap: 8px; }
+.n5 .n-hoy .n-acciones:has(> :nth-child(4)) .n-circulo { flex-basis: 48px; height: 48px; margin-top: 2px; }
+.n5 .n-hoy .n-acciones:has(> :nth-child(4)) .n-pastilla { padding: 0 12px; font-size: 15px; white-space: nowrap; }
+.n5 .n-hoy .n-acciones:has(> :nth-child(4)) .n-pastilla .n-svg { display: none; }
+.n5 .n-pastilla .n-svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-circulo { flex: 0 0 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: var(--n-panel); color: var(--n-tinta); }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-circulo[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+/* Con la cena hecha, el botón grande deja de empujar: «Ver la receta», en gris */
+.n5 .n-hoy .n-cena.n-hecha .n-pastilla { background: var(--n-panel); color: var(--n-tinta); }
+
+/* Lo que suma hoy: el menú en verde claro y lo comido en verde encima */
+.n5 .n-suma { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.n5 .n-suma > div { padding: 14px 12px; border-radius: 16px; background: var(--n-panel); min-width: 0; }
+.n5 .n-quien { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--n-gris); }
+.n5 .n-quien i { width: 8px; height: 8px; border-radius: 50%; }
+.n5 .n-suma .n-g .n-quien i { background: var(--n-g); } .n5 .n-suma .n-p .n-quien i { background: var(--n-p); }
+.n5 .n-kcal { margin-top: 4px; font: 600 20px/1.2 var(--n-titulo); font-variant-numeric: tabular-nums; }
+.n5 .n-kcal small { font: 400 13px var(--n-texto); color: var(--n-gris); }
+.n5 .n-barra { position: relative; height: 6px; margin: 10px 0 8px; border-radius: 3px; background: var(--n-barra-fondo); overflow: hidden; }
+.n5 .n-barra :is(.n-plan, b) { position: absolute; left: 0; top: 0; bottom: 0; max-width: 100%; border-radius: 3px; }
+.n5 .n-barra .n-plan { background: var(--n-verde-plan); }
+.n5 .n-barra b { background: var(--n-verde); }
+.n5 .n-prot { font-size: 12px; color: var(--n-gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n5 .n-prot::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--n-naranja); vertical-align: 1px; }
+
+/* Filas: para mañana y el resto del día */
+.n5 .n-filas { display: grid; gap: 8px; padding: 0; list-style: none; }
+.n5 .n-fila { display: flex; align-items: center; gap: 8px; min-height: 72px; padding: 0 12px 0 0; border-radius: 16px; background: var(--n-panel); }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-fila-abre { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 10px 0 10px 10px; border-radius: 16px; }
+.n5 .n-min { flex: 0 0 52px; width: 52px; height: 52px; border-radius: 12px; object-fit: cover; }
+.n5 .n-min-ic { flex: 0 0 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: var(--n-verde-suave); color: var(--n-verde); }
+.n5 .n-txt { flex: 1; min-width: 0; }
+.n5 .n-txt b { display: block; font: 500 15px/1.3 var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-txt > span { display: block; margin-top: 2px; font-size: 13px; color: var(--n-gris); }
+.n5 .n-flecha { flex: 0 0 auto; display: grid; color: var(--n-tenue); }
+.n5 .n-flecha .n-svg { width: 18px; height: 18px; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-marcar { flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; border: 1.5px solid #c4c8c2; border-radius: 50%; background: var(--n-fondo); color: transparent; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-marcar::after { content: ''; position: absolute; width: 44px; height: 44px; }
+.n5 .n-marcar .n-svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) :is(.n-marcar.n-hecho, .n-marcar[aria-pressed="true"]) { border-color: var(--n-verde); background: var(--n-verde); color: var(--n-sobre-verde); }
+html.n5[data-theme="dark"] :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-volver, .n-fijo) .n-marcar { border-color: #5a5a5e; }
+.n5 .n-fila.n-ahora { background: var(--n-verde-suave); }
+.n5 .n-fila.n-ahora .n-txt > span { color: var(--n-verde-hondo); }
+.n5 .n-fila.n-hecha .n-txt b { color: var(--n-gris); }
+
+/* Esta semana: tarjetas que se deslizan */
+.n5 .n-carrusel { display: flex; gap: 12px; margin: 0 -20px; padding: 0 20px 4px; list-style: none; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 20px; scrollbar-width: none; }
+.n5 .n-carrusel::-webkit-scrollbar { display: none; }
+.n5 .n-carrusel > li { flex: 0 0 150px; scroll-snap-align: start; }
+.n5 .n-carrusel button { display: block; width: 100%; }
+.n5 .n-carrusel .n-foto-tarjeta { height: 120px; border-radius: 16px; }
+.n5 .n-carrusel .n-etiqueta { left: 8px; top: 8px; padding: 4px 9px; font-size: 12px; }
+.n5 .n-carrusel .n-nombre { display: -webkit-box; margin: 8px 2px 0; font: 500 14px/1.3 var(--n-titulo); color: var(--n-tinta); -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.n5 .n-carrusel .n-fuera { display: grid; place-items: center; height: 120px; padding: 0 12px; border-radius: 16px; font-size: 14px; color: var(--n-gris); text-align: center; }
+.n5 :is(.n-carrusel, .n-rejilla) .n-hecha .n-foto-tarjeta::after, .n5 .n-foto-tarjeta.n-hecha::after { content: ''; position: absolute; right: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--n-verde) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8.5'/%3E%3C/svg%3E") center / 16px no-repeat; }
+html.n5[data-theme="dark"] :is(.n-carrusel, .n-rejilla) .n-hecha .n-foto-tarjeta::after, html.n5[data-theme="dark"] .n-foto-tarjeta.n-hecha::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230c1a12' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8.5'/%3E%3C/svg%3E"); }
+
+@media (prefers-reduced-motion: reduce) { .n5 .n-carrusel { scroll-behavior: auto; } }
+
+/* ——— Común a las otras ocho pantallas (y a .n-volver y .n-fijo, que van fuera de la raíz) ———
+   Los reseteos van con :where() y la etiqueta, para no ganar a los componentes (.n5 .n-algo). */
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) { color: var(--n-tinta); font: 15px/1.45 var(--n-texto); -webkit-font-smoothing: antialiased; }
+/* app.css le pone al body letter-spacing: -.005em; las maquetas van sin él */
+.n5 :where(.n-hoy, .n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-volver, .n-fijo) { letter-spacing: normal; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) :is(h1, h2, h3) { margin: 0; display: block; font-family: var(--n-titulo); font-weight: 600; letter-spacing: -.01em; line-height: 1.25; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) :is(p, ul, ol) { margin: 0; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-volver, .n-fijo) a { color: inherit; font-weight: inherit; text-decoration: none; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-volver, .n-fijo) button { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: inherit; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) main { max-width: none; margin: 0; padding: 0; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-volver, .n-fijo) :focus-visible { outline: 3px solid var(--n-verde); outline-offset: 2px; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-volver, .n-fijo, .n-reloj-flota) .n-svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.n5 :where(.n-receta, .n-cocinar, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) .n-oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar, .n-fijo) .n-pastilla[disabled] { opacity: .45; }
+
+/* Las subpantallas: la flecha de volver encima de la cabecera */
+html.n5 .cabecera:has(> .n-volver) { padding-top: calc(12px + env(safe-area-inset-top)); }
+.n5 .n-volver { display: flex; justify-content: space-between; margin: 0 0 8px; }
+
+/* Piezas que se repiten en varias pantallas */
+.n5 :is(.n-hoy, .n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar) .n-boton-p { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--n-verde-suave); color: var(--n-verde-hondo); font: 600 13.5px var(--n-titulo); white-space: nowrap; }
+.n5 .n-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar) .n-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--n-elevado); color: var(--n-tinta); font: 500 13.5px var(--n-titulo); white-space: nowrap; }
+.n5 .n-chip .n-svg { width: 16px; height: 16px; color: var(--n-naranja); }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar) .n-chip[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes, .n-receta, .n-cocinar) .n-buscar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 18px; padding: 0 18px; border-radius: 999px; background: var(--n-panel); color: var(--n-gris); font: 15px var(--n-texto); text-align: left; }
+.n5 .n-buscar:focus-within { outline: 3px solid var(--n-verde); outline-offset: 2px; }
+.n5 .n-buscar .n-svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.n5 .n-buscar :is(input, textarea) { flex: 1; min-width: 0; height: 46px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--n-tinta); font: 16px var(--n-texto); outline: none; box-shadow: none; -webkit-appearance: none; appearance: none; }
+.n5 .n-buscar :is(input, textarea)::placeholder { color: var(--n-gris); opacity: 1; }
+/* app.css les pone fondo a los campos en oscuro (con mucha especificidad): aquí, sin fondo */
+:root.n5[data-theme="dark"] .n-buscar :is(input, textarea), :root.n5[data-theme="dark"] .n-buscar :is(input, textarea):focus { background: none; color: var(--n-tinta); }
+.n5 .n-buscar.n-filtra { margin-top: 10px; }
+.n5 .n-sec-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 2px 10px; }
+.n5 .n-sec-cab :is(h2, h3) { margin: 0; font: 600 17px/1.3 var(--n-titulo); }
+.n5 .n-sec-cab > span { font: 500 13px var(--n-titulo); color: var(--n-gris); }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) .n-nota { margin: 0 2px 10px; font-size: 13.5px; color: var(--n-gris); }
+.n5 .n-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--n-verde-suave); color: var(--n-verde-hondo); font: 500 11.5px/1.6 var(--n-titulo); font-style: normal; white-space: nowrap; vertical-align: 1px; }
+.n5 .n-tag:is(.n-acabo, .n-malo) { background: var(--n-naranja-suave); color: var(--n-naranja-hondo); }
+.n5 .n-tag.n-regular { background: var(--n-elevado); color: var(--n-tinta); }
+/* Filas sin botón dentro (la del ticket, las de fuera del catálogo): el relleno lo pone la fila */
+.n5 .n-fila:not(:has(> .n-fila-abre)) { gap: 12px; padding: 10px 12px 10px 10px; }
+.n5 .n-min.n-prod { padding: 4px; background: #fff; object-fit: contain; }
+.n5 .n-fila .n-precio { flex: 0 0 auto; margin-left: 4px; font: 500 14px var(--n-titulo); font-variant-numeric: tabular-nums; }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas, .n-chef, .n-ajustes) .n-mas { flex: 0 0 36px; width: 36px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--n-gris); }
+.n5 .n-mas .n-svg { width: 20px; height: 20px; }
+/* La rejilla de fotos (las cenas de la semana, las recetas) */
+.n5 .n-rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 12px; margin: 0; padding: 0; list-style: none; }
+.n5 .n-rejilla > li > :is(button, a) { display: block; width: 100%; text-align: left; }
+.n5 .n-rejilla .n-foto-tarjeta { height: 132px; border-radius: 16px; }
+.n5 .n-rejilla .n-etiqueta { left: 8px; top: 8px; padding: 4px 9px; font-size: 12px; }
+.n5 .n-rejilla .n-nombre { display: -webkit-box; margin: 8px 2px 0; font: 500 14px/1.3 var(--n-titulo); color: var(--n-tinta); -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.n5 .n-rejilla .n-dato { display: block; margin: 3px 2px 0; font-size: 12.5px; color: var(--n-gris); }
+.n5 .n-rejilla .n-fuera { display: grid; place-items: center; height: 132px; padding: 0 12px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font: 500 14px var(--n-titulo); text-align: center; }
+/* Lo pintado arriba de la pantalla con el marcado de antes (los avisos), con la letra y los colores de la capa */
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas) > .aviso { margin: 14px 0 0; padding: 12px 14px; border: 0; border-radius: 16px; background: var(--n-naranja-suave); color: var(--n-tinta); font: 14px/1.45 var(--n-texto); box-shadow: none; }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas) > .aviso b { font-weight: 600; }
+.n5 :is(.n-semana, .n-compra, .n-nevera, .n-recetas) > .aviso .cerrar-aviso { flex: 0 0 44px; height: 44px; margin: -10px -8px -10px auto; padding: 0; color: var(--n-gris); font-size: 22px; text-align: center; }
+
+/* ——— Receta y modo cocinar: la hoja a pantalla completa (.hoja.n-pantalla), sin asa ni × ——— */
+html.n5 .hoja.n-pantalla { top: 0; max-height: none; height: 100dvh; padding: 0; border-radius: 0; background: var(--n-fondo); color: var(--n-tinta); }
+@media (prefers-reduced-motion: reduce) { html.n5 .hoja.n-pantalla { transition: none; } }
+
+/* ——— Receta ——— */
+.n5 .n-portada { position: relative; height: 330px; background: #333; }
+.n5 .n-portada > :is(img, .n-foto) { display: block; width: 100%; height: 100%; object-fit: cover; }
+.n5 .n-portada span.n-foto.sin-foto { display: grid; place-items: center; background: var(--n-verde-suave); color: var(--n-verde); }
+.n5 .n-portada .n-sobre { position: absolute; inset: auto 0 0 0; padding: 80px 20px 22px; color: #fff; background: linear-gradient(to top, rgba(0, 0, 0, .72), rgba(0, 0, 0, 0)); }
+.n5 .n-portada .n-sobre :is(h1, h2) { margin: 0; font: 600 26px/1.2 var(--n-titulo); letter-spacing: -.01em; color: #fff; }
+/* Títulos largos (la app pone .n-largo a partir de unos 38 caracteres): un punto menos, para no tapar media foto */
+.n5 .n-portada .n-sobre :is(h1, h2).n-largo { font-size: 22px; line-height: 1.22; }
+.n5 .n-portada .n-sobre p { margin: 6px 0 0; font-size: 14px; color: rgba(255, 255, 255, .92); }
+.n5 .n-portada .n-arriba { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 0; }
+.n5 .n-receta .n-arriba :is(a, button) { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--n-sobre-foto); color: var(--n-tinta); }
+.n5 .n-receta .n-arriba .n-svg { width: 20px; height: 20px; }
+/* El menú de «Más»: una tarjeta pegada arriba a la derecha (sin display aquí, para que [hidden] la esconda) */
+.n5 .n-portada .n-menu { position: absolute; right: 16px; top: calc(62px + env(safe-area-inset-top)); z-index: 3; min-width: 220px; margin: 0; padding: 6px; list-style: none; border-radius: 16px; background: var(--n-elevado); box-shadow: 0 12px 32px rgba(0, 0, 0, .18), 0 0 0 1px var(--n-linea); }
+.n5 .n-receta .n-menu button { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; font: 500 15px var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-receta .n-menu button:active { background: var(--n-panel); }
+
+.n5 .n-datos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 16px 20px 0; list-style: none; }
+.n5 .n-datos li { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border-radius: 999px; background: var(--n-panel); color: var(--n-tinta); font: 500 13px var(--n-titulo); white-space: nowrap; }
+.n5 .n-datos .n-svg { width: 16px; height: 16px; color: var(--n-verde); }
+.n5 .n-datos .n-ini { font-weight: 600; }
+.n5 .n-ini.n-g { color: var(--n-g); } .n5 .n-ini.n-p { color: var(--n-p); }
+.n5 .n-datos li.n-prot { font-size: 13px; overflow: visible; }
+.n5 .n-datos li.n-prot::before { margin-right: 1px; }
+
+.n5 .n-redondos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 18px 12px 0; }
+.n5 .n-receta .n-redondos button { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 76px; padding: 4px 0; font: 500 12px/1.3 var(--n-titulo); color: var(--n-tinta); text-align: center; }
+.n5 .n-redondos .n-c { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--n-verde-suave); color: var(--n-verde); }
+.n5 .n-redondos [aria-pressed="true"] .n-c { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-receta .n-cuerpo > .n-aviso { margin: 14px 20px 0; }
+
+.n5 .n-seccion { margin-top: 28px; padding: 0 20px; }
+.n5 .n-seccion > h2 { margin: 0 0 12px; font-size: 19px; font-weight: 600; }
+.n5 .n-receta .n-antes { padding: 14px 16px; border-radius: 16px; background: var(--n-verde-suave); }
+.n5 .n-seccion .n-antes h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--n-verde-hondo); }
+.n5 .n-receta .n-antes ul { padding: 0 0 0 18px; }
+.n5 .n-receta .n-antes li + li { margin-top: 4px; }
+
+/* Avisos de la receta (lo que no soléis comprar, el aparato que falta…): una fila naranja suave, sin emoji */
+.n5 .n-receta .n-nota { display: flex; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--n-naranja-suave); color: var(--n-tinta); font-size: 14px; }
+.n5 .n-receta .n-nota + .n-nota { margin-top: 8px; }
+.n5 .n-receta .n-nota .n-svg { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px; color: var(--n-naranja-hondo); }
+
+.n5 .n-segmento { display: inline-flex; margin-bottom: 12px; padding: 3px; border-radius: 999px; background: var(--n-panel); }
+.n5 .n-segmento button { min-height: 36px; padding: 0 14px; border-radius: 999px; font: 500 13px var(--n-titulo); color: var(--n-gris); }
+.n5 .n-segmento button:is([aria-pressed="true"], [aria-checked="true"]) { background: var(--n-elevado); color: var(--n-tinta); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+
+/* Ingredientes: una tabla en un panel gris, con la foto del producto y lo de cada uno */
+.n5 .n-ingr { margin: 0; padding: 0; list-style: none; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-ingr > li { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 8px 12px 8px 10px; }
+.n5 .n-ingr > li + li { border-top: 1px solid var(--n-linea); }
+.n5 .n-ingr img { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 10px; background: #fff; object-fit: contain; }
+.n5 .n-ingr :is(.n-sin-img, .n-ing-ic) { flex: 0 0 40px; height: 40px; border-radius: 10px; background: var(--n-elevado); }
+.n5 .n-ingr .n-n { flex: 1; min-width: 0; font-size: 15px; }
+.n5 .n-ingr .n-n small { display: block; font-size: 12.5px; color: var(--n-gris); }
+.n5 .n-ingr .n-q { flex: 0 0 60px; text-align: right; font: 600 13px/1.3 var(--n-titulo); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }
+/* La equivalencia (1 patata, ≈ ⅓ bola), si viene en <small>: debajo, en gris */
+.n5 .n-ingr .n-q small { display: block; margin-top: 1px; font: 400 11.5px/1.3 var(--n-texto); color: var(--n-gris); }
+.n5 .n-ingr .n-q.n-g { color: var(--n-g); } .n5 .n-ingr .n-q.n-p { color: var(--n-p); }
+.n5 .n-ingr > li.n-cabecera { min-height: 0; padding: 10px 14px 6px; font: 500 12px var(--n-titulo); color: var(--n-gris); }
+.n5 .n-ingr > li.n-cabecera .n-n { font-size: 12px; }
+.n5 .n-ingr > li.n-cabecera .n-q { font-size: 12px; }
+/* Lo de otros y básicos (sal, especias): sin foto y en gris */
+.n5 .n-ingr > li:has(> .n-otro), .n5 .n-ingr > li.n-otro { min-height: 48px; }
+.n5 .n-ingr :is(.n-otro, .n-otro .n-n) { color: var(--n-gris); }
+/* En casa o no: un ✓ verde o un ✕ naranja de línea, del tamaño del texto pequeño, delante del nombre. Se pintan con máscara:
+   el marcado solo lleva <span class="n-hay"> o <span class="n-hay n-falta">, con su texto oculto (.n-oculto) para el lector */
+.n5 .n-ingr .n-hay { position: relative; flex: 0 0 13px; width: 13px; height: 13px; margin: 0 -4px 0 -2px; background: var(--n-verde);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 12.5l5 5L19.5 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 12.5l5 5L19.5 7'/%3E%3C/svg%3E") center / contain no-repeat; }
+.n5 .n-ingr .n-hay.n-falta { background: var(--n-naranja);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E"); }
+.n5 .n-ingr li.n-falta .n-n small { color: var(--n-naranja-hondo); }
+
+.n5 .n-pasos { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.n5 .n-paso { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 16px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-paso .n-num { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--n-verde); color: var(--n-sobre-verde); font: 600 14px var(--n-titulo); }
+.n5 .n-paso p { font-size: 16px; line-height: 1.5; }
+.n5 :is(.n-receta, .n-cocinar) .n-chip.n-reloj { border: 1.5px solid var(--n-verde); background: var(--n-elevado); color: var(--n-verde); }
+.n5 .n-chip.n-reloj .n-svg { color: var(--n-verde); }
+.n5 .n-listo { display: flex; gap: 8px; margin-top: 12px; font-size: 14px; line-height: 1.45; }
+.n5 .n-paso p.n-listo { font-size: 14px; line-height: 1.45; }
+.n5 .n-listo .n-svg { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px; color: var(--n-verde); }
+.n5 .n-paso p.n-usa, .n5 .n-usa { margin-top: 8px; font-size: 13px; line-height: 1.4; color: var(--n-gris); }
+.n5 .n-truco { padding: 14px 16px; border-radius: 16px; background: var(--n-naranja-suave); }
+.n5 .n-seccion .n-truco h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--n-naranja-hondo); }
+.n5 .n-receta .n-fuente { margin: 20px 20px 0; font-size: 13px; color: var(--n-gris); }
+.n5 .n-receta .n-fuente a { text-decoration: underline; text-underline-offset: 3px; }
+/* Ponerla en el menú: tres desplegables en pastilla y el botón */
+.n5 .n-poner-campos { display: flex; flex-wrap: wrap; gap: 8px; }
+.n5 .n-receta .n-select { flex: 1 1 96px; min-width: 0; min-height: 44px; margin: 0; padding: 0 34px 0 14px; border: 0; border-radius: 999px; background: var(--n-panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23636862' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") right 12px center / 16px no-repeat; color: var(--n-tinta); font: 500 14px var(--n-titulo); -webkit-appearance: none; appearance: none; }
+html.n5[data-theme="dark"] .n-receta .n-select { background-color: var(--n-panel); color: var(--n-tinta); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1a6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E"); }
+.n5 .n-poner-campos .n-boton-p { min-height: 44px; padding: 0 20px; background: var(--n-verde); color: var(--n-sobre-verde); }
+
+/* Lo que suma la receta a cada uno: kcal y las tres barras, en los dos paneles de Hoy */
+.n5 .n-receta .n-suma .n-barras { display: grid; gap: 6px; margin-top: 10px; }
+.n5 .n-receta .n-suma .n-bm { display: grid; grid-template-columns: 58px 1fr 38px; align-items: center; gap: 6px; font-size: 12px; color: var(--n-gris); font-variant-numeric: tabular-nums; }
+.n5 .n-receta .n-suma .n-bm .n-barra { margin: 0; }
+.n5 .n-receta .n-suma .n-bm > span:last-child { text-align: right; }
+
+/* Empezar a cocinar, fijo abajo: pegado al pie de la hoja mientras se baja (dentro de la hoja, fixed no se queda quieto) */
+.n5 :is(.n-receta, .n-cocinar) .n-fijo { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 10px; margin-top: 24px; padding: 14px 20px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--n-fondo) 72%, transparent); }
+.n5 .n-fijo .n-pastilla { width: 100%; }
+.n5 .n-receta .n-fijo .n-pastilla .n-svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+
+/* ——— Modo cocinar: un paso cada vez, con el texto grande, el temporizador y cómo saber que está hecho ——— */
+.n5 .n-cocinar { display: flex; flex-direction: column; min-height: 100dvh; }
+.n5 .n-cocinar > :is(main, .n-coc-cuerpo) { flex: 1; }
+.n5 .n-coc-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: calc(12px + env(safe-area-inset-top)) 16px 0; }
+.n5 .n-coc-cab :is(h1, h2) { flex: 1; min-width: 0; margin: 0; font: 600 15px/1.3 var(--n-titulo); text-align: center; }
+.n5 .n-coc-cab :is(h1, h2) span { display: block; font: 400 12.5px/1.4 var(--n-texto); color: var(--n-gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n5 .n-progreso { flex: 0 0 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 4px 4px 0; }
+.n5 .n-progreso i { height: 5px; border-radius: 3px; background: var(--n-linea); }
+.n5 .n-progreso i.n-ya { background: var(--n-verde); }
+.n5 .n-coc-texto { margin: 30px 20px 0; font: 500 24px/1.42 var(--n-titulo); letter-spacing: -.005em; }
+.n5 .n-cocinar .n-chips { margin: 18px 20px 0; }
+.n5 .n-cocinar .n-chip { min-height: 40px; padding: 0 14px; background: var(--n-panel); font-size: 14px; }
+.n5 .n-temporizador { display: flex; align-items: center; gap: 16px; margin: 14px 20px 0; padding: 18px 18px 18px 22px; border-radius: 20px; background: var(--n-verde-suave); color: var(--n-verde-hondo); }
+html.n5[data-theme="dark"] .n-temporizador:not(.n-fin) { color: var(--n-verde); }
+.n5 .n-temporizador .n-t { flex: 1; min-width: 0; }
+.n5 .n-temporizador b { display: block; font: 600 42px/1.05 var(--n-titulo); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.n5 .n-temporizador .n-t span { font-size: 14px; }
+.n5 .n-cocinar .n-temporizador button { flex: 0 0 60px; height: 60px; display: grid; place-items: center; border-radius: 50%; background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-temporizador button .n-svg { width: 24px; height: 24px; fill: none; stroke: currentColor; }
+/* Al acabar el tiempo: el temporizador se pone en verde lleno hasta que se toca */
+.n5 .n-temporizador.n-fin { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-cocinar .n-temporizador.n-fin button { background: var(--n-sobre-verde); color: var(--n-verde); }
+.n5 .n-listo-caja { display: flex; gap: 10px; margin: 10px 20px 0; padding: 14px 16px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-listo-caja .n-svg { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; color: var(--n-verde); }
+.n5 .n-listo-caja b { display: block; font: 600 14px var(--n-titulo); }
+.n5 .n-listo-caja p { margin: 2px 0 0; }
+.n5 .n-despues { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1.5px solid var(--n-linea); border-radius: 16px; }
+.n5 .n-despues .n-txt { flex: 1; min-width: 0; }
+.n5 .n-despues small { display: block; font-size: 12.5px; color: var(--n-gris); }
+.n5 .n-despues b { font: 500 14.5px/1.35 var(--n-titulo); }
+.n5 .n-cocinar .n-fijo { margin-top: auto; padding-top: 24px; }
+.n5 .n-cocinar .n-fijo .n-circulo { flex: 0 0 52px; }
+.n5 .n-cocinar .n-fijo .n-pastilla .n-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
+
+/* El temporizador que flota por toda la app: una pastilla abajo, por encima de la hoja, de la barra y del botón fijo.
+   En el modo cocinar no sale, porque ya está el grande. Al acabar, en naranja y latiendo (sin latido si se pide menos movimiento). */
+html.n5 .n-reloj-flota { position: fixed; left: 50%; bottom: calc(var(--barra, 68px) + env(safe-area-inset-bottom) + 12px); z-index: 60; display: inline-flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); min-height: 48px; margin: 0; padding: 0 18px 0 14px; border: 0; border-radius: 999px; background: var(--n-tinta); color: var(--n-fondo); font: 14px var(--n-texto); box-shadow: 0 10px 28px rgba(0, 0, 0, .22); transform: translateX(-50%); letter-spacing: normal; }
+html.n5 .n-reloj-flota .n-svg { flex: 0 0 18px; width: 18px; height: 18px; }
+html.n5 .n-reloj-flota b { font: 600 16px var(--n-titulo); font-variant-numeric: tabular-nums; }
+html.n5 .n-reloj-flota span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: .85; }
+html.n5 .n-reloj-flota.n-sonando { background: var(--n-naranja); color: #fff; animation: n-late 1s ease-in-out infinite; }
+html.n5[data-theme="dark"] .n-reloj-flota.n-sonando { color: #1a0d04; }
+html.n5 .n-reloj-flota:focus-visible { outline: 3px solid var(--n-verde); outline-offset: 3px; }
+/* Con la receta o con la compra (que llevan su botón fijo), un poco más arriba; en el modo cocinar, fuera */
+html.n5 body:has(.hoja.n-pantalla.abierta) .n-reloj-flota { bottom: calc(env(safe-area-inset-bottom) + 92px); }
+html.n5 body:has(#vista > .n-fijo) .n-reloj-flota { bottom: calc(var(--barra, 68px) + env(safe-area-inset-bottom) + 88px); }
+html.n5 body:has(.hoja.n-en-cocina.abierta) .n-reloj-flota { display: none; }
+@keyframes n-late { 50% { transform: translateX(-50%) scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { html.n5 .n-reloj-flota.n-sonando { animation: none; } }
+
+/* ——— Semana ——— */
+.n5 .n-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 18px; }
+.n5 .n-semana .n-dias button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 10px 0 12px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font: 500 12px var(--n-titulo); text-align: center; }
+.n5 .n-dias button b { font: 600 17px/1.2 var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-semana .n-dias button[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-dias button[aria-pressed="true"] b { color: var(--n-sobre-verde); }
+.n5 .n-dias .n-es-hoy::after { content: ''; position: absolute; bottom: 6px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--n-verde); }
+.n5 .n-dias .n-es-hoy[aria-pressed="true"]::after { background: var(--n-sobre-verde); }
+/* La cena del día elegido: un botón con la foto, «Cena» y el nombre encima */
+.n5 .n-dia-cena .n-foto-tarjeta { width: 100%; height: 210px; text-align: left; }
+.n5 .n-dia-cena .n-sobre .n-que { display: block; font-size: 13.5px; color: rgba(255, 255, 255, .92); }
+.n5 .n-dia-cena .n-sobre .n-nombre { display: block; margin-top: 2px; font: 600 20px/1.2 var(--n-titulo); letter-spacing: -.01em; color: #fff; }
+.n5 .n-semana .n-dia-cena > .n-fuera { display: block; width: 100%; text-align: left; }
+.n5 .n-dia-cena .n-filas { margin-top: 10px; }
+.n5 .n-semana > .n-bloque:has(.n-suma) .n-bloque-cab, .n5 .n-semana .n-suma { margin-top: 0; }
+
+/* ——— Compra ——— */
+.n5 .n-resumen { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-resumen .n-linea { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.n5 .n-resumen .n-linea > b { font: 600 20px var(--n-titulo); font-variant-numeric: tabular-nums; }
+.n5 .n-resumen .n-linea > b small { font: 400 14px var(--n-texto); color: var(--n-gris); }
+.n5 .n-resumen .n-total { font: 500 14px var(--n-titulo); color: var(--n-gris); font-variant-numeric: tabular-nums; }
+.n5 .n-resumen .n-barra { margin: 12px 0 0; }
+.n5 .n-resumen .n-presupuesto { margin-top: 10px; font-size: 13.5px; color: var(--n-gris); }
+.n5 .n-resumen .n-presupuesto.n-pasa { color: var(--n-naranja-hondo); font-weight: 600; }
+.n5 .n-resumen .n-boton-p { margin-top: 10px; }
+.n5 .n-compra-acc { margin-top: 10px; }
+.n5 .n-compra-acc .n-fila.n-pide { background: var(--n-verde-suave); }
+.n5 .n-compra-acc .n-fila.n-pide .n-min-ic { background: var(--n-fondo); }
+.n5 .n-compra .n-buscar.n-anadir { color: var(--n-gris); }
+.n5 .n-compra .n-buscar.n-anadir span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.n5 .n-compra .n-chip.n-donde { flex: 0 0 auto; min-height: 32px; padding: 0 10px; font-size: 12.5px; }
+.n5 .n-compra .n-fila.n-hecha .n-txt b { color: var(--n-gris); text-decoration: line-through; text-decoration-color: var(--n-tenue); }
+.n5 .n-compra .n-fila.n-hecha .n-min { opacity: .5; }
+.n5 .n-compra .n-fila.n-hecha .n-precio, .n5 .n-compra .n-fila.n-no .n-precio { color: var(--n-gris); }
+.n5 .n-compra .n-fila.n-no .n-txt b { color: var(--n-gris); }
+/* «Terminar la compra», fijo encima de la barra de pestañas (va en #vista, fuera de la raíz) */
+html.n5 #vista > .n-fijo { position: fixed; left: 0; right: 0; bottom: calc(var(--barra, 68px) + env(safe-area-inset-bottom)); z-index: 20; display: flex; max-width: 720px; margin: 0 auto; padding: 14px 20px 10px; background: linear-gradient(to top, var(--n-fondo) 70%, transparent); }
+html.n5 #vista:has(> .n-fijo) { padding-bottom: 100px; }
+.n5 #vista > .n-fijo .n-pastilla .n-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
+/* Las filas de la lista llevan un botón más que las de la maqueta (···: no había, otra tienda): más juntas, para que el nombre no se parta tanto */
+.n5 .n-compra .n-lista .n-fila { gap: 2px; padding-right: 10px; }
+.n5 .n-compra .n-lista .n-fila-abre { gap: 10px; }
+.n5 .n-compra .n-lista .n-precio { margin-left: 0; font-size: 13.5px; }
+.n5 .n-compra .n-lista .n-mas { flex: 0 0 28px; width: 28px; }
+.n5 .n-compra .n-lista .n-marcar { margin-left: 4px; }
+/* Sin marcar, el ✓ en tenue, como en la maqueta */
+.n5 .n-compra .n-lista .n-marcar:not(.n-hecho, [aria-pressed="true"]) { color: var(--n-tenue); }
+.n5 .n-compra .n-marcar .n-svg { width: 16px; height: 16px; stroke-width: 2.4; }
+html.n5[data-theme="dark"] .n-compra .n-lista .n-marcar:not(.n-hecho, [aria-pressed="true"]) { color: #5a5a5e; }
+
+/* Lo que Compra aún pinta con el marcado de antes (Para otro día, ¿Os queda?): con la letra, el panel y los botones de la capa */
+.n5 .n-compra .cat { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 22px 2px 6px; font: 600 17px/1.3 var(--n-titulo); color: var(--n-tinta); text-transform: none; letter-spacing: normal; }
+.n5 .n-compra .cat .num { font: 500 13px var(--n-titulo); color: var(--n-gris); }
+.n5 .n-compra .cat .cat-accion { min-height: 44px; padding: 0 2px 0 12px; font: 500 14px var(--n-titulo); color: var(--n-verde); text-decoration: none; }
+.n5 .n-compra .lista { border-radius: 16px; background: var(--n-panel); }
+.n5 .n-compra .lista .producto { gap: 8px; min-height: 60px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--n-linea); background: none; }
+.n5 .n-compra .lista .producto:last-child { border-bottom: 0; }
+.n5 .n-compra .producto .pn { font: 500 15px/1.3 var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-compra .producto .pc { margin-top: 2px; font-size: 13px; color: var(--n-gris); }
+.n5 .n-compra .producto .icono { flex: 0 0 40px; width: 40px; height: 44px; border-radius: 50%; background: none; color: var(--n-gris); }
+.n5 .n-compra .producto .icono svg { width: 19px; height: 19px; stroke-width: 1.9; }
+.n5 .n-compra .botones { gap: 8px; }
+html.n5 .n-compra .chip { min-height: 36px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--n-elevado); color: var(--n-tinta); font: 500 13.5px var(--n-titulo); }
+/* (con .lista, para ganar a la regla oscura de app.css que pone en gris .chip.si) */
+html.n5 .n-compra .lista .chip.si { background: var(--n-verde-suave); color: var(--n-verde-hondo); }
+html.n5 .n-compra > .botones .chip { background: var(--n-panel); }
+
+/* ——— Nevera ——— */
+.n5 .n-pista { display: flex; gap: 8px; margin: 12px 2px 0; font-size: 13.5px; color: var(--n-gris); }
+.n5 .n-pista .n-svg { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px; color: var(--n-verde); }
+.n5 .n-nevera .n-txt .n-poco { color: var(--n-naranja-hondo); }
+/* Se acabó (a la compra): un círculo blanco con el carro; quitar sin comprar: la papelera, sin fondo */
+.n5 .n-nevera .n-carro { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--n-elevado); color: var(--n-gris); }
+.n5 .n-nevera .n-papelera { flex: 0 0 32px; width: 32px; height: 44px; display: grid; place-items: center; color: var(--n-tenue); }
+.n5 :is(.n-nevera, .n-compra) :is(.n-carro, .n-papelera) .n-svg { width: 18px; height: 18px; }
+.n5 :is(.n-nevera, .n-recetas, .n-compra) .n-vacio { margin-top: 18px; padding: 28px 20px; border-radius: 16px; background: var(--n-panel); color: var(--n-gris); font-size: 14.5px; text-align: center; }
+/* Cambiar la cantidad (en una hoja): menos, la cantidad grande, más */
+.n5 .n-cantidad { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 18px 0; }
+/* 18 px: entre el − y el + caben en una línea «≈ 500 g de carne picada» y parecidos; si llega uno más largo, se parte equilibrado */
+.n5 .n-cantidad b { flex: 1; min-width: 0; font: 600 18px/1.3 var(--n-titulo); text-wrap: balance; font-variant-numeric: tabular-nums; text-align: center; color: var(--n-tinta); }
+.n5 .n-cantidad .n-circulo { flex: 0 0 48px; width: 48px; height: 48px; display: grid; place-items: center; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--n-verde-suave); color: var(--n-verde-hondo); font: 500 24px/1 var(--n-titulo); box-shadow: none; }
+html.n5[data-theme="dark"] .n-cantidad .n-circulo { color: var(--n-verde); }
+
+/* ——— Recetas ——— */
+/* La cabecera lleva dos botones en la fila de volver (volver y nueva receta) */
+.n5 .n-busca { position: relative; }
+.n5 .n-busca .n-buscar { margin-top: 18px; }
+/* Sugerencias al escribir: una tarjeta encima de lo de abajo */
+.n5 .n-sug { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 6; max-height: min(60vh, 440px); overflow-y: auto; padding: 6px; border-radius: 18px; background: var(--n-elevado); box-shadow: 0 14px 36px rgba(0, 0, 0, .16), 0 0 0 1px var(--n-linea); overscroll-behavior: contain; }
+.n5 .n-sug-grupo + .n-sug-grupo { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--n-linea); }
+.n5 .n-sug-t { padding: 8px 10px 4px; font: 500 12px var(--n-titulo); color: var(--n-gris); }
+.n5 .n-recetas .n-sug-op { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 10px; border-radius: 12px; font: 500 15px var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-recetas .n-sug-op:is([aria-selected="true"], .n-activa, :hover) { background: var(--n-panel); }
+.n5 .n-sug-n { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.n5 .n-sug-c { flex: 0 0 auto; font: 400 13px var(--n-texto); color: var(--n-gris); font-variant-numeric: tabular-nums; }
+.n5 .n-recetas .n-sug-receta { min-height: 56px; }
+.n5 .n-sug-foto { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--n-panel); }
+.n5 .n-sug-nada { padding: 12px 10px; font-size: 14px; color: var(--n-gris); }
+/* Los filtros elegidos: pastillas verdes con su × */
+.n5 .n-filtros { display: flex; gap: 8px; margin: 12px -20px 0; padding: 0 20px 2px; overflow-x: auto; scrollbar-width: none; }
+.n5 .n-filtros::-webkit-scrollbar { display: none; }
+.n5 .n-filtros:empty { display: none; }
+.n5 .n-recetas .n-activo { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 8px 0 16px; border-radius: 999px; background: var(--n-verde); color: var(--n-sobre-verde); font: 500 13.5px var(--n-titulo); white-space: nowrap; }
+.n5 .n-activo .n-x { width: 22px; height: 22px; display: grid; place-items: center; font-size: 17px; line-height: 1; opacity: .85; }
+.n5 .n-rec-linea { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 16px; margin-top: 6px; }
+.n5 .n-rec-linea .n-enlace { min-height: 44px; }
+.n5 .n-panel { margin-top: 8px; padding: 14px 16px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-panel-t { font: 600 14.5px var(--n-titulo); }
+.n5 .n-panel-t span { display: block; margin-top: 2px; font: 400 13px var(--n-texto); color: var(--n-gris); }
+.n5 .n-panel .n-chips { margin-top: 10px; }
+.n5 .n-panel .n-nota { margin: 10px 0 0; }
+.n5 .n-antojo:not([hidden]) { display: grid; gap: 10px; margin-top: 14px; background: var(--n-naranja-suave); }
+.n5 .n-antojo p { font-size: 14px; }
+.n5 .n-antojo b { font-weight: 600; }
+.n5 .n-antojo .n-boton-p { justify-self: start; gap: 6px; background: var(--n-elevado); color: var(--n-naranja-hondo); }
+.n5 .n-antojo .n-boton-p .n-svg { width: 16px; height: 16px; }
+.n5 .n-bloque-cab .n-cuenta { font-size: 13px; color: var(--n-gris); }
+/* Las que no se pueden hacer con lo de casa: solo la foto, apagada; el porqué en naranja */
+.n5 .n-no-puedo .n-foto { opacity: .5; filter: grayscale(.5); }
+.n5 .n-no-puedo .n-dato { color: var(--n-naranja-hondo); }
+.n5 .n-fav { position: absolute; right: 8px; top: 8px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--n-sobre-foto); color: var(--n-g); }
+.n5 .n-fav .n-svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+
+/* ——— Chef: la conversación, y la caja de escribir fija encima de la barra ——— */
+/* La entrada de la pantalla mueve .n-cuerpo con transform, y con transform la caja fija se iría al final de la página:
+   en el Chef, la entrada es solo de opacidad */
+html.n5 .entra > .n-chef { animation-name: n-aparece; }
+@keyframes n-aparece { from { opacity: 0; } to { opacity: 1; } }
+html.n5 #vista:has(> .n-chef) { padding-bottom: 0; }
+.n5 .n-chef:has(.n-escribir .n-adjunto) > .n-charla { --n-escribir: 222px; }
+.n5 .n-chef > .n-charla { display: grid; gap: 12px; padding: 22px 0 calc(var(--n-escribir, 172px) + var(--barra, 68px) + env(safe-area-inset-bottom) + 16px); }
+.n5 .n-hola { padding: 18px; border-radius: 18px; background: var(--n-panel); }
+.n5 .n-hola b { display: block; font: 600 17px/1.3 var(--n-titulo); }
+.n5 .n-hola p { margin-top: 6px; font-size: 14.5px; color: var(--n-gris); }
+.n5 .n-hora { justify-self: center; font: 500 12px var(--n-titulo); color: var(--n-gris); }
+.n5 .n-chef .n-antes { justify-self: center; min-height: 44px; }
+.n5 .n-msg { position: relative; max-width: 86%; padding: 12px 15px; border-radius: 20px; font-size: 15.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.n5 .n-msg p + p { margin-top: 10px; }
+.n5 .n-msg.n-del-chef { justify-self: start; border-bottom-left-radius: 6px; background: var(--n-panel); }
+.n5 .n-msg.n-yo { justify-self: end; border-bottom-right-radius: 6px; background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-msg .n-quien { display: block; margin-bottom: 4px; font: 600 12.5px var(--n-titulo); color: var(--n-verde-hondo); }
+html.n5[data-theme="dark"] .n-msg .n-quien { color: var(--n-verde); }
+.n5 .n-pensando p { color: var(--n-gris); }
+/* Borrar un mensaje mío: una × pequeña fuera del globo, a la izquierda */
+.n5 .n-chef .n-msg.n-yo .n-borrar { position: absolute; left: -36px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; border-radius: 50%; color: var(--n-gris); font-size: 18px; line-height: 1; }
+/* Las recetas que nombra el Chef: enlace en verde, subrayado fino */
+html.n5 .n-msg .enlace-receta { display: inline; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--n-verde-hondo); font-weight: 500; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+html.n5[data-theme="dark"] .n-msg .enlace-receta { color: var(--n-verde); }
+.n5 .n-respuestas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.n5 .n-chef .n-respuestas button { min-height: 38px; padding: 0 14px; border-radius: 999px; background: var(--n-elevado); color: var(--n-tinta); font: 600 13.5px var(--n-titulo); }
+.n5 .n-chef .n-respuestas button.n-principal { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-chef .n-respuestas button[disabled] { opacity: .55; }
+.n5 .n-chef .n-borrar-todo { justify-self: center; min-height: 44px; color: var(--n-gris); }
+/* La caja de escribir */
+.n5 .n-escribir { position: fixed; left: 0; right: 0; bottom: calc(var(--barra, 68px) + env(safe-area-inset-bottom)); z-index: 20; max-width: 720px; margin: 0 auto; padding: 10px 0 12px; background: var(--n-fondo); border-top: 1px solid var(--n-linea); }
+@supports (backdrop-filter: blur(1px)) { .n5 .n-escribir { background: color-mix(in srgb, var(--n-fondo) 94%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); } }
+.n5 .n-chat-receta { display: flex; align-items: center; gap: 8px; margin: 0 16px 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--n-panel); }
+.n5 .n-chef .n-chat-receta-abre { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.n5 .n-chat-receta .n-min { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 10px; }
+.n5 .n-chat-receta .n-txt > span { margin: 0 0 1px; font-size: 12px; }
+.n5 .n-chat-receta .n-txt b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n5 .n-chat-receta .n-enlace { flex: 0 0 auto; min-height: 44px; padding: 0 8px; }
+.n5 .n-chef .n-quitar { flex: 0 0 36px; width: 36px; height: 44px; display: grid; place-items: center; color: var(--n-gris); font-size: 20px; line-height: 1; }
+.n5 .n-adjunto { display: flex; align-items: center; gap: 6px; margin: 0 16px 10px; padding: 0 4px 0 14px; min-height: 40px; border-radius: 999px; background: var(--n-verde-suave); color: var(--n-verde-hondo); font: 500 13.5px var(--n-titulo); }
+.n5 .n-adjunto span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.n5 .n-chef .n-adjunto button { flex: 0 0 36px; height: 36px; display: grid; place-items: center; font-size: 18px; line-height: 1; }
+html.n5[data-theme="dark"] .n-adjunto { color: var(--n-verde); }
+.n5 .n-escribir .n-filtros { margin: 0; padding: 0 16px 10px; }
+.n5 .n-chef .n-escribir .n-filtros button { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--n-panel); color: var(--n-tinta); font: 500 13px var(--n-titulo); white-space: nowrap; }
+.n5 .n-caja { display: flex; align-items: flex-end; gap: 8px; margin: 0; padding: 0 16px; }
+.n5 .n-caja > .n-boton-c { flex: 0 0 46px; width: 46px; height: 46px; cursor: pointer; }
+.n5 .n-caja .n-buscar { flex: 1; min-height: 46px; margin: 0; padding: 0 16px; border-radius: 23px; }
+/* La altura la pone la app al escribir (style="height"): sin relleno, para que el texto no se corte */
+.n5 .n-caja .n-buscar textarea { min-height: 22px; max-height: 120px; margin: 12px 0 11px; padding: 0; resize: none; line-height: 1.4; }
+.n5 .n-chef .n-enviar { flex: 0 0 46px; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-enviar .n-svg { width: 20px; height: 20px; }
+.n5 .n-caja .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ——— Ajustes ——— */
+.n5 .n-personas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.n5 .n-ajustes .n-persona { display: flex; flex-direction: column; align-items: flex-start; padding: 16px 14px; border-radius: 16px; background: var(--n-panel); text-align: left; }
+.n5 .n-persona .n-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: #fff; font: 600 16px var(--n-titulo); }
+.n5 .n-persona .n-ini.n-g { background: var(--n-g); color: #fff; } .n5 .n-persona .n-ini.n-p { background: var(--n-p); color: #fff; }
+/* En oscuro el rosa y el azul son claros: la inicial, en oscuro */
+html.n5[data-theme="dark"] :is(.n-persona .n-ini, .n-ajuste-pagina .avatar) { color: var(--n-fondo); }
+.n5 .n-persona .n-nombre { margin-top: 10px; font: 600 16px var(--n-titulo); }
+.n5 .n-persona .n-dato { margin-top: 2px; font-size: 13px; color: var(--n-gris); font-variant-numeric: tabular-nums; }
+.n5 .n-persona .n-tag { margin: 10px 0 0; }
+.n5 .n-grupo { margin: 0; padding: 0; list-style: none; border-radius: 16px; background: var(--n-panel); overflow: hidden; }
+.n5 .n-grupo li + li { border-top: 1px solid var(--n-linea); }
+.n5 .n-ajustes .n-grupo li > button, .n5 .n-grupo li.n-tema { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 8px 14px 8px 12px; text-align: left; }
+.n5 .n-grupo .n-ic { flex: 0 0 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: var(--n-verde-suave); color: var(--n-verde); }
+.n5 .n-grupo .n-ic .n-svg { width: 19px; height: 19px; }
+.n5 .n-grupo .n-n { flex: 1; min-width: 0; font: 500 15px var(--n-titulo); color: var(--n-tinta); }
+.n5 .n-grupo .n-v { flex: 0 0 auto; font-size: 14px; color: var(--n-gris); }
+.n5 .n-grupo .n-punto { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--n-verde); vertical-align: 1px; }
+.n5 .n-grupo .n-punto.n-mal { background: var(--n-naranja); }
+.n5 .n-grupo .n-flecha { margin-left: -4px; }
+.n5 .n-tema .n-segmento { flex: 0 0 auto; margin: 0; }
+.n5 .n-tema .n-segmento button { padding: 0 11px; }
+.n5 .n-pie-app { margin: 28px 0 0; text-align: center; font-size: 12.5px; color: var(--n-gris); }
+.n5 .n-pie-app a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Las páginas de Ajustes (una persona, el súper, la casa…) traen el marcado de antes: aquí, con la letra, los paneles y los botones de la capa */
+.n5 .n-ajuste-pagina { padding-top: 6px; }
+.n5 .n-ajuste-pagina .tarjeta { margin: 14px 0 0; padding: 16px; border: 0; border-radius: 16px; background: var(--n-panel); box-shadow: none; color: var(--n-tinta); }
+.n5 .n-ajuste-pagina :is(h2, h3) { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font: 600 17px/1.3 var(--n-titulo); color: var(--n-tinta); letter-spacing: normal; }
+.n5 .n-ajuste-pagina .tarjeta.perfil { margin-top: 10px; }
+.n5 .n-ajuste-pagina .avatar { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--n-tenue); color: #fff; font: 600 16px var(--n-titulo); }
+.n5 .n-ajuste-pagina .avatar.g { background: var(--n-g); } .n5 .n-ajuste-pagina .avatar.p { background: var(--n-p); }
+/* (el nombre ya va en el título de la página) */
+.n5 .n-ajuste-pagina .perfil > :is(h2, h3) { margin-bottom: 4px; }
+.n5 .n-ajuste-pagina .campos { gap: 8px; margin: 12px 0; }
+.n5 .n-ajuste-pagina :is(.campos label, .campo-largo) { font: 500 12.5px var(--n-titulo); color: var(--n-gris); letter-spacing: normal; }
+.n5 .n-ajuste-pagina .campo-largo { margin-top: 18px; }
+:root.n5 .n-ajuste-pagina :is(input:not([type="checkbox"], [type="radio"]), textarea, select) { width: 100%; margin-top: 4px; padding: 11px 12px; border: 1.5px solid var(--n-linea); border-radius: 12px; background: var(--n-elevado); color: var(--n-tinta); font: 500 16px var(--n-texto); box-shadow: none; }
+:root.n5 .n-ajuste-pagina :is(input:not([type="checkbox"], [type="radio"]), textarea, select):focus { border-color: var(--n-verde); outline: 0; background: var(--n-elevado); }
+.n5 .n-ajuste-pagina textarea { min-height: 76px; line-height: 1.45; resize: vertical; field-sizing: content; }
+/* El nombre, en tinta: el color de la persona ya va en su círculo */
+.n5 .n-ajuste-pagina :is(.persona-g, .persona-p) { color: var(--n-tinta); }
+.n5 .n-ajuste-pagina .objetivos { gap: 6px; margin-top: 4px; }
+:root.n5 .n-ajuste-pagina .objetivos > div { padding: 10px 4px; border-radius: 12px; background: var(--n-elevado); }
+.n5 .n-ajuste-pagina .objetivos b { font: 600 16px var(--n-titulo); color: var(--n-tinta); font-variant-numeric: tabular-nums; }
+.n5 .n-ajuste-pagina .objetivos span { font: 400 11.5px var(--n-texto); color: var(--n-gris); }
+.n5 .n-ajuste-pagina .botones { gap: 8px; margin-top: 8px; }
+html.n5 .n-ajuste-pagina .chip { min-height: 36px; padding: 0 13px; border: 0; border-radius: 999px; background: var(--n-elevado); color: var(--n-tinta); font: 500 13.5px var(--n-titulo); box-shadow: none; }
+html.n5 .n-ajuste-pagina .botones .chip[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-ajuste-pagina .nota { margin-top: 8px; font: 400 13px/1.45 var(--n-texto); color: var(--n-gris); }
+
+/* ——— Toda la app: los tokens de app.css con los colores del diseño 5 ———
+   Lo que aún se pinta con el marcado de antes (las hojas, los avisos, la tostada, las listas viejas) toma así la paleta nueva.
+   En oscuro, los de app.css ya coinciden con los de la capa; aquí solo cambian el radio y las sombras. */
+:root.n5:not([data-theme="dark"]) {
+  --fondo: var(--n-fondo); --tarjeta: #ffffff; --tarjeta-2: var(--n-panel); --gris: var(--n-panel); --gris-2: #ebedea; --linea: var(--n-linea);
+  --texto: var(--n-tinta); --suave: var(--n-gris); --tenue: var(--n-tenue);
+  --acento: var(--n-verde-hondo); --acento-vivo: var(--n-verde); --acento-suave: var(--n-verde-suave); --acento-texto: var(--n-sobre-verde);
+  --bueno: var(--n-verde-hondo); --bueno-suave: var(--n-verde-suave); --persona-g: var(--n-g); --persona-p: var(--n-p);
+  --aviso: var(--n-naranja-hondo); --aviso-suave: var(--n-naranja-suave);
+}
+:root.n5 { --radio: 16px; --sombra: none; --sombra-fuerte: 0 10px 28px rgba(0, 0, 0, .2); }
+html.n5, html.n5 body { background: var(--n-fondo); }
+
+/* ——— La barra de pestañas: icono de línea y nombre debajo; la de ahora, en verde y sin pastilla ——— */
+:root.n5 .pestanas { background: color-mix(in srgb, var(--n-fondo) 94%, transparent); border-top: 1px solid var(--n-linea); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: none; }
+html.n5 .pestanas button { gap: 3px; color: var(--n-gris); font: 500 11px var(--n-titulo); letter-spacing: normal; }
+html.n5 .pestanas button .ic, html.n5 .pestanas button[aria-current="page"] .ic { width: 44px; height: 26px; background: none; transform: none; }
+html.n5 .pestanas button svg { width: 24px; height: 24px; stroke-width: 1.8; }
+html.n5 .pestanas button[aria-current="page"] { color: var(--n-verde); }
+html.n5 .pestanas button:focus-visible { outline: 3px solid var(--n-verde); outline-offset: -4px; border-radius: 14px; }
+
+/* ——— Las hojas normales (las de pantalla completa van arriba, con la receta): blancas, con el título en Poppins ——— */
+html.n5 .fondo-hoja { background: rgba(0, 0, 0, .36); }
+html.n5 .hoja:not(.n-pantalla) { border: 0; border-radius: 24px 24px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, .12); color: var(--n-tinta); letter-spacing: normal; }
+html.n5 .hoja .asa { width: 36px; background: var(--n-linea); }
+html.n5 .hoja .cerrar { border: 0; background: var(--n-panel); color: var(--n-gris); font-weight: 400; box-shadow: none; }
+html.n5 .hoja:not(.n-pantalla) h2 { font-family: var(--n-titulo); font-size: 20px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; color: var(--n-tinta); }
+html.n5 .hoja:not(.n-pantalla) h3 { font-family: var(--n-titulo); font-size: 15.5px; font-weight: 600; letter-spacing: normal; color: var(--n-tinta); }
+html.n5 .hoja:not(.n-pantalla) .nota { color: var(--n-gris); }
+html.n5 .hoja:not(.n-pantalla) :is(b, strong) { font-weight: 600; }
+
+/* Botones, pastillas y segmentos de antes, con la forma y la letra de la capa (solo lo visual: los tamaños y huecos de cada sitio se quedan) */
+html.n5 .boton { border: 0; border-radius: 999px; background: var(--n-panel); color: var(--n-tinta); font-family: var(--n-titulo); font-weight: 600; letter-spacing: normal; box-shadow: none; }
+html.n5 .boton:is(.principal, .coral) { background: var(--n-verde); color: var(--n-sobre-verde); box-shadow: none; }
+html.n5 .boton.suave { background: var(--n-verde-suave); color: var(--n-verde-hondo); }
+html.n5[data-theme="dark"] .boton.suave { color: var(--n-verde); }
+html.n5 .boton.peligro { color: var(--n-naranja-hondo); }
+html.n5 .chip { border: 0; background: var(--n-panel); color: var(--n-tinta); font-family: var(--n-titulo); font-weight: 500; box-shadow: none; }
+html.n5 .chip[aria-pressed="true"] { background: var(--n-verde); color: var(--n-sobre-verde); }
+:root.n5 .chip.si { background: var(--n-verde-suave); color: var(--n-verde-hondo); }
+:root.n5[data-theme="dark"] .chip.si { color: var(--n-verde); }
+html.n5 .segmento { border-radius: 999px; background: var(--n-panel); }
+html.n5 .segmento button { border-radius: 999px; font-family: var(--n-titulo); font-weight: 500; color: var(--n-gris); }
+html.n5 .segmento button[aria-selected="true"] { background: var(--n-elevado); color: var(--n-tinta); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+html.n5 .segmento button b { font-weight: 600; }
+html.n5 .opcion-fila { border-radius: 16px; background: var(--n-panel); color: var(--n-tinta); }
+html.n5 .opcion-fila b { font-family: var(--n-titulo); font-size: 16px; font-weight: 600; }
+html.n5 .opcion-fila span { color: var(--n-gris); }
+html.n5 .campo-texto { border-radius: 14px; }
+html.n5 .buscador { border-radius: 999px; }
+html.n5 .tarjeta { border: 0; border-radius: 16px; background: var(--n-panel); box-shadow: none; }
+html.n5 .res .res-p { font-weight: 600; }
+/* Avisos: la fila naranja suave de la capa; los de «hecho», en verde suave; los informativos, en gris */
+:root.n5 .aviso { border: 0; border-radius: 16px; background: var(--n-naranja-suave); color: var(--n-tinta); box-shadow: none; }
+:root.n5 .aviso.verde { background: var(--n-verde-suave); }
+:root.n5 .aviso.hielo { background: var(--n-panel); }
+html.n5 .aviso b { color: inherit; font-weight: 600; }
+html.n5 .aviso .cerrar-aviso { min-width: 44px; min-height: 44px; margin: -10px -8px -10px auto; color: var(--n-gris); }
+/* La tostada y el deshacer: una pastilla oscura (en oscuro, clara) */
+html.n5 :is(.tostada, .deshacer) { background: var(--n-tinta); color: var(--n-fondo); font-family: var(--n-texto); font-size: 14.5px; font-weight: 500; letter-spacing: normal; box-shadow: 0 10px 28px rgba(0, 0, 0, .22); }
+:root.n5 .deshacer button { min-height: 36px; padding: 0 14px; background: var(--n-verde); color: var(--n-sobre-verde); font: 600 13.5px var(--n-titulo); }
+/* Dentro de las hojas: los títulos de grupo sin mayúsculas, las etiquetas «nuevo» sin gritar y lo que no cabe, partido */
+html.n5 .hoja:not(.n-pantalla) .cat { margin: 18px 2px 8px; font: 600 15px/1.3 var(--n-titulo); color: var(--n-tinta); text-transform: none; letter-spacing: normal; }
+html.n5 .nuevo { padding: 2px 8px; background: var(--n-verde-suave); color: var(--n-verde-hondo); font: 600 11px/1.5 var(--n-titulo); text-transform: none; letter-spacing: normal; }
+html.n5[data-theme="dark"] .nuevo { background: var(--n-verde); }
+html.n5 .hoja .botones > .pill { max-width: 100%; padding: 6px 11px; border-radius: 12px; white-space: normal; font-weight: 500; line-height: 1.35; }
+html.n5 .pill { font-family: var(--n-titulo); font-weight: 500; }
+/* El semáforo de un producto: sin el círculo vacío; el estado lo dice el título, con su color */
+html.n5 .semaforo { border-radius: 16px; }
+html.n5 .semaforo .luz:empty { display: none; }
+html.n5 .semaforo .titulo { font: 600 20px/1.25 var(--n-titulo); }
+html.n5 .tabla-n > div { border-radius: 12px; }
+html.n5 .tabla-n b { font-family: var(--n-titulo); font-weight: 600; }
+/* Más y menos: el + en verde también en oscuro (app.css lo pone gris), y el número sin caja */
+html.n5 .cantidad button { font-family: var(--n-titulo); font-weight: 500; }
+:root.n5[data-theme="dark"] .cantidad button.mas { background: var(--n-verde); color: var(--n-sobre-verde); }
+:root.n5[data-theme="dark"] .cantidad input, :root.n5[data-theme="dark"] .cantidad input:focus { background: none; }
+/* El buscador de antes, sin la caja que app.css le pone al campo en oscuro */
+:root.n5[data-theme="dark"] .buscador input, :root.n5[data-theme="dark"] .buscador input:focus { background: none; }
