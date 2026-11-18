@@ -3539,6 +3539,7 @@ const ICONO_COMIDA = { desayuno: '<svg viewBox="0 0 24 24"><circle cx="12" cy="1
   cena: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>',
   bol: '<svg viewBox="0 0 24 24"><path d="M3 12h18a9 9 0 0 1-18 0Z"/><path d="M8 12c0-3 2-5 4-6M12 12c0-2 1.5-4 4-5M15 12c0-1.5 1-3 3-3.5"/></svg>' };
 function vHoy() {
+  if (DISENO5) return vHoy5();
   const fh = fecha(hoy());
   cabecera('Hoy', `${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}`);
   const p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
@@ -3648,6 +3649,142 @@ function activaHoy(p, d) {
     if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);
     if (a === 'inventa') inventaCena(d.f);
     if (a === 'antojo') abrirAntojo(d.f);
+  }));
+}
+// ——— Diseño 5 (18/11: las maquetas de Covalente, aprobadas por ella: «sí, apruebo todo») ———
+// Se monta pantalla a pantalla y solo se ve en el móvil que lo activa (…/alameda/?diseno=5; ?diseno=0 lo quita), para enseñar cada una
+// antes de publicarla. El marcado lleva el prefijo n- y la estructura de las maquetas (tu-estilo/); el CSS es de Covalente, en su capa
+// al final de app.css, dentro de las raíces .n-hoy, .n-receta y .n-cocinar.
+const DISENO5 = (() => { try { const q = new URLSearchParams(location.search).get('diseno'); if (q) localStorage.setItem('nutrihome.diseno', q); return localStorage.getItem('nutrihome.diseno') === '5'; } catch { return false; } })();
+document.documentElement.classList.toggle('n5', DISENO5);
+const nic = d => `<svg class="n-svg" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const NI = { buscar: nic('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>'), reloj: nic('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2.5h4"/>'),
+  play: nic('<path d="M8 5.5v13l10.5-6.5z"/>'), cambiar: nic('<path d="M7 7h11l-3-3M17 17H6l3 3"/>'), check: nic('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  mas: nic('<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>'), luna: nic('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>'),
+  fuego: nic('<path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.3 2.4-5.4 3.6-7.8.5 1.6 1.4 2.6 2.4 3 .2-2.6 1.5-5 3.6-7 .4 3 4.4 5.8 4.4 11.1 0 4.1-3.1 6.9-7.5 6.9z"/>'),
+  aparato: nic('<rect x="5" y="4" width="14" height="16" rx="3"/><path d="M8 9h8M9 14h6"/>'), volver: nic('<path d="M15 5l-7 7 7 7"/>'), cerrar: nic('<path d="M6 6l12 12M18 6 6 18"/>'),
+  lista: nic('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'), sigue: nic('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  compra: nic('<path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>'), chef: nic('<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>'),
+  chispas: nic('<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>') };
+const miles = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const minus = t => t ? t.charAt(0).toLowerCase() + t.slice(1) : '';
+// Hoy (maqueta hoy.html): la cena en una tarjeta de foto con sus acciones, lo que suma el día, lo de mañana, el resto del día en filas
+// con un círculo para marcar y la semana en tarjetas.
+function vHoy5() {
+  const fh = fecha(hoy());
+  $('#cab').innerHTML = `<div class="n-hoy n-cabeza"><div><p class="n-fecha">${iconoSync()}${capital(DL[fh.getDay()])}, ${fh.getDate()} de ${MES[fh.getMonth()]}</p><h1>Hoy</h1></div>
+    <div class="n-botones"><button type="button" class="n-boton-c" data-ir="recetas" aria-label="Buscar recetas">${NI.buscar}</button><button type="button" class="n-quienes" data-ir="nosotros" aria-label="${L.QUIEN.length > 1 ? 'Vuestros datos' : 'Tus datos'}: ${esc(yJunta(L.QUIEN.map(q => NOM[q])))}">${L.QUIEN.map(q => `<span class="n-${q.toLowerCase()}" aria-hidden="true">${ini(q)}</span>`).join('')}</button></div></div>`;
+  const p = planActivo(), d = efectivo(p).dias.find(x => x.f === hoy());
+  if (!d) { $('#vista').innerHTML = `<div class="n-hoy n-cuerpo">${bloqueHoy(p, d)}</div>`; activaHoy5(p, d); return; }   // sin menú hoy: la semana nueva se prepara sola
+  $('#vista').innerHTML = `<div class="n-hoy n-cuerpo">${cenaHoy5(p, d)}${sumaHoy5(p, d)}${nocheHoy5(d)}${restoHoy5(p, d)}${semanaHoy5(d)}</div>`;
+  activaHoy5(p, d);
+}
+function cenaHoy5(p, d) {
+  const s = est(p.id), vos = L.QUIEN.length > 1, vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, hecha = !!s.hechos[d.f + '|cena'];
+  const vb = d.bol, rb = vb && !vb.fuera && !L.esDoble(vb) ? recetas[L.idDe(vb)] : null;
+  const inv = (E.inventos || {})[d.f + '|cena'], inventando = inv && !hecha && inv.por !== null && (!inv.id || (E.charla || []).some(c => c.id === inv.id && !c.r));
+  const conQue = inv?.antojo ? ' con ' + esc(yJunta(inv.antojo.map(x => x.toLowerCase()))) : '';
+  const circ = (a, label, ic, pulsado) => `<button type="button" class="n-circulo" data-hoy-acc="${a}" aria-label="${label}"${pulsado == null ? '' : ` aria-pressed="${pulsado}"`}>${ic}</button>`;
+  const cab = '<div class="n-bloque-cab"><h2 id="t-cena">Esta noche</h2></div>';
+  if (!rc) {
+    const titulo = vc?.fuera ? `Hoy ${vos ? 'cenáis' : 'cenas'} fuera` : inventando ? `El Chef está inventando la cena${conQue}…` : vc?.libre ? esc(vc.libre) : 'Cena sin elegir';
+    return `<section class="n-bloque n-cena" aria-labelledby="t-cena">${cab}<div class="n-fuera">${titulo}</div>
+      <div class="n-acciones">${vc?.fuera ? `<button type="button" class="n-pastilla" data-hoy-acc="fuera">${vos ? 'Cenamos' : 'Ceno'} en casa</button>`
+        : `<button type="button" class="n-pastilla" data-hoy-acc="cambiar">${NI.cambiar}Elegir la cena</button>${circ('antojo', 'Tengo un antojo', NI.chispas)}${circ('mas', 'Más opciones de la cena', NI.mas)}`}</div></section>`;
+  }
+  const falta = hecha ? [] : faltaEnCasa(rc);
+  const aviso = inventando ? `El Chef está inventando otra${conQue || ' con lo que hay'}…` : falta.length ? `Falta ${esc(enumera(falta.map(nombreFalta), 3))}` : '';
+  return `<section class="n-bloque n-cena${hecha ? ' n-hecha' : ''}" aria-labelledby="t-cena">${cab}
+    <a class="n-foto-tarjeta" href="#hoy" data-hoy-acc="receta">${fotoPlato(rc, 900, 'n-foto')}
+      <span class="n-etiqueta">${NI.reloj}${rc.min} min · ${esc(minus(APARATO[rc.ap] || 'Cocina'))}</span>
+      <div class="n-sobre"><h3>${esc(rc.n)}</h3>${rb ? `<p>Con ${esc(minus(rb.n))}</p>` : ''}</div></a>
+    ${aviso ? `<p class="n-aviso">${aviso}</p>` : ''}
+    <div class="n-acciones">${hecha ? `<button type="button" class="n-pastilla" data-hoy-acc="receta">${NI.lista}Ver la receta</button>` : `<button type="button" class="n-pastilla" data-hoy-acc="cocinar">${NI.play}Empezar a cocinar</button>`}
+      ${circ('cambiar', 'Cambiar la cena', NI.cambiar)}${circ('hecho', 'Cena hecha', NI.check, hecha)}${circ('mas', 'Más opciones de la cena', NI.mas)}</div></section>`;
+}
+// Lo que suma el día de cada uno: kcal del menú de hoy frente a su objetivo (la barra clara, el menú; la llena, lo ya comido) y la proteína.
+function sumaHoy5(p, d) {
+  const s = est(p.id), comido = { ...d }, pct = (x, m) => Math.max(0, Math.min(100, Math.round(x / m * 100)));
+  for (const c of L.COMIDAS) if (!s.hechos[d.f + '|' + c]) comido[c] = null;
+  return `<section class="n-bloque" aria-labelledby="t-suma"><div class="n-bloque-cab"><h2 id="t-suma">Lo que suma hoy</h2></div><div class="n-suma">${L.QUIEN.map(q => {
+    const t = L.totalesDia(d, q, recetas, D.productos, fac), e = L.totalesDia(comido, q, recetas, D.productos, fac), o = obj[q];
+    return `<div class="n-${q.toLowerCase()}"><p class="n-quien"><i aria-hidden="true"></i>${esc(NOM[q])}</p><p class="n-kcal">${miles(t.kcal)} <small>de ${miles(o.kcal)} kcal</small></p>
+      <div class="n-barra" role="img" aria-label="El menú de hoy, ${pct(t.kcal, o.kcal)} % de las kcal del día; comido, ${pct(e.kcal, o.kcal)} %"><span class="n-plan" style="width:${pct(t.kcal, o.kcal)}%"></span><b style="width:${pct(e.kcal, o.kcal)}%"></b></div>
+      <p class="n-prot">Proteína: ${r0(t.p)} de ${o.prot} g</p></div>`; }).join('')}</div></section>`;
+}
+// Para mañana: lo que se deja preparado la noche antes (avena de la noche), desde las 17:00.
+function nocheHoy5(d) {
+  const hr = new Date().getHours(); if (hr < 17 && hr >= CORTE) return '';
+  const m = masDias(d.f, 1), pl = planes().find(x => x.dias.some(y => y.f === m)), dm = pl && efectivo(pl).dias.find(y => y.f === m);
+  let hit = null;
+  for (const c of L.COMIDAS) { const v = dm?.[c]; if (!v || v.fuera) continue;
+    for (const q of L.esDoble(v) ? L.QUIEN.filter(x => v[x]) : [null]) { const id = q ? L.recetaDe(v, q) : L.idDe(v); if (recetas[id]?.noche && (!hit || hit.id === id)) { hit ||= { id, c, qs: [] }; hit.qs.push(q); } } }
+  if (!hit) return '';
+  const solo = hit.qs[0] && L.QUIEN.length > 1 && hit.qs.length < L.QUIEN.length ? ` de ${esc(NOM[hit.qs[0]])}` : '';
+  return `<section class="n-bloque" aria-labelledby="t-noche"><h2 id="t-noche" class="n-oculto">Para mañana</h2><ul class="n-filas"><li class="n-fila">
+    <button type="button" class="n-fila-abre" data-receta-noche="${hit.id}"><span class="n-min-ic">${NI.luna}</span><span class="n-txt"><b>Antes de dormir: ${esc(minus(recetas[hit.id].n))}</b><span>Para ${hit.c === 'desayuno' ? 'el' : 'la'} ${L.NOMBRE_COMIDA[hit.c].toLowerCase()} de mañana${solo}</span></span><span class="n-flecha" aria-hidden="true">›</span></button></li></ul></section>`;
+}
+// El resto del día: desayuno y merienda (una fila por persona) y la ensalada de la cena; tocar la fila abre sus acciones y el círculo la marca.
+function restoHoy5(p, d) {
+  const s = est(p.id), ahora = horaComida(), vos = L.QUIEN.length > 1, filas = [];
+  for (const c of L.COMIDAS.filter(x => x !== 'cena')) {
+    const v = d[c]; if (v == null) continue;
+    const hecho = !!s.hechos[d.f + '|' + c], nomC = L.NOMBRE_COMIDA[c] || 'Ensalada';
+    for (const q of L.esDoble(v) ? L.QUIEN.filter(x => v[x]) : [null]) {
+      const r = v.fuera ? null : recetas[q ? L.recetaDe(v, q) : L.idDe(v)], quien = q && vos ? ' · ' + esc(NOM[q]) : c === 'bol' && vos ? ' · para los dos' : '';
+      filas.push(`<li class="n-fila${hecho ? ' n-hecha' : ''}${c === ahora ? ' n-ahora' : ''}"><button type="button" class="n-fila-abre" data-hoy="${c}" data-plan="${p.id}" data-f="${d.f}"${q ? ` data-q="${q}"` : ''}>${r ? fotoPlato(r, 160, 'n-min') : `<span class="n-min-ic">${ICONO_COMIDA[c] || NI.luna}</span>`}<span class="n-txt"><b>${v.fuera ? 'Fuera' : esc(r?.n || v.libre || '—')}</b><span>${nomC}${quien}</span></span></button>
+        ${v.fuera ? '' : `<button type="button" class="n-marcar${hecho ? ' n-hecho' : ''}" data-marca="${c}" aria-pressed="${hecho}" aria-label="${nomC}${q && vos ? ' de ' + esc(NOM[q]) : ''} hecho">${NI.check}</button>`}</li>`);
+    }
+  }
+  return filas.length ? `<section class="n-bloque" aria-labelledby="t-dia"><div class="n-bloque-cab"><h2 id="t-dia">El resto del día</h2></div><ul class="n-filas">${filas.join('')}</ul></section>` : '';
+}
+// La semana: la cena de ayer y de los 5 días que vienen; cada tarjeta abre el menú de ese día.
+function semanaHoy5(d) {
+  const items = [];
+  for (const k of [-1, 1, 2, 3, 4, 5]) {
+    const f = masDias(d.f, k), pl = planes().find(x => x.dias.some(y => y.f === f)); if (!pl) continue;
+    const v = efectivo(pl).dias.find(y => y.f === f).cena, r = v && !v.fuera && !L.esDoble(v) ? recetas[L.idDe(v)] : null, hecha = !!est(pl.id).hechos[f + '|cena'], fd = fecha(f);
+    const et = k === -1 ? 'Ayer' : k === 1 ? 'Mañana' : `${capital(DS[fd.getDay()])} ${fd.getDate()}`, fuera = L.QUIEN.length > 1 ? 'Cenáis fuera' : 'Cenas fuera';
+    items.push(`<li${hecha ? ' class="n-hecha"' : ''}><button type="button" data-dia="${f}" aria-label="${et}: ${esc(r?.n || (v?.fuera ? minus(fuera) : 'sin cena'))}">${r ? `<span class="n-foto-tarjeta">${fotoPlato(r, 400, 'n-foto')}<span class="n-etiqueta">${et}</span></span><span class="n-nombre">${esc(r.n)}</span>`
+      : `<span class="n-fuera">${v?.fuera ? fuera : 'Sin cena'}</span><span class="n-nombre">${et}</span>`}</button></li>`);
+  }
+  return items.length ? `<section class="n-bloque" aria-labelledby="t-semana"><div class="n-bloque-cab"><h2 id="t-semana">Esta semana</h2><button type="button" class="n-enlace" data-ir="semana">Ver la semana</button></div><ul class="n-carrusel">${items.join('')}</ul></section>` : '';
+}
+// «Más» de la cena: el antojo, la ensalada y cenar fuera.
+function abrirMasCena(p, d, i) {
+  const vos = L.QUIEN.length > 1, vc = d.cena, rb = d.bol && !d.bol.fuera && !L.esDoble(d.bol) ? recetas[L.idDe(d.bol)] : null;
+  hoja(`<h2>La cena de hoy</h2><div class="opciones-fila">
+    <button class="opcion-fila" data-op="antojo"><b>Tengo un antojo</b><span>Elige lo que ${vos ? 'os' : 'te'} apetece y te propongo la cena</span></button>
+    ${rb ? `<button class="opcion-fila" data-op="bol"><b>Cambiar la ensalada</b><span>${esc(rb.n)}</span></button>` : ''}
+    <button class="opcion-fila" data-op="fuera"><b>${vc?.fuera ? (vos ? 'Cenamos en casa' : 'Ceno en casa') : (vos ? 'Cenáis fuera' : 'Cenas fuera')}</b><span>${vc?.fuera ? 'Vuelve la cena del menú' : 'Se quita del menú de hoy'}</span></button></div>`, h => {
+    $$('[data-op]', h).forEach(b => b.addEventListener('click', () => {
+      const op = b.dataset.op; cierraHoja(true);
+      if (op === 'antojo') abrirAntojo(d.f);
+      if (op === 'bol') abrirCambiar(p, i, 'bol', null);
+      if (op === 'fuera') alternaFuera(p, d.f, 'cena');
+    }));
+  });
+}
+// Hasta que esté el modo cocinar, «Empezar a cocinar» abre la receta en el paso a paso.
+const empiezaCocinar = id => { V.detalle = true; abrirReceta(id); };
+function activaHoy5(p, d) {
+  $$('#cab [data-ir], #vista [data-ir]').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.ir; }));
+  if (!d) return;
+  const i = efectivo(p).dias.findIndex(x => x.f === d.f), rc = recetas[L.idDe(d.cena)];
+  $$('#vista [data-hoy]').forEach(b => b.addEventListener('click', () => { const pb = planes().find(x => x.id === b.dataset.plan) || p; abrirAcciones(pb, efectivo(pb).dias.findIndex(x => x.f === b.dataset.f), b.dataset.hoy, b.dataset.q || null); }));
+  $$('#vista [data-marca]').forEach(b => b.addEventListener('click', () => alternaHecho(p, d.f, b.dataset.marca)));
+  $$('#vista [data-dia]').forEach(b => b.addEventListener('click', () => abrirDia(b.dataset.dia)));
+  $('#vista [data-receta-noche]')?.addEventListener('click', e => abrirReceta(e.currentTarget.dataset.recetaNoche));
+  $$('#vista [data-hoy-acc]').forEach(b => b.addEventListener('click', e => {
+    e.preventDefault();
+    const a = b.dataset.hoyAcc;
+    if (a === 'receta' && rc) { V.detalle = true; abrirReceta(rc.id); }
+    if (a === 'cocinar' && rc) empiezaCocinar(rc.id);
+    if (a === 'hecho') alternaHecho(p, d.f, 'cena');
+    if (a === 'fuera') alternaFuera(p, d.f, 'cena');
+    if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);
+    if (a === 'antojo') abrirAntojo(d.f);
+    if (a === 'mas') abrirMasCena(p, d, i);
   }));
 }
 // La receta explicada en el chat al momento (sin esperar al Chef): cantidades de cada uno y el paso a paso.
