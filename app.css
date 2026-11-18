@@ -1281,3 +1281,42 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 /* Contraste (17/11, axe): el verde, el rosa y el azul de cada persona y el gris secundario, un punto más oscuros para llegar a 4,5:1
    sobre sus fondos suaves (antes 3,7–4,44). Solo el modo claro: el oscuro tiene sus propios tonos. */
 :root { --acento: #2b7656; --bueno: #2b7656; --persona-g: #a74a6a; --persona-p: #3d6baa; --suave: #68686d; }
+
+/* 18/11: Recetas con lupa (sin la fila de tipos). Al escribir salen las opciones (tipo, aparato, tiempo, ingrediente, recetas); lo elegido, en chips con × */
+.rec-busca { position: relative; z-index: 6; }
+.rec-busca .buscador { margin-bottom: 8px; }
+.rec-sug { position: absolute; left: 0; right: 0; top: calc(100% - 2px); max-height: min(62vh, 480px); overflow-y: auto; overscroll-behavior: contain; background: var(--fondo); border: 1px solid var(--linea); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .14); padding: 6px; }
+.rec-sug[hidden] { display: none; }
+.rec-sug-grupo + .rec-sug-grupo { border-top: 1px solid var(--gris-2); margin-top: 4px; padding-top: 4px; }
+.rec-sug-t { font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--suave); padding: 8px 10px 4px; }
+.rec-sug-op { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 10px; background: none; color: var(--texto); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.rec-sug-op:hover, .rec-sug-op.activa { background: var(--gris); }
+.rec-sug-op:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
+.rec-sug-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-sug-c { flex: 0 0 auto; font-size: 14px; color: var(--suave); font-variant-numeric: tabular-nums; }
+.rec-sug-foto { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; display: grid; place-items: center; }
+.rec-sug-nada { margin: 0; padding: 14px 10px; color: var(--suave); font-size: 15px; }
+.rec-activos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rec-activos:not(:empty) { margin: 2px 0 10px; }
+.rec-activo { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.rec-activo .rec-x { font-size: 18px; line-height: 1; opacity: .8; }
+.rec-cuenta:empty { display: none; }
+.rec-cuenta { margin: 0 0 8px; }
+
+/* 18/11: Compra, «⋯» en cada fila (no había / no lo compro / ver el producto) */
+.producto .fila-mas { flex: 0 0 40px; width: 40px; height: 44px; margin: -6px -10px -6px -4px; display: grid; place-items: center; border: 0; background: none; color: var(--suave); cursor: pointer; border-radius: 10px; }
+.producto .fila-mas .ic { width: 22px; height: 22px; fill: currentColor; }
+.producto .fila-mas:focus-visible { outline: 2px solid var(--acento); }
+.opciones-fila { display: grid; gap: 8px; margin-top: 12px; }
+.opcion-fila { display: grid; gap: 2px; width: 100%; text-align: left; padding: 13px 16px; border: 0; border-radius: 14px; background: var(--gris); color: var(--texto); font: inherit; cursor: pointer; }
+.opcion-fila b { font-size: 17px; }
+.opcion-fila span { font-size: 14px; color: var(--suave); }
+.opcion-fila:focus-visible { outline: 2px solid var(--acento); }
+
+/* 18/11: Ajustes, objetivo y forma de comer de cada uno */
+.perfil .persona-meta .nota, .perfil .persona-dieta .nota { font-weight: 400; font-size: 14px; margin: 6px 0 0; }
+/* Las recetas que llevan algo que no compráis se atenuaban con opacidad (axe: 2,5:1). Ahora solo la foto; el texto, legible */
+.rt.no-puedo { opacity: 1; }
+.rt.no-puedo .rt-foto { opacity: .5; }
+.rt.no-puedo .rt-datos { color: var(--suave); }
+:root[data-theme="dark"] .rec-busca .buscador input { background: none; }
