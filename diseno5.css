@@ -417,6 +417,19 @@ html.n5 body:has(.hoja.n-en-cocina.abierta) .n-reloj-flota { display: none; }
 .n5 .n-compra-acc { margin-top: 10px; }
 .n5 .n-compra-acc .n-fila.n-pide { background: var(--n-verde-suave); }
 .n5 .n-compra-acc .n-fila.n-pide .n-min-ic { background: var(--n-fondo); }
+/* La lista cerrada (v65): lo que toca es subir el ticket, así que el «Subir» de la fila que lo pide es la pastilla verde llena (sobre el verde
+   claro de la fila se perdía); y en lugar de «Añadir», la nota con un candado, separada de «Lo que falta» */
+.n5 .n-compra-acc .n-fila.n-pide .n-boton-p { min-height: 40px; padding: 0 18px; background: var(--n-verde); color: var(--n-sobre-verde); }
+.n5 .n-compra .n-nota.n-cerrada { display: flex; align-items: flex-start; gap: 8px; margin: 14px 4px 0; line-height: 1.4; text-wrap: pretty; }
+.n5 .n-compra .n-nota.n-cerrada::before { content: ''; flex: 0 0 15px; height: 15px; margin-top: 2px; background: var(--n-gris); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.5' y='10.5' width='15' height='10.5' rx='2.5'/%3E%3Cpath d='M8 10.5V7.5a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / 15px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.5' y='10.5' width='15' height='10.5' rx='2.5'/%3E%3Cpath d='M8 10.5V7.5a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / 15px no-repeat; }
+/* En las filas de la compra, el título sin una palabra sola al final («Compra hoy, / mié 18», no «Compra hoy, mié / 18») */
+.n5 .n-compra-acc .n-txt b { text-wrap: pretty; }
+/* El menú en una hoja («El menú de la compra» y, tras el ticket, «El menú, con lo que habéis comprado»): la comida en gris y sin mayúsculas,
+   y el plato en Poppins, como las filas de Hoy; abajo, «Deshacer» y «Vale» a lo ancho, a partes iguales, con «Vale» en verde */
+html.n5 .hoja .hoy-comida { color: var(--n-gris) !important; font: 500 12.5px/1.3 var(--n-titulo); text-transform: none; letter-spacing: normal; }
+html.n5 .hoja .hoy-plato { font: 500 15px/1.3 var(--n-titulo); color: var(--n-tinta); }
+html.n5 .hoja .hoy-fila .flecha { color: var(--n-tenue); }
+html.n5 .hoja .botones:has(> #mn-vale) > .boton { flex: 1; min-height: 48px; }
 .n5 .n-compra .n-buscar.n-anadir { color: var(--n-gris); }
 .n5 .n-compra .n-buscar.n-anadir span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .n5 .n-compra .n-chip.n-donde { flex: 0 0 auto; min-height: 32px; padding: 0 10px; font-size: 12.5px; }

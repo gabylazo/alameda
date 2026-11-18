@@ -520,7 +520,9 @@ function planActivo() {
 }
 function efectivo(p) {
   const s = est(p.id);
-  return { ...p, dias: p.dias.map(d => { const n = { ...d }; for (const c of L.COMIDAS) { const k = d.f + '|' + c; if (k in s.cambios) n[c] = s.cambios[k]; } if (L.COMIDAS.includes('bol') && n.bol === undefined) n.bol = bolDe(n); return n; }) };
+  return { ...p, dias: p.dias.map(d => { const n = { ...d }; for (const c of L.COMIDAS) { const k = d.f + '|' + c; if (k in s.cambios) n[c] = s.cambios[k]; } if (L.COMIDAS.includes('bol') && n.bol === undefined) n.bol = bolDe(n);
+    if (n.cena?.fuera && n.bol && !n.bol.fuera && d.f >= BOL_DESDE && !s.hechos[d.f + '|bol']) n.bol = { fuera: true };   // con la cena fuera, la ensalada también (18/11: salía en la lista)
+    return n; }) };
 }
 
 // Lo que quitáis de «En casa» a mano no vuelve solo: se apunta cuándo (E.casaBaja) y nada automático (ajustes del ticket,
