@@ -1320,3 +1320,15 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 .rt.no-puedo .rt-foto { opacity: .5; }
 .rt.no-puedo .rt-datos { color: var(--suave); }
 :root[data-theme="dark"] .rec-busca .buscador input { background: none; }
+/* ——— Antojo (18/11): la hoja «¿Qué os apetece?» y su tarjeta en Recetas ——— */
+.antojo-busca { margin: 12px 0 4px; }
+.antojo-ops .botones, .antojo-dias { display: flex; flex-wrap: wrap; gap: 8px; }
+.antojo-ops .chip, .antojo-dias .chip { min-height: 44px; }
+.antojo-op { display: flex; align-items: center; gap: 8px; }
+.antojo-op .alternativa { flex: 1; min-width: 0; }
+.antojo-op .ver-todo { min-height: 44px; padding: 0 6px; }
+#antojo-res .boton { margin-top: 14px; }
+#antojo-res .boton .ic, #b-antojo-cambiar .ic, #b-antojo-rec .ic { width: 20px; height: 20px; margin-right: 6px; vertical-align: -4px; }
+#b-antojo-cambiar { margin: 10px 0 4px; }
+.tarjeta.antojo-rec { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.tarjeta.antojo-rec .nota { margin: 0; }

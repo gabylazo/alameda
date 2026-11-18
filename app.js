@@ -119,6 +119,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'antojo', fecha: '2026-11-18', emo: '', titulo: 'Tengo un antojo', texto: 'Elige lo que te apetece comer sí o sí (filetes de cerdo y patatas, pasta con gambas…) y te propongo la cena que lo lleva, primero las que salen con lo de casa. La pones en el día que quieras y lo que falte va a la compra. Si ninguna convence, el Chef se inventa una con eso. Está en la cena de Hoy («Antojo»), en «Cambiar», en Recetas y en el Chef.', ir: 'hoy', foco: '[data-hoy-acc=antojo]' },
   { id: 'recetas-lupa', fecha: '2026-11-18', emo: '', titulo: 'Recetas: busca con la lupa', texto: 'Fuera la fila de tipos. Escribe en la lupa («air fryer», «pollo», «cena», «10 minutos») y elige entre lo que sale. Lo elegido se queda arriba y se quita con la ×. También «Con lo que tenéis en casa».', ir: 'recetas', foco: '.rec-busca' },
   { id: 'no-habia', fecha: '2026-11-18', emo: '', titulo: 'Compra: «no había» y «no lo compro»', texto: 'Cada producto tiene sus tres puntos: «No había» lo apunta para otro día y te propone otra cosa; «No lo compro» lo saca de la lista.', ir: 'compra', foco: '.fila-mas' },
   { id: 'nevera-sola', fecha: '2026-11-18', emo: '', titulo: 'Lo que se acaba va solo a la compra', texto: 'Cuando el menú gasta del todo algo de la Nevera, entra solo en la próxima compra. Si no lo vais a comprar más, la papelera lo quita sin apuntarlo.', ir: 'casa' },
@@ -1036,13 +1037,123 @@ function inventaSiHaceFalta() {
 }
 async function inventaCena(f, auto = false) {
   const k = f + '|cena', dia = f === hoy() ? 'hoy' : `el ${DL[fecha(f).getDay()]}`, ya = (E.inventos || {})[k];
-  if (ya && (!ya.id || (E.charla || []).some(c => c.id === ya.id && !c.r))) { if (!auto) tostada('El Chef ya se la está inventando'); return; }
+  if (ya && ya.por !== null && (!ya.id || (E.charla || []).some(c => c.id === ya.id && !c.r))) { if (!auto) tostada('El Chef ya se la está inventando'); return; }
   E.inventos = Object.fromEntries(Object.entries(E.inventos || {}).filter(([x]) => x >= masDias(hoy(), -14)));
   E.inventos[k] = { t: new Date().toISOString(), por: MOVIL }; salva();
   const texto = `${auto ? `Automático: con lo que hay en la Nevera no sale ninguna receta para la cena de ${dia}. ` : ''}Invéntate la cena de ${dia} (${f}) solo con lo que tenemos en casa, sin comprar nada, y ponla en el menú.`;
   try { E.inventos[k].id = await preguntaServidor(texto, true); salva(); }
   catch (e) { delete E.inventos[k]; salva(); if (!auto) tostada('No llego al servidor: ' + e.message); }
   if (esChat()) vClaude();
+}
+// ——— Antojo (18/11: «elegir ingredientes que quieras comer sí o sí y que te proponga una receta, por ejemplo filetes de cerdo y patatas») ———
+// Se eligen uno o varios ingredientes (lo de la Nevera, a un toque); la app busca las cenas del recetario que los llevan todos, primero las
+// que salen con lo de casa, y pone la elegida en el día que se diga (lo que falte, a la compra). Si ninguna convence, el Chef se inventa una
+// con eso («Antojo:» en agente.md) y se pone sola, como la cena con lo que hay.
+const AMPLIO = /^(pollo|pavo|ternera|cerdo|gambas|legumbres|patata|arroz|pasta|huevo|atun|jamon)$/;   // un producto de estos vale por todo su grupo
+const yJunta = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' y ' + a.at(-1);
+const anulaInvento = k => { const v = (E.inventos || {})[k]; if (v && v.por) { aplicaAlLlegar.delete(v.id); v.por = null; } };   // se eligió a mano: lo que invente el Chef se queda en el chat
+function opcionAntojo(x) {   // {t, re} grupo · {t, k} producto · {t} texto: le añade test(r, texto de la receta)
+  if (x.re) { const rx = new RegExp(x.re); return { ...x, test: (r, t) => rx.test(t) }; }
+  if (x.k && D.productos[x.k]) {
+    const n = L.normaliza(D.productos[x.k].n), g = ING_REC.find(([t, re]) => AMPLIO.test(L.normaliza(t)) && new RegExp(re).test(n)), rx = g && new RegExp(g[1]), ks = grupoDe(x.k);
+    return { ...x, test: (r, t) => r.ing.some(i => ks.includes(i[0])) || !!rx && rx.test(t) };
+  }
+  const ws = L.normaliza(x.t).split(/[^a-z0-9ñ]+/).filter(w => w.length > 2), w1 = ws.find(w => w.length > 3) || ws[0];
+  return { ...x, test: (r, t) => x.palabra ? !!w1 && t.includes(w1) : ws.every(w => t.includes(w)) };
+}
+function opcionesAntojo() {
+  const vistos = new Set(), ops = [], add = o => { const c = L.normaliza(o.t); if (!c || vistos.has(c)) return; vistos.add(c); ops.push(opcionAntojo(o)); };
+  for (const [k, g] of Object.entries(E.casa || {})) if (g > 0 && !infinito(k)) add({ t: nombreCorto(D.productos[k]), k, casa: true });
+  for (const x of E.casaExtra || []) { const e = equivDe(x); add(e ? { t: x.n, k: e.k, casa: true } : { t: x.n, casa: true, palabra: true }); }
+  for (const [t, re] of ING_REC) add({ t, re });
+  for (const [k, x] of Object.entries(D.productos)) if (!infinito(k)) add({ t: nombreCorto(x), k });
+  return ops;
+}
+function abrirAntojo(f = null, pre = []) {
+  const h0 = hoy(), dias = [];
+  for (let k = 0; k <= 6; k++) { const x = masDias(h0, k), pl = planes().find(p => p.dias.some(d => d.f === x)); if (pl && !est(pl.id).hechos[x + '|cena']) dias.push(x); }
+  if (!dias.length) { tostada('No quedan cenas por hacer en el menú'); return; }
+  const vos = L.QUIEN.length > 1, diaTxt = x => x === h0 ? 'Hoy' : x === masDias(h0, 1) ? 'Mañana' : `${capital(DS[fecha(x).getDay()])} ${fecha(x).getDate()}`;
+  let dia = dias.includes(f) ? f : dias[0], busca = '';
+  const todas = todasRecetas().filter(r => aptaCasa(r, L.QUIEN, true)), txt = new Map(todas.map(r => [r.id, textoBusca(r)]));
+  const esCena = r => (r.tipo0 || r.tipo).includes('cena'), cuenta = o => todas.filter(r => o.test(r, txt.get(r.id))).length;
+  const OPS = opcionesAntojo().map(o => ({ ...o, n: cuenta(o) })).filter(o => o.n);
+  const plato = o => !!o.k && (D.productos[o.k]?.cat === 'Carne' || ING_REC.some(([t, re]) => AMPLIO.test(L.normaliza(t)) && new RegExp(re).test(L.normaliza(D.productos[o.k].n))));   // lo que puede ser el plato
+  const sel = pre.map(x => x.test ? x : opcionAntojo(x));
+  const carne = o => ['Carne', 'Charcutería y quesos', 'Huevos, leche y mantequilla'].includes(D.productos[o.k]?.cat) ? 0 : 1;
+  const chip = (o, i) => `<button type="button" class="chip" data-antojo-op="${i}">${esc(o.t)}</button>`;
+  hoja(`<h2>¿Qué ${vos ? 'os' : 'te'} apetece?</h2><p class="nota">Elige lo que ${vos ? 'queréis' : 'quieres'} comer sí o sí y te propongo la cena.</p>
+    <div class="buscador antojo-busca">${I.buscar}<input id="i-antojo" type="search" placeholder="Filetes de cerdo, patata, pasta…" aria-label="Ingrediente que ${vos ? 'os' : 'te'} apetece" autocomplete="off" enterkeyhint="done"></div>
+    <div id="antojo-sel" class="rec-activos"></div><div id="antojo-ops" class="antojo-ops"></div>
+    <div class="cat">Para la cena de</div><div class="botones antojo-dias">${dias.map(x => `<button type="button" class="chip" data-antojo-dia="${x}" aria-pressed="${x === dia}">${diaTxt(x)}</button>`).join('')}</div>
+    <div id="antojo-res" aria-live="polite"></div>`, h => {
+    const inp = $('#i-antojo', h);
+    let vistas = [];
+    const pintaAntojo = () => {
+      const t = L.normaliza(busca.trim()), ya = new Set(sel.map(o => L.normaliza(o.t)));
+      $('#antojo-sel', h).innerHTML = sel.map((o, i) => `<button type="button" class="chip rec-activo" data-antojo-quita="${i}" aria-label="Quitar «${esc(o.t)}»">${esc(o.t)}<span class="rec-x" aria-hidden="true">×</span></button>`).join('');
+      // Lo que se puede añadir: al escribir, lo que encaje (lo de la Nevera primero); sin escribir, lo de la Nevera que puede ser el plato y unas ideas.
+      const libres = OPS.filter(o => !ya.has(L.normaliza(o.t)) && (!sel.length || cuenta({ test: (r, x) => o.test(r, x) && sel.every(s2 => s2.test(r, x)) })));
+      let grupos;
+      if (t) { vistas = libres.filter(o => L.normaliza(o.t).includes(t)).sort((a, b) => !!b.casa - !!a.casa || L.normaliza(a.t).indexOf(t) - L.normaliza(b.t).indexOf(t)).slice(0, 8); grupos = [['', vistas]]; }
+      else {
+        const nev = libres.filter(o => o.casa && plato(o)).sort((a, b) => carne(a) - carne(b)).slice(0, 10);
+        const ideas = libres.filter(o => o.re).slice(0, 10);
+        vistas = [...nev, ...ideas]; grupos = [[`En ${vos ? 'vuestra' : 'tu'} Nevera`, nev], ['Ideas', ideas]];
+      }
+      $('#antojo-ops', h).innerHTML = grupos.filter(([, xs]) => xs.length).map(([g, xs]) => `${g ? `<div class="cat">${g}</div>` : ''}<div class="botones">${xs.map(o => chip(o, vistas.indexOf(o))).join('')}</div>`).join('')
+        || (t ? `<p class="nota">Nada con «${esc(busca.trim())}» en las recetas. Pulsa Intro y se lo pido al Chef.</p>` : '');
+      $$('[data-antojo-op]', h).forEach(b => b.addEventListener('click', () => { sel.push(vistas[+b.dataset.antojoOp]); busca = ''; inp.value = ''; pintaAntojo(); }));
+      $$('[data-antojo-quita]', h).forEach(b => b.addEventListener('click', () => { sel.splice(+b.dataset.antojoQuita, 1); pintaAntojo(); }));
+      // Las recetas: las cenas que lo llevan todo (primero las que salen con lo de casa) y, si hay, otras recetas con eso.
+      const res = $('#antojo-res', h), nombres = sel.map(o => o.t.toLowerCase());
+      if (!sel.length) {
+        res.innerHTML = servidor() ? `<button class="boton ancho" id="b-antojo-casa">${IC.chispas}Que el Chef invente una con lo que hay</button>` : '';
+        $('#b-antojo-casa', h)?.addEventListener('click', () => { cierraHoja(); inventaCena(dia); repinta(); tostada('El Chef está inventando la cena con lo que hay'); });
+        return;
+      }
+      const hay = hayEnCasa(), con = todas.filter(r => sel.every(o => o.test(r, txt.get(r.id))));
+      const cenas = con.filter(esCena).map(r => ({ r, falta: alcanza(necesita(r, L.QUIEN, true), hay) }))
+        .sort((a, b) => a.falta.length - b.falta.length || demasiadoNuevo(a.r) - demasiadoNuevo(b.r) || !!b.r.fav - !!a.r.fav || a.r.min - b.r.min).slice(0, 6);
+      const otras = con.filter(r => !esCena(r)).slice(0, 4);
+      const pill = x => x.falta.length ? `<span class="pill malo">falta ${esc(enumera(x.falta.map(nombreFalta), 2))}</span>` : `<span class="pill bueno">con lo de casa</span>`;
+      res.innerHTML = `${cenas.length ? `<div class="cat">Cenas con ${esc(yJunta(nombres))}<span class="num">${cenas.length}</span></div>${cenas.map(x => `<div class="antojo-op">${filaReceta(x.r, null, pill(x))}<button type="button" class="ver-todo" data-antojo-ver="${x.r.id}" aria-label="Ver la receta: ${esc(x.r.n)}">Ver</button></div>`).join('')}`
+        : `<p class="nota">No tengo ninguna cena con ${esc(yJunta(nombres))}.</p>`}
+        ${otras.length ? `<div class="cat">Otras recetas con eso</div>${otras.map(r => `<div class="antojo-op">${filaReceta(r).replace('data-id=', 'data-antojo-ver=')}</div>`).join('')}` : ''}
+        ${servidor() ? `<button class="boton ${cenas.length ? 'ancho' : 'principal ancho'}" id="b-antojo-chef">${IC.chispas}${cenas.length ? 'Ninguna: que' : 'Que'} el Chef invente una con ${esc(yJunta(nombres))}</button>` : ''}`;
+      $$('#antojo-res [data-id]', h).forEach(b => b.addEventListener('click', () => poner(b.dataset.id)));
+      $$('[data-antojo-ver]', h).forEach(b => b.addEventListener('click', () => { cierraHoja(true); abrirReceta(b.dataset.antojoVer); }));
+      $('#b-antojo-chef', h)?.addEventListener('click', () => { cierraHoja(); inventaAntojo(dia, sel.map(o => o.t)); repinta(); });
+    };
+    const poner = id => {
+      const p = planes().find(x => x.dias.some(d => d.f === dia)); if (!p) return;
+      const antes = fotoMenu(), prox = JSON.stringify(E.proximaCompra || []);
+      if (!ponPlato({ dia, comida: 'cena', receta: id })) { tostada('Esa cena ya está hecha'); return; }
+      anulaInvento(dia + '|cena');
+      const n = deCasa(p, est(p.id)) ? apuntaLoQueFalta([{ receta: id }], 'Antojo') : 0;   // antes de la compra, la lista ya sale del menú
+      salva(); cierraHoja(); repinta();
+      conDeshacer(`${diaTxt(dia)}: ${recetas[id].n}${n ? ` · ${n} a la compra` : ''}`, () => { vuelveMenu(antes); E.proximaCompra = JSON.parse(prox); salva(); pinta(); });
+    };
+    inp.addEventListener('input', () => { busca = inp.value; pintaAntojo(); });
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.isComposing || !busca.trim()) return;
+      e.preventDefault(); sel.push(vistas[0] || opcionAntojo({ t: capital(busca.trim()) })); busca = ''; inp.value = ''; pintaAntojo();
+    });
+    $$('[data-antojo-dia]', h).forEach(b => b.addEventListener('click', () => { dia = b.dataset.antojoDia; $$('[data-antojo-dia]', h).forEach(x => x.setAttribute('aria-pressed', String(x === b))); }));
+    pintaAntojo();
+  });
+}
+async function inventaAntojo(f, nombres) {
+  const k = f + '|cena', ya = (E.inventos || {})[k], dia = f === hoy() ? 'hoy' : `el ${DL[fecha(f).getDay()]}`;
+  if (ya?.antojo && ya.por !== null && (!ya.id || (E.charla || []).some(c => c.id === ya.id && !c.r))) { tostada('El Chef ya está inventando esa cena'); return; }
+  anulaInvento(k);   // la que se inventaba sola con lo que hay, ya no se pone
+  E.inventos = Object.fromEntries(Object.entries(E.inventos || {}).filter(([x]) => x >= masDias(hoy(), -14)));
+  E.inventos[k] = { t: new Date().toISOString(), por: MOVIL, antojo: nombres }; salva();
+  const que = yJunta(nombres.map(x => x.toLowerCase()));
+  tostada(`El Chef está inventando una cena con ${que}; se pondrá sola`);
+  try { E.inventos[k].id = await preguntaServidor(`Antojo: para la cena de ${dia} (${f}) nos apetece algo con ${que}. Invéntate una receta rica con eso de protagonista y ponla en el menú.`, true); salva(); }
+  catch (e) { delete E.inventos[k]; salva(); tostada('No llego al servidor: ' + e.message); }
+  if (esChat()) vClaude(); else repinta();
 }
 // La receta que se ha inventado el Chef se guarda y se pone sola (en el móvil que la pidió), con Deshacer.
 function aplicaInvento(c) {
@@ -1261,12 +1372,15 @@ function abrirCambiar(p, i, c, q, alElegir = null) {
     cuerpo = cand.slice(0, 30).map(r => ({ r, falta: faltanDe(r, tengo) })).sort((a, b) => a.falta.length - b.falta.length).slice(0, 10).map(fila).join('');
   }
   hoja(`<h2>${COMIDA_EMO[c]} Cambiar ${L.NOMBRE_COMIDA[c].toLowerCase()}</h2><div class="nota">${persona ? `Para ${esc(NOM[persona])} · ` : ''}${capital(DL[fecha(d.f).getDay()])} ${fecha(d.f).getDate()}</div>
+    ${c === 'cena' && !alElegir ? `<button class="boton ancho" id="b-antojo-cambiar">${IC.chispas}¿${L.QUIEN.length > 1 ? 'Os' : 'Te'} apetece algo concreto?</button>` : ''}
     ${cuerpo}`, h => {
+    $('#b-antojo-cambiar', h)?.addEventListener('click', () => { cierraHoja(true); abrirAntojo(d.f); });
     $$('[data-id]', h).forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.id, s = est(p.id), k = d.f + '|' + c, deshaz = recuerdaHueco(p, k);
       if (persona) { const base = L.esDoble(v) ? { ...v } : { G: L.idDe(v), P: L.idDe(v) }; base[persona] = id; s.cambios[k] = base; }
       else s.cambios[k] = id;
       (s.elegidos ||= {})[k] = true;   // lo elegido a mano no lo cambia el menú automático ni «Proponer otro menú» (17/11)
+      anulaInvento(k);
       salva(); cierraHoja(!!alElegir); repinta(); conDeshacer('Plato cambiado', deshaz);
       if (alElegir) alElegir();
     }));
@@ -2794,7 +2908,10 @@ function vRecetas() {
       const nh = noHabitual(r);
       return `<button class="rt${sePuedeHacer(r) && !nh.length ? '' : ' no-puedo'}" data-receta="${r.id}">${fotoPlato(r, 400, 'rt-foto')}${r.fav ? `<span class="rt-fav" aria-label="Favorita">${I.corazon}</span>` : ''}
         <span class="rt-nombre">${esc(r.n)}</span><span class="rt-datos">${nh.length ? `Lleva ${esc(enumera(nh.map(nombreFalta), 2))}` : `${r.min} min · ${r0(g.kcal)} kcal${r.propia ? ' · vuestra' : ''}`}</span></button>`; }).join('');
-    $('#rec-vacio').innerHTML = lista.length ? '' : `<div class="vacio"><span class="emo">🔍</span>${V.filtros.includes('c:fav') ? 'Toca el corazón de una receta para guardarla aquí.' : 'No hay recetas con eso. Quita algún filtro o busca otra palabra.'}</div>`;
+    const ings = V.filtros.filter(k => k.startsWith('i:')).map(k => ING_REC.find(([x]) => 'i:' + x === k)).filter(Boolean);
+    $('#rec-vacio').innerHTML = (lista.length ? '' : `<div class="vacio"><span class="emo">🔍</span>${V.filtros.includes('c:fav') ? 'Toca el corazón de una receta para guardarla aquí.' : 'No hay recetas con eso. Quita algún filtro o busca otra palabra.'}</div>`)
+      + (ings.length ? `<div class="tarjeta antojo-rec"><b>¿Un antojo de ${esc(yJunta(ings.map(([x]) => x.toLowerCase())))}?</b><span class="nota">Elige la cena que lo lleva, ponla en el día que quieras o que el Chef invente una.</span><button class="boton principal" id="b-antojo-rec">${IC.chispas}Tengo un antojo</button></div>` : '');
+    $('#b-antojo-rec')?.addEventListener('click', () => abrirAntojo(null, ings.map(([t, re]) => ({ t, re }))));
     $$('[data-receta]', $('#rec-rejilla')).forEach(b => b.addEventListener('click', () => abrirReceta(b.dataset.receta)));
     $$('[data-quita-filtro]').forEach(b => b.addEventListener('click', () => { V.filtros = V.filtros.filter(k => k !== b.dataset.quitaFiltro); pintaLista(); }));
     $('#b-quita-filtros')?.addEventListener('click', () => { V.filtros = []; pintaLista(); });
@@ -3061,11 +3178,11 @@ function creaPlan(inicio, n) {
 }
 // Recetas que puede comer toda la casa: sin alergias (regla fija), con su forma de comer, sin lo que no le gusta a nadie,
 // con los aparatos que tienen y en el tiempo que tienen.
-function aptaCasa(r, qs = L.QUIEN) {
+function aptaCasa(r, qs = L.QUIEN, antojo = false) {
   if (r.retirada) return false;   // del recetario de antes del 17/11: solo para enseñar lo ya comido
-  if (r.chef && !r.fav) return false;   // las que inventó el Chef un día (con la nevera vacía), solo si las marcáis como favoritas o las elegís en «Cambiar»
+  if (r.chef && !r.fav && !antojo) return false;   // las que inventó el Chef un día (con la nevera vacía), solo si las marcáis como favoritas o las elegís en «Cambiar»
   if (!gustaA(r, qs) || !sePuedeHacer(r)) return false;   // lo que no gusta y lo que no se puede hacer con la cocina de casa
-  if (demasiadoNuevo(r)) return false;   // lleva varias cosas que no compráis, o pescado que no compráis (merluza, salmón…)
+  if (!antojo && demasiadoNuevo(r)) return false;   // lleva varias cosas que no compráis (un antojo, sí: se compra), o pescado que no compráis (merluza, salmón…)
   if (!D.amiga) return qs.every(q => dietaOk(r, E.perfiles[q]?.dieta));   // cómo come cada uno (18/11): lo que es para los dos, de la más estricta
   const per = perfiles();
   for (const q of qs) { const x = per[q]; if (x && (alergiaDe(r, x).length || !dietaOk(r, x.dieta))) return false; }
@@ -3344,7 +3461,8 @@ function vClaude() {
     d && !est(p.id).hechos[d.f + '|cena'] && !(d.cena && d.cena.fuera) && ['', 'Invéntate la cena con lo que hay', null, null, null, () => inventaCena(d.f)],
     ['', '¿Qué hago con lo que hay?', '¿Qué puedo cocinar ahora con lo que tenemos en casa?'],
     ['', 'Hazme un menú…', null, null, 'Hazme un menú para los próximos 5 días '],
-    ['', 'Un antojo sano', 'Propónme un smoothie, una limonada o un postre sano que pueda hacer ahora con lo que hay en casa.'],
+    ['', 'Tengo un antojo…', null, null, null, () => abrirAntojo()],
+    ['', 'Algo dulce y sano', 'Propónme un smoothie, una limonada o un postre sano que pueda hacer ahora con lo que hay en casa.'],
     ['', 'Se ha acabado…', null, null, 'Se ha acabado '],
     ['', '¿Es buena compra?', null, null, null, abrirEscaner],
   ].filter(Boolean);
@@ -3453,11 +3571,11 @@ function nocheHoy(p, d) {
 function cenaHoy(p, d) {
   const s = est(p.id), vc = d.cena, rc = vc && !vc.fuera && !L.esDoble(vc) ? recetas[L.idDe(vc)] : null, hecha = !!s.hechos[d.f + '|cena'];
   const vb = d.bol, rb = vb && !vb.fuera && !L.esDoble(vb) ? recetas[L.idDe(vb)] : null;
-  const inv = (E.inventos || {})[d.f + '|cena'], inventando = inv && !hecha && (!inv.id || (E.charla || []).some(c => c.id === inv.id && !c.r));
+  const inv = (E.inventos || {})[d.f + '|cena'], inventando = inv && !hecha && inv.por !== null && (!inv.id || (E.charla || []).some(c => c.id === inv.id && !c.r));
   const acc = (a, t, icono, prin) => `<button class="accion-ic${prin ? ' prin' : ''}" data-hoy-acc="${a}">${icono}<span>${t}</span></button>`;
   if (vc?.fuera) return `<section class="cena-hoy fuera"><div class="cena-fuera">${ICONO_COMIDA.cena}<h2>Hoy cenáis fuera</h2></div><div class="cena-acciones">${acc('fuera', 'Cenamos en casa', IC.casa)}</div></section>`;
-  if (!rc) return `<section class="cena-hoy vacia"><div class="cena-fuera">${ICONO_COMIDA.cena}<h2>${inventando ? 'El Chef está inventando la cena…' : 'Cena sin elegir'}</h2></div>
-    ${inventando ? '' : `<div class="cena-acciones">${acc('cambiar', 'Elegir', IC.cambiar, true)}${acc('inventa', 'Inventar', IC.chispas)}${acc('fuera', 'Fuera', IC.fuera)}</div>`}</section>`;
+  if (!rc) return `<section class="cena-hoy vacia"><div class="cena-fuera">${ICONO_COMIDA.cena}<h2>${inventando ? `El Chef está inventando la cena${inv.antojo ? ' con ' + esc(yJunta(inv.antojo.map(x => x.toLowerCase()))) : ''}…` : 'Cena sin elegir'}</h2></div>
+    <div class="cena-acciones">${acc('cambiar', 'Elegir', IC.cambiar, true)}${acc('antojo', 'Antojo', IC.chispas)}${acc('fuera', 'Fuera', IC.fuera)}</div></section>`;
   const falta = hecha ? [] : faltaEnCasa(rc);
   const kc = L.QUIEN.map(q => r0(L.macrosReceta(rc, q, D.productos, fac).kcal + (rb ? L.macrosReceta(rb, q, D.productos, fac).kcal : 0))).join(' / ');
   return `<section class="cena-hoy${hecha ? ' hecha' : ''}">
@@ -3467,8 +3585,8 @@ function cenaHoy(p, d) {
     <div class="cena-cuerpo"><h2>${esc(rc.n)}</h2>
       ${rb ? `<button class="cena-con" data-hoy="bol" data-plan="${p.id}" data-f="${d.f}">${ICONO_COMIDA.bol}<span>${esc(rb.n)}</span></button>` : ''}
       <div class="cena-datos"><span>${IC.reloj}${rc.min} min</span><span>${IC.fuego}${kc} kcal</span><span>${esc(APARATO[rc.ap] || 'Cocina')}</span></div>
-      ${inventando ? '<p class="cena-aviso">El Chef está inventando otra con lo que hay…</p>' : falta.length ? `<p class="cena-aviso">Falta ${esc(enumera(falta.map(nombreFalta), 3))}</p>` : ''}
-      <div class="cena-acciones">${hecha ? acc('hecho', 'Desmarcar', SVG.check) : acc('como', 'Cómo se hace', IC.libro, true) + acc('hecho', 'Hecha', SVG.check)}${acc('cambiar', 'Cambiar', IC.cambiar)}${hecha || inventando ? '' : acc('inventa', 'Inventar', IC.chispas)}${hecha ? '' : acc('fuera', 'Fuera', IC.fuera)}</div>
+      ${inventando ? `<p class="cena-aviso">El Chef está inventando otra ${inv.antojo ? 'con ' + esc(yJunta(inv.antojo.map(x => x.toLowerCase()))) : 'con lo que hay'}…</p>` : falta.length ? `<p class="cena-aviso">Falta ${esc(enumera(falta.map(nombreFalta), 3))}</p>` : ''}
+      <div class="cena-acciones">${hecha ? acc('hecho', 'Desmarcar', SVG.check) : acc('como', 'Cómo se hace', IC.libro, true) + acc('hecho', 'Hecha', SVG.check)}${acc('cambiar', 'Cambiar', IC.cambiar)}${hecha ? '' : acc('antojo', 'Antojo', IC.chispas)}${hecha ? '' : acc('fuera', 'Fuera', IC.fuera)}</div>
     </div></section>`;
 }
 // Desayuno y merienda: una foto por persona (cada uno el suyo), con su nombre debajo.
@@ -3529,6 +3647,7 @@ function activaHoy(p, d) {
     if (a === 'fuera') alternaFuera(p, d.f, 'cena');
     if (a === 'cambiar') abrirCambiar(p, i, 'cena', null);
     if (a === 'inventa') inventaCena(d.f);
+    if (a === 'antojo') abrirAntojo(d.f);
   }));
 }
 // La receta explicada en el chat al momento (sin esperar al Chef): cantidades de cada uno y el paso a paso.
