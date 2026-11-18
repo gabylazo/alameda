@@ -1360,3 +1360,8 @@ body.con-chat.con-receta main { padding-bottom: 262px; }
 @keyframes visor-entra { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .visor { animation: none; } .visor-ayuda { transition: none; } }
 .n-portada img.n-foto, .n-ingr img, .producto-escaneado img { cursor: zoom-in; }
+
+/* Chef (18/11): la receta de la que preguntas, marcada dentro de tu mensaje; al tocarla vuelves a ella */
+.n5 .n-chef .n-msg-receta { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 6px; padding: 4px 10px 4px 4px; border-radius: 12px; background: rgb(255 255 255 / .18); color: inherit; font: 600 13.5px/1.25 var(--n-titulo, inherit); text-align: left; }
+.n5 .n-chef .n-msg-receta .n-min { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+.n5 .n-chef .n-msg-receta span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

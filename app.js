@@ -165,6 +165,8 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'compra-tienda', fecha: '2026-11-18', emo: '', titulo: 'Compra más fácil en la tienda', texto: 'Toca un producto para tacharlo. Lo que no había y lo que dejáis para otro día ya no estorba en la lista: está en «Lo que falta», debajo del ticket digital. En «¿Os queda?» también se puede decir que no. Lo que no vende Mercadona sale aparte y la tienda la elegís vosotros con «¿Dónde?».', ir: 'compra', foco: '#b-faltan' },
+  { id: 'chef-limpio', fecha: '2026-11-18', emo: '', titulo: 'El Chef, solo chat', texto: 'Como en WhatsApp: la conversación y la caja para escribir. Si le preguntas desde una receta, la receta va marcada en tu mensaje y con un toque vuelves a ella.', ir: 'claude' },
   { id: 'fotos-zoom', fecha: '2026-11-18', emo: '', titulo: 'Las fotos, de cerca', texto: 'Pellizca con dos dedos cualquier foto (un plato, un ingrediente, un producto) y se abre en grande: ahí se acerca con los dedos y se mueve arrastrando. En la receta, basta con tocar la foto. El resto de la app no se amplía.', ir: 'hoy' },
   { id: 'nutrihome5', fecha: '2026-11-18', emo: '', titulo: 'NutriHome renovada', texto: 'Diseño nuevo en toda la app: fotos grandes, letra nueva y un solo verde. La receta se abre a pantalla completa, con cada ingrediente en foto y lo de cada uno. «Empezar a cocinar» va paso a paso: el calor, un temporizador que avisa al acabar, cómo saber que está hecho y la pantalla siempre encendida.', ir: 'hoy', foco: '[data-hoy-acc=cocinar], [data-hoy-acc=receta]' },
   { id: 'antojos-semana', fecha: '2026-11-18', emo: '', titulo: 'Antojos de la semana', texto: 'Al elegir el día de la compra, di lo que os apetece esos días: una cocina (comida cubana, italiana…), un plato o un ingrediente, y cuántas cenas. El menú de la compra lo incluye y la lista sale de ese menú. Si no hay receta, el Chef la crea y se pone sola.', ir: 'compra', foco: '#b-dia-compra' },
@@ -2267,10 +2269,10 @@ function vCompra() {
     const tags = [f.fijo ? ['De siempre'] : null, f.despensa ? ['Despensa'] : null, f.otro && f.para ? ['Para ' + f.para] : null, niv ? [L.NIVEL[niv].t, 'n-' + niv] : null, f.manual ? ['Añadido'] : null,
       f.proxima ? [f.por ? (f.por.length > 28 ? f.por.slice(0, 27) + '…' : f.por) : 'Se acabó', 'n-acabo'] : null, estado === 'no' ? ['No había', 'n-malo'] : null].filter(Boolean).map(([t, c]) => `<em class="n-tag${c ? ' ' + c : ''}">${esc(t)}</em>`).join('');
     const cant = x ? L.cantidadCompra(f, D.productos) : f.m ? `${f.envases > 1 ? f.envases + ' × ' : ''}${f.m.env}` : f.n && f.n !== 1 ? String(f.n) : '';
-    return `<li class="n-fila${estado === 'si' ? ' n-hecha' : estado === 'no' ? ' n-no' : ''}" data-fila="${esc(f.clave)}"><button type="button" class="n-fila-abre" data-info="${esc(f.clave)}">${foto ? `<img class="n-min n-prod" src="${esc(foto)}" alt="" loading="lazy" width="52" height="52">` : `<span class="n-min-ic">${f.otro ? NI.lista : NI.compra}</span>`}<span class="n-txt"><b>${esc(nom)}</b><span>${esc(cant)}${tags}</span></span>${f.precio ? `<span class="n-precio">${euros(f.precio)}</span>` : ''}</button>
+    return `<li class="n-fila${estado === 'si' ? ' n-hecha' : estado === 'no' ? ' n-no' : ''}" data-fila="${esc(f.clave)}"><button type="button" class="n-fila-abre" data-check="${esc(f.clave)}" aria-pressed="${estado === 'si'}">${foto ? `<img class="n-min n-prod" src="${esc(foto)}" alt="" loading="lazy" width="52" height="52">` : `<span class="n-min-ic">${f.otro ? NI.lista : NI.compra}</span>`}<span class="n-txt"><b>${esc(nom)}</b><span>${esc(cant)}${tags}</span></span>${f.precio ? `<span class="n-precio">${euros(f.precio)}</span>` : ''}</button>
       ${f.tienda === null ? `<button type="button" class="n-chip n-donde" data-tienda-fila="${esc(f.clave)}" aria-label="¿Dónde se compra ${esc(nom)}?">¿Dónde?</button>` : ''}
-      <button type="button" class="n-mas" data-fila-mas="${esc(f.clave)}" aria-label="No había, no lo compro u otra tienda: ${esc(nom)}">${NI.mas}</button>
-      <button type="button" class="n-marcar${estado === 'si' ? ' n-hecho' : ''}" data-check="${esc(f.clave)}" aria-pressed="${estado === 'si'}" aria-label="En el carro: ${esc(nom)}">${NI.check}</button></li>`;
+      <button type="button" class="n-mas" data-fila-mas="${esc(f.clave)}" aria-label="Ver el producto, no había, no lo compro u otra tienda: ${esc(nom)}">${NI.mas}</button>
+      <span class="n-marcar${estado === 'si' ? ' n-hecho' : ''}" data-check="${esc(f.clave)}" aria-hidden="true">${NI.check}</span></li>`;
   };
   const listaFilas = l => DISENO5 ? `<ul class="n-filas n-lista">${l.map(filaHTML5).join('')}</ul>` : `<div class="lista">${l.map(filaHTML).join('')}</div>`;
   const cabSec = (t, n, emo = '', extra = '') => DISENO5 ? `<div class="n-sec-cab"><h2>${t}</h2><span>${n}</span>${extra}</div>` : `<div class="cat${emo ? '' : ' cat-tienda'}">${emo ? `<span class="emo">${emo}</span>` : ''}${t}<span class="num">${n}</span>${extra}</div>`;
@@ -2306,11 +2308,12 @@ function vCompra() {
     for (const f of lista) { if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; } html += filaHTML(f); }
     return html + (sec ? '</div>' : '');
   };
-  const noFilas = noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
+  const noFilas = DISENO5 ? [] : noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
   const soleis = s.compraHecha || s.soleisOculto || aldia ? [] : soleisComprar(filas, s);
   const pct = enLista ? Math.round(comprados.length / enLista * 100) : 0;
+  const nFaltan = noHabia.length + pendientesFuera(filas).length;
   if (DISENO5) $('#cab').innerHTML = `<div class="n-compra n-cabeza"><div><p class="n-fecha">${iconoSync()}${c ? `Para ${esc(cuandoCompra(c.f))} · hasta el ${diaCorto(c.hasta)}` : aldia ? `Compra hecha · llega hasta el ${diaCorto(cubre)}` : esc(p.titulo || 'Esta semana')}</p><h1>Compra</h1></div>
     <div class="n-botones"><button type="button" class="n-boton-c" id="b-escanear" aria-label="¿Es buena compra? Escanear un código">${nic('<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8"/>')}</button><button type="button" class="n-boton-c" id="b-mas" aria-label="Más: favoritos, receta a la lista, enviar la lista…">${NI.mas}</button></div></div>`;
   $('#vista').innerHTML = DISENO5 ? `<div class="n-compra n-cuerpo">
@@ -2319,7 +2322,8 @@ function vCompra() {
       ${tope ? `<p class="n-presupuesto${total > tope ? ' n-pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</p>${total > tope && !s.compraHecha ? '<button type="button" class="n-boton-p" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}</div>
     <ul class="n-filas n-compra-acc">
       <li class="n-fila${c || aldia ? '' : ' n-pide'}"><button type="button" class="n-fila-abre" id="b-dia-compra"><span class="n-min-ic">${NI.calendario}</span><span class="n-txt"><b>${c ? `Compra ${esc(cuandoCompra(c.f))}` : 'Día de compra'}</b><span>${c ? `Para hasta el ${diaCorto(c.hasta)}${c.antojos?.length ? ' · con vuestros antojos' : ''}` : 'Elige el día y te propongo el menú y la lista'}</span></span>${c ? '' : `<span class="n-flecha" aria-hidden="true">${NI.sigue}</span>`}</button>${c ? '<button type="button" class="n-boton-p" id="b-menu-compra">Ver el menú</button>' : ''}</li>
-      ${esMercadona() ? `<li class="n-fila"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar y marcamos la lista solos'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}</ul>
+      ${esMercadona() ? `<li class="n-fila"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar y marcamos la lista solos'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}
+      <li class="n-fila"><button type="button" class="n-fila-abre" id="b-faltan"><span class="n-min-ic">${NI.lista}</span><span class="n-txt"><b>Lo que falta${nFaltan ? ` · ${nFaltan}` : ''}</b><span>${nFaltan ? 'No había o para otro día' : 'Lo que marques «No había» va aquí'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li></ul>
     <button type="button" class="n-buscar n-anadir" id="b-anadir">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}<span>Añadir: huevos, yuca y 2 kéfir</span></button>
     ${filas.length + (E.pendientes || []).length > 10 ? `<label class="n-buscar n-filtra">${NI.buscar}<input id="i-filtra" type="search" placeholder="Buscar en la compra" aria-label="Buscar en la compra" autocomplete="off" value="${esc(V.filtraDe === V.pestana ? V.filtra || '' : '')}"></label>` : ''}
     ${compraResto()}</div>
@@ -2343,13 +2347,13 @@ function vCompra() {
     ${DISENO5 ? '' : seccionPendientes(filas)}
     ${D.semana.id === p.id && D.semana.avisoCompra ? letrero('avisoCompra:' + p.id + ':' + D.semana.avisoCompra.length, '💡', `<b>Chef:</b> ${esc(D.semana.avisoCompra)}`) : ''}
     ${recetasLista ? `<div class="cat"><span class="emo">🍲</span>Recetas añadidas</div><div class="lista">${recetasLista}</div>` : ''}
-    ${noHabia.length ? `${DISENO5 ? '<section class="n-sec">' : ''}${cabSec('No había', noHabia.length, '✕')}${listaFilas(noHabia)}${DISENO5 ? '</section>' : ''}
+    ${noHabia.length && !DISENO5 ? `${DISENO5 ? '<section class="n-sec">' : ''}${cabSec('No había', noHabia.length, '✕')}${listaFilas(noHabia)}${DISENO5 ? '</section>' : ''}
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
     ${enLista ? porSecciones(filas.filter(f => !s.noComprado[f.clave] && f.tienda === pri)) + porTiendas(filas.filter(f => !s.noComprado[f.clave] && f.tienda !== pri)) : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
-    ${DISENO5 ? seccionPendientes(filas) : ''}
+
     ${soleis.length ? `<div class="cat"><span class="emo">🔁</span>Lo que soléis comprar<span class="num">${soleis.length}</span><button class="cat-accion" id="b-ocultar-soleis">Ocultar</button></div><p class="nota" style="margin:-2px 0 8px">Está en vuestros tickets y no en la lista ni en casa.</p><div class="lista">${soleis.map(k => `<div class="producto fila-simple">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(D.productos[k].cat)}</div>`}<div class="info"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="pc">${euros(D.productos[k].precio)}</div></div><button class="chip" data-soleis="${k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
-    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button></div>`).join('')}</div>` : ''}
+    ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button><button class="chip" data-noqueda="${f.k}">No</button></div>`).join('')}</div>` : ''}
     ${quitados.length ? `<div class="cat"><span class="emo">↩️</span>Quitados de la lista<span class="num">${quitados.length}</span><button class="cat-accion" id="b-vaciar-quitados">Vaciar</button></div><div class="lista">${quitados.map(k => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[k]?.cat || 'Otros')}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[k] || { n: k }))}</div></div><button class="chip" data-volver="${k}">↺ Volver</button><button class="icono" data-olvidar="${k}" aria-label="Quitar de aquí">${I.papelera}</button></div>`).join('')}</div>` : ''}
   `; }
   activaLetreros();
@@ -2382,6 +2386,7 @@ function vCompra() {
   $('#b-ocultar-soleis')?.addEventListener('click', () => conVuelta('🧹 «Lo que soléis comprar» oculto esta semana', () => { s.soleisOculto = true; }));
   $('#b-ocultar-despensa')?.addEventListener('click', () => conVuelta('🧹 «¿Os queda?» oculto esta semana', () => { s.despensaOculta = true; }));
   $$('[data-queda]').forEach(b => b.addEventListener('click', () => conVuelta('✓ Apuntado: queda', () => { (s.despensaVista ||= {})[b.dataset.queda] = true; })));
+  $$('[data-noqueda]').forEach(b => b.addEventListener('click', () => conVuelta('Vale, no lo compráis', () => { (s.despensaVista ||= {})[b.dataset.noqueda] = 'no'; })));
   $('#b-ver-pend')?.addEventListener('click', () => { V.verPend = !V.verPend; const y = window.scrollY; vCompra(); window.scrollTo(0, y); });
   $('#b-vaciar-pend')?.addEventListener('click', () => conVuelta('🧹 Pendientes vaciados', () => { E.pendientes.forEach(descarta); E.pendientes = []; }));
   $$('[data-quitar-receta]').forEach(b => b.addEventListener('click', () => { s.recetasLista = s.recetasLista.filter(x => x.id !== b.dataset.quitarReceta); salva(); vCompra(); }));
@@ -2391,6 +2396,7 @@ function vCompra() {
   $('#b-ticket')?.addEventListener('click', elegirTicket);
   $('#b-ver-ticket')?.addEventListener('click', () => hojaTicketLeido(s, filas));
   $('#b-ultima')?.addEventListener('click', () => hojaCompra(E.compras[0]));
+  $('#b-faltan')?.addEventListener('click', abrirPendientes);
   $$('[data-pend-ya]').forEach(b => b.addEventListener('click', () => {
     const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
     if (x?.k && D.productos[x.k]) (E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util, alta(x.k));
@@ -2480,12 +2486,10 @@ function abrirMas() {
     ${fila('m-receta', '', 'Una receta a la lista', 'Suma sus ingredientes')}
     ${fila('m-favoritos', '', 'Favoritos', 'Lo de siempre')}
     ${fila('m-enviar', '📤', 'Enviar la lista', 'Lo que falta por comprar, para WhatsApp')}
-    ${fila('m-escanear', '🔎', '¿Es buena compra?', 'Foto del código de barras')}
     ${E.compras.length ? fila('m-ultima', '🗂️', 'Compras anteriores', 'El historial, con sus tickets') : ''}</div>`, h => {
     $('#m-receta', h)?.addEventListener('click', () => { cierraHoja(true); elegirRecetaParaLista(); });
     $('#m-favoritos', h)?.addEventListener('click', () => { cierraHoja(true); abrirFavoritos(); });
     $('#m-enviar', h).addEventListener('click', () => { cierraHoja(); compartirLista(lineaCompra().filas); });
-    $('#m-escanear', h).addEventListener('click', abrirEscaner);
     $('#m-ultima', h)?.addEventListener('click', abrirHistorial);
   });
 }
@@ -3146,8 +3150,7 @@ function abrirEscaner() {
     <label class="escanear-grande" for="i-codigo-foto" style="margin-top:12px"><span class="emo">📷</span>Foto del código de barras</label>
     <input id="i-codigo-foto" type="file" accept="image/*" capture="environment" class="sr">
     <form class="anadir" id="f-ean"><div class="caja"><input id="i-ean" inputmode="numeric" placeholder="…o escribe los números" autocomplete="off"><button class="icono mas" aria-label="Buscar">${I.buscar}</button></div></form>
-    <div id="resultado"></div>
-    ${E.escaneos.length ? `<h3>🕘 Lo último</h3><div class="lista">${E.escaneos.slice(0, 8).map(x => `<button class="producto fila-simple" data-ean="${esc(x.ean)}"><div class="sinfoto">${L.NIVEL[x.nivel]?.e || '⚪'}</div><span class="info"><span class="pn">${esc(x.n.slice(0, 48))}</span></span><span class="flecha">›</span></button>`).join('')}</div>` : ''}`, h => {
+    <div id="resultado"></div>`, h => {
     const res = $('#resultado', h);
     const consulta = async ean => {
       ean = String(ean || '').replace(/\D/g, '');
@@ -3999,22 +4002,32 @@ function seccionPendientes(filas = []) {
     <div class="botones" style="margin:8px 0 2px">${pend.length > 4 ? `<button class="chip" id="b-ver-pend">${V.verPend ? 'Ver menos' : `Ver los ${pend.length}`}</button>` : ''}<button class="chip" id="b-enviar-pend">📤 Enviar esta lista</button></div>`;
 }
 const tarjetaPendientes = () => !E.pendientes?.length ? '' : `<div class="tarjeta pregunta"><span class="emo">🏪</span><div class="t"><b>Para otro día</b><span class="nota">${esc(enumera(E.pendientes.map(x => x.k && D.productos[x.k] ? nombreFalta(x.k) : x.n), 4))}</span></div><button class="boton" id="b-pendientes">Ver</button></div>`;
+// Lo de «Para otro día» que no está ya en la lista de esta compra.
+const pendientesFuera = (filas = []) => { const enLista = new Set(filas.filter(f => f.k).map(f => f.k)); return (E.pendientes || []).filter(x => !(x.k && enLista.has(x.k))); };
+// «Lo que falta» (18/11: «un botón debajo del ticket digital que abra otra lista con los productos que faltan»): lo que no había en esta
+// compra y lo que quedó para otro día (otro súper o después), fuera de la lista para que no estorbe en la tienda.
 function abrirPendientes() {
   const pinta = h => {
-    $('#pendientes', h).innerHTML = E.pendientes.map(x => `<div class="pend"><span class="emo">${x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒'}</span><div class="pend-t"><b>${esc(x.n)}</b><span class="nota">desde el ${fechaCorta(x.f)}</span></div>
-      <button class="chip si" data-pend-ya="${x.id}">✓ Ya lo tengo</button><button class="icono" data-pend-quitar="${x.id}" aria-label="Quitar">${I.papelera}</button></div>`).join('') || '<div class="vacio"><span class="emo">🎉</span>No queda nada pendiente.</div>';
+    const { s, filas } = lineaCompra(), no = filas.filter(f => s.noComprado[f.clave]), pend = pendientesFuera(filas);
+    const fila = (ic, n, sub, botones) => `<div class="producto fila-simple"><div class="sinfoto">${ic}</div><div class="info"><div class="pn">${esc(n)}</div>${sub ? `<div class="pc">${esc(sub)}</div>` : ''}</div>${botones}</div>`;
+    $('#faltan', h).innerHTML = (no.length ? `<h3>No había hoy · ${no.length}</h3><div class="lista">${no.map(f => fila(emojiSeccion(f.seccion), nombreFila(f), '', `<button class="chip" data-si-habia="${esc(f.clave)}">Sí lo había</button>`)).join('')}</div>` : '')
+      + (pend.length ? `<h3>Para otro día · ${pend.length}</h3><div class="lista">${pend.map(x => fila(x.k && D.productos[x.k] ? emojiSeccion(D.productos[x.k].cat) : '🛒', x.k && D.productos[x.k] ? nombreCorto(D.productos[x.k]) : x.n, x.f ? 'desde el ' + fechaCorta(x.f) : '',
+        `<button class="chip si" data-pend-ya="${x.id}">Ya lo tengo</button><button class="icono" data-pend-quitar="${x.id}" aria-label="Quitar ${esc(x.n)}">${I.papelera}</button>`)).join('')}</div>` : '')
+      || '<div class="vacio">No falta nada. Lo que marques «No había» en la lista sale aquí.</div>';
+    $('#b-enviar-pend', h).hidden = !no.length && !pend.length;
+    $$('[data-si-habia]', h).forEach(b => b.addEventListener('click', () => { const f = filas.find(y => y.clave === b.dataset.siHabia); delete s.noComprado[b.dataset.siHabia]; if (f) quitaPendiente(f); salva(); pinta(h); refrescaCompra(); tostada('Vuelve a la lista'); }));
     $$('[data-pend-ya]', h).forEach(b => b.addEventListener('click', () => {
       const x = E.pendientes.find(y => y.id === b.dataset.pendYa);
       if (x?.k && D.productos[x.k]) (E.casa[x.k] = (E.casa[x.k] || 0) + D.productos[x.k].util, alta(x.k));
-      descarta(x); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); pinta(h); tostada(x?.k ? '🏠 Pasa a «En casa»' : 'Quitado'); refrescaCompra();
+      descarta(x); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendYa); salva(); pinta(h); tostada(x?.k ? 'Pasa a la Nevera' : 'Quitado'); refrescaCompra();
     }));
     $$('[data-pend-quitar]', h).forEach(b => b.addEventListener('click', () => { descarta(E.pendientes.find(y => y.id === b.dataset.pendQuitar)); E.pendientes = E.pendientes.filter(y => y.id !== b.dataset.pendQuitar); salva(); pinta(h); refrescaCompra(); }));
   };
-  hoja(`<h2>🏪 Para otro día</h2><div class="nota">Lo que no había o dejasteis para después. Cuando lo compréis, «Ya lo tengo» lo pasa a «En casa».</div>
-    <div id="pendientes" style="margin-top:10px"></div>
-    <button class="boton ancho" id="b-enviar-pend" style="margin-top:14px">📤 Enviar la lista</button>`, h => {
+  hoja(`<h2>Lo que falta</h2><div class="nota">Lo que no había y lo que dejasteis para otro día. «Ya lo tengo» lo pasa a la Nevera.</div>
+    <div id="faltan" style="margin-top:10px"></div>
+    <button class="boton ancho" id="b-enviar-pend" style="margin-top:14px">Enviar esta lista</button>`, h => {
     pinta(h);
-    $('#b-enviar-pend', h).addEventListener('click', () => compartirTexto('Para otro día', 'Para otro día · NutriHome\n' + E.pendientes.map(x => '☐ ' + x.n).join('\n'), 'Copiado: pégalo en WhatsApp'));
+    $('#b-enviar-pend', h).addEventListener('click', () => { const { s, filas } = lineaCompra(); compartirTexto('Lo que falta', 'Lo que falta · NutriHome\n' + [...filas.filter(f => s.noComprado[f.clave]).map(nombreFila), ...pendientesFuera(filas).map(x => x.n)].map(n => '☐ ' + n).join('\n'), 'Copiado: pégalo en WhatsApp'); });
   });
 }
 
@@ -4176,20 +4189,20 @@ function pintaChef5({ fh, charla, antes, rapidas, rr, ra, rh, adj, corto, conSer
     if (hh) ultHora = hh.slice(0, 2);
     const botones = acciones.map((x, i) => { const hecha = (c.hechas || []).includes(i), rg = hecha && x.tipo === 'receta' && recetaGuardada(x);
       return rg ? `<button type="button" data-receta="${esc(rg.id)}">Guardada · Ver la receta</button>` : `<button type="button" class="n-principal" data-accion="${esc(c.id)}|${i}"${hecha ? ' disabled' : ''}>${hecha ? 'Hecho' : esc(textoAccion(x))}</button>`; }).join('');
-    return `${sello}<div class="n-msg n-yo" data-q="${esc(c.id)}"><p>${corto(c.q)}</p><button type="button" class="n-borrar" data-borrar="${esc(c.id)}" aria-label="Borrar este mensaje">×</button></div>
+    const rq = c.receta && recetas[c.receta];
+    return `${sello}<div class="n-msg n-yo" data-q="${esc(c.id)}">${rq ? `<button type="button" class="n-msg-receta" data-receta="${esc(rq.id)}">${fotoPlato(rq, 120, 'n-min')}<span>${esc(rq.n)}</span></button>` : ''}<p>${corto(c.q)}</p><button type="button" class="n-borrar" data-borrar="${esc(c.id)}" aria-label="Borrar este mensaje">×</button></div>
       ${c.r ? `<div class="n-msg n-del-chef"><span class="n-quien">${NOMBRE_AGENTE}</span><p>${conRecetas(rt)}</p>${botones ? `<div class="n-respuestas">${botones}</div>` : ''}</div>`
         : `<div class="n-msg n-del-chef n-pensando" data-charla="${esc(c.id)}"><span class="n-quien">${NOMBRE_AGENTE}</span><p>Está escribiendo…</p></div>`}`;
   }).join('');
-  const adjuntos = [rr ? `<div class="n-chat-receta"><button type="button" class="n-chat-receta-abre" data-receta="${esc(rr.id)}">${fotoPlato(rr, 160, 'n-min')}<span class="n-txt"><span>${ra ? 'Va con tu mensaje' : rh ? 'En la conversación' : 'Cena de hoy'}</span><b>${esc(rr.n)}</b></span></button>${ra ? '<button type="button" class="n-quitar" id="b-quitar-datos" aria-label="Quitar la receta del mensaje">×</button>' : ''}<button type="button" class="n-enlace" id="b-otras-recetas">Otras</button></div>`
+  const adjuntos = [ra ? `<div class="n-chat-receta"><button type="button" class="n-chat-receta-abre" data-receta="${esc(ra.id)}">${fotoPlato(ra, 160, 'n-min')}<span class="n-txt"><span>Sobre esta receta · toca para volver</span><b>${esc(ra.n)}</b></span></button><button type="button" class="n-quitar" id="b-quitar-datos" aria-label="Quitar la receta del mensaje">×</button></div>`
       : adj ? `<div class="n-adjunto"><span>${esc(adj.nombre)}</span><button type="button" id="b-quitar-datos" aria-label="Quitar">×</button></div>` : '',
     V.datos?.compra ? `<div class="n-adjunto"><span>Compra del ${fechaCorta(iso(new Date(V.datos.compra.f)))}</span><button type="button" id="b-quitar-datos" aria-label="Quitar">×</button></div>` : '',
     V.adjunto ? `<div class="n-adjunto"><span>${esc(V.adjunto.name || 'foto')}</span><button type="button" id="b-quitar-adjunto" aria-label="Quitar">×</button></div>` : ''].join('');
   $('#vista').innerHTML = `<div class="n-chef n-cuerpo">
     <div class="n-charla" id="hilo" role="log" aria-label="Conversación con el Chef">${antes && !V.verAntes ? `<button type="button" class="n-enlace n-antes" id="b-ver-antes">Ver la conversación anterior (${antes})</button>` : ''}
       ${charla.length ? `${msgs}<button type="button" class="n-enlace n-borrar-todo" id="b-borrar-charla">Borrar la conversación</button>`
-        : `<div class="n-hola"><b>Pregúntale al Chef</b><p>«¿Qué hay hoy para cenar?», «hoy cenamos fuera», «no tengo pepino, ¿qué uso?», «apunta detergente en la compra»…</p></div>`}</div>
+        : `<div class="n-hola"><b>Escríbele al Chef</b><p>Lo que os apetece, qué cenar, que apunte algo en la compra…</p></div>`}</div>
     <section class="n-escribir" aria-label="Escribir al Chef">${adjuntos}
-      <div class="n-filtros" role="group" aria-label="Preguntas rápidas">${rapidas.map((x, i) => `<button type="button" data-rapida="${i}">${esc(x[1])}</button>`).join('')}</div>
       <form class="n-caja" id="f-chat">${D.perfiles.bot ? `<label class="n-boton-c" for="i-foto-claude" aria-label="Mandar una foto">${nic('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>')}</label><input id="i-foto-claude" type="file" accept="image/*,application/pdf" class="sr">` : ''}
         <label class="n-buscar"><textarea id="t-claude" rows="1" placeholder="Escribe al Chef" aria-label="Escribe al Chef" enterkeyhint="send">${esc(V.borrador || '')}</textarea></label>
         <button type="submit" class="n-enviar" aria-label="Enviar">${nic('<path d="M5 12h14M13 6l6 6-6 6"/>')}</button></form>
@@ -4688,7 +4701,8 @@ function haceAccion(a) {
       if (x.tienda && (!k || D.productos[k].fuera) && !(E.tiendas || {})[claveTienda(fk)]) recuerdaTienda(fk, tiendaDeNombre(x.tienda)); if (k ? infinito(k) || !alcanza({ [k]: 1 }, hayEnCasa()).length : siempreEnCasa(t)) continue; if (apuntaProxima(k ? { k, n: nombreCorto(D.productos[k]), por } : { texto: capital(String(t)), n: capital(String(t)), por })) compra++; }
     salva(); pinta();
     conDeshacer(`${por}: ${puestos.length} platos`, () => { const x = JSON.parse(antes); Object.assign(E, { propias: x.propias, proximaCompra: x.prox, planes: x.planes, semanas: x.semanas }); reconstruyeRecetas(); salva(); pinta(); });
-    return `${por}: ${puestos.length} plato${puestos.length > 1 ? 's' : ''}${compra ? ` · ${compra} cosa${compra > 1 ? 's' : ''} a la compra` : ' · todo está en casa'}`;
+    const enLaCompra = fueraDeLaCompra(puestos).length < puestos.length;   // lo de los días de la compra ya sale en su lista
+    return `${por}: ${puestos.length} plato${puestos.length > 1 ? 's' : ''}${enLaCompra ? ' · la lista, en Compra' : compra ? ` · ${compra} cosa${compra > 1 ? 's' : ''} a la compra` : ' · todo está en casa'}`;
   }
   tostada('No sé hacer eso todavía'); return null;
 }
@@ -4697,7 +4711,7 @@ const aplicaAlLlegar = new Set();
 const inventoMio = id => Object.entries(E.inventos || {}).some(([k, v]) => v.id === id && v.por === MOVIL && k.slice(0, 10) >= hoy());
 async function preguntaServidor(texto, aplica = false) {
   const id = uid(); if (aplica) aplicaAlLlegar.add(id);
-  E.charla = [...(E.charla || []), { id, q: texto, r: null, t: new Date().toISOString() }].slice(-40); salva();
+  E.charla = [...(E.charla || []), { id, q: texto, r: null, t: new Date().toISOString(), ...(V.datos?.receta?.id ? { receta: V.datos.receta.id } : {}) }].slice(-40); salva();
   const datos = V.datos || undefined; if (datos) datosDe.set(id, datos);
   const r = await fetch(`${servidor()}/casa/${casaId}/pregunta`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uid: id, blob: await cifraSync({ texto, contexto: contextoParaClaude(texto), datos, cuando: new Date().toISOString() }) }) });
