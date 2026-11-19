@@ -165,6 +165,7 @@ const sePuedeHacer = r => !r || !r.ap || r.ap === 'sin' || aparatosCasa().includ
 const nombreAparato = a => ((APARATOS_CASA.find(([k]) => k === a) || [a, APARATO[a] || a])[1]).replace(/^\S+\s/, '').toLowerCase();
 // ——— Novedades: lo nuevo de cada versión sale una vez en cada móvil (y queda en el perfil). Al publicar algo que se ve, se añade aquí ———
 const NOVEDADES = [   // la más nueva, arriba
+  { id: 'carro-pasillos', fecha: '2026-11-19', emo: '', titulo: 'Lo tachado se aparta y la lista va por pasillos', texto: 'Mientras compráis, lo que tachéis baja a «En el carro», plegado al final: arriba solo queda lo que os falta. Y la lista aprende el orden en que recorréis vuestro Mercadona con lo que vais tachando; en Más → «Orden de los pasillos» lo podéis cambiar. Con el ticket, la compra queda como «Compra del…».', ir: 'compra', foco: '#b-mas' },
   { id: 'compra-acabada', fecha: '2026-11-19', emo: '', titulo: 'Con el ticket, la compra se acaba', texto: 'Después de subir el ticket ya no sale otra lista: en Compra queda solo «Lo que falta». Lo que se acabe en la Nevera o apuntéis irá a la próxima compra.', ir: 'compra', foco: '#b-faltan' },
   { id: 'lista-ticket-chef', fecha: '2026-11-18', emo: '', titulo: 'Primero la lista, luego el ticket', texto: 'Con la lista hecha, toca «Terminar la lista»: se cierra y en la tienda solo tachas y escaneas. Al pagar, sube el ticket: lo comprado pasa a la Nevera y el Chef rehace solo el menú con lo que habéis comprado y te lo enseña.', ir: 'compra', foco: '#b-terminar' },
   { id: 'ticket-manda', fecha: '2026-11-18', emo: '', titulo: 'El ticket termina la compra', texto: 'La lista es para ir comprando. Al pagar, sube el ticket digital: lo que sale en él pasa a la Nevera, con las cantidades de verdad, y lo de la lista que no sale va a «Lo que falta». Lo de otras tiendas cuenta si lo tachaste.', ir: 'compra', foco: '#b-ticket' },
@@ -1924,6 +1925,44 @@ const limpiaPeticion = t => t.trim().replace(/^[¿¡\s]+/, '').replace(/^(quiero
 // ——— Compra ———
 const BASICOS = /^(sal|agua|hielo|pimienta|pimienta negra|sal y pimienta|cilantro|perejil|albahaca|oregano|pimenton|canela|comino)$/;
 const ordenSeccion = n => { const i = SECCIONES.indexOf(n); if (i >= 0) return i; const j = (E.secciones || []).findIndex(s => s.n === n); return j >= 0 ? 60 + j : 99; };
+// El orden de los pasillos de vuestra tienda (19/11: «ordena la lista según los pasillos de nuestro Mercadona»; no hay planos publicados).
+// `E.pasillos` es la lista de secciones en el orden en que se recorre la tienda (al principio, el de Mercadona). Se aprende de lo que vais
+// tachando: las secciones tachadas en una compra se reordenan entre los huecos que ya ocupaban, por la hora media en que se tacharon;
+// las que no se vieron no se mueven. «Orden de los pasillos» (Más) lo cambia a mano.
+const pasillos = () => { const a = E.pasillos?.length ? [...E.pasillos] : [...SECCIONES]; for (const s of SECCIONES) if (!a.includes(s)) a.push(s); return a; };
+const ordenPasillo = n => { const i = (E.pasillos || []).indexOf(n); return i >= 0 ? i : ordenSeccion(n); };
+function aprendePasillos(s, filas) {
+  const pri = principal(), t = {};
+  for (const f of filas) { const m = s.marcados[f.clave]; if (typeof m === 'number' && f.tienda === pri) (t[f.seccion] ||= []).push(m); }
+  const todos = Object.values(t).flat(), secs = Object.entries(t).map(([sec, ts]) => [sec, ts.sort((a, b) => a - b)[ts.length >> 1]]).sort((a, b) => a[1] - b[1]).map(([sec]) => sec);
+  if (secs.length < 3 || Math.max(...todos) - Math.min(...todos) < 3 * 60e3) return;   // tachado todo de golpe (en casa, al final): no dice nada del recorrido
+  const a = pasillos(); for (const sec of secs) if (!a.includes(sec)) a.push(sec);
+  const huecos = secs.map(sec => a.indexOf(sec)).sort((x, y) => x - y);
+  secs.forEach((sec, i) => { a[huecos[i]] = sec; });
+  E.pasillos = a;
+}
+function abrirPasillos() {
+  const { filas } = lineaCompra(), pri = principal();
+  let secs = [...new Set([...filas.filter(f => f.tienda === pri).map(f => f.seccion),
+    ...Object.keys(D.habituales || {}).map(k => D.productos[k]?.cat).filter(Boolean)])].sort((a, b) => ordenPasillo(a) - ordenPasillo(b));
+  const flecha = d => nic(`<path d="${d}"/>`);
+  hoja(`<h2>Orden de los pasillos</h2>
+    <p class="nota">La lista sigue este orden, de la entrada a la caja. Se aprende sola con lo que vais tachando mientras compráis; aquí lo podéis cambiar.</p>
+    <div class="lista" id="pasillos"></div>
+    <div class="botones" style="margin-top:14px"><button class="boton" id="b-pasillos-mercadona">Volver al orden de Mercadona</button></div>`, h => {
+    const pinta = () => { $('#pasillos', h).innerHTML = secs.map((sec, i) => `<div class="producto fila-simple"><div class="sinfoto">${i + 1}</div><div class="info"><div class="pn">${esc(sec)}</div></div>
+      <button class="icono" data-sube="${i}" aria-label="Subir ${esc(sec)}"${i ? '' : ' disabled'}>${flecha('M6 15l6-6 6 6')}</button><button class="icono" data-baja="${i}" aria-label="Bajar ${esc(sec)}"${i < secs.length - 1 ? '' : ' disabled'}>${flecha('M6 9l6 6 6-6')}</button></div>`).join(''); };
+    const mueve = (i, j) => {
+      const a = pasillos(); for (const sec of secs) if (!a.includes(sec)) a.push(sec);
+      const x = a.indexOf(secs[i]), y = a.indexOf(secs[j]); [a[x], a[y]] = [a[y], a[x]]; [secs[i], secs[j]] = [secs[j], secs[i]];
+      E.pasillos = a; salva(); refrescaCompra(); pinta(); $(`[data-${j < i ? 'sube' : 'baja'}="${j}"]`, h)?.focus();
+    };
+    $('#pasillos', h).addEventListener('click', e => { const b = e.target.closest('[data-sube], [data-baja]'); if (!b || b.disabled) return; const i = +(b.dataset.sube ?? b.dataset.baja); mueve(i, b.dataset.sube != null ? i - 1 : i + 1); });
+    $('#b-pasillos-mercadona', h).addEventListener('click', () => { const antes = E.pasillos; E.pasillos = []; secs.sort((a, b) => ordenSeccion(a) - ordenSeccion(b)); salva(); refrescaCompra(); pinta();
+      conDeshacer('Orden de Mercadona', () => { E.pasillos = antes; secs.sort((a, b) => ordenPasillo(a) - ordenPasillo(b)); salva(); refrescaCompra(); pinta(); }); });
+    pinta();
+  });
+}
 // La lista de la compra es para la semana que toca comprar: la que viene, si ya está preparada y faltan dos días o menos
 // (o la de ahora ya está comprada); si no, la de ahora.
 // Con día de compra elegido, la de la semana de ese día.
@@ -2218,7 +2257,7 @@ function lineaCompra() {
   if (!s.compraHecha && !aldia) for (const f of E.fijos) if (f.m && !s.fijosHechos['f:m:' + f.m.id]) vistas.push({ k: null, m: f.m, clave: 'f:m:' + f.m.id, envases: f.n || 1, precio: (f.n || 1) * (f.m.precio || 0), fijo: true });
   for (const [kk, o] of otros) vistas.push({ k: null, clave: kk, texto: o.texto, otro: true, para: o.para });
   for (const v of vistas) { v.seccion = v.k ? D.productos[v.k].cat : v.m ? v.m.cat : v.sec || 'Otros'; v.tienda = tiendaDe(v); }
-  vistas.sort((a, b) => (ordenSeccion(a.seccion) - ordenSeccion(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
+  vistas.sort((a, b) => (ordenPasillo(a.seccion) - ordenPasillo(b.seccion)) || nombreFila(a).localeCompare(nombreFila(b), 'es'));
   const quitar = Object.keys(s.quitados).filter(k => s.quitados[k] === true);   // los vaciados ('oculto') siguen fuera de la lista, pero ya no se enseñan
   // Lo que el menú pide y se quitó a mano: el ticket también lo busca ahí (4/11: lo deslizaban al meterlo en el carro y el ticket no encontraba nada).
   const retiradas = filas.filter(f => s.quitados[f.k]).map(f => ({ ...f, clave: f.k, retirada: true, seccion: D.productos[f.k].cat }));
@@ -2283,6 +2322,7 @@ function activaBuscador() {
       l.style.display = vis ? '' : 'none';
       const cab = l.previousElementSibling; if (cab?.classList.contains('cat') || cab?.classList.contains('n-sec-cab')) cab.style.display = vis ? '' : 'none';
     });
+    const c = $('#carro'); if (c && q) c.open = [...c.querySelectorAll('.producto, .n-fila')].some(f => f.style.display !== 'none');
   };
   i.addEventListener('input', filtra); if (i.value) filtra();
 }
@@ -2350,6 +2390,13 @@ function vCompra() {
     for (const f of lista) { if (f.seccion !== sec) { if (sec) html += '</div>'; sec = f.seccion; html += `<div class="cat"><span class="emo">${emojiSeccion(sec)}</span>${esc(sec)}<span class="num">${cuenta[sec]}</span></div><div class="lista">`; } html += filaHTML(f); }
     return html + (sec ? '</div>' : '');
   };
+  // Lo tachado deja la lista y baja, plegado, a «En el carro» (19/11: «que durante la compra no se queden estorbando y uno viendo de arriba abajo todo el tiempo»).
+  const carro = !comprados.length ? '' : DISENO5 ? `<details class="n-sec n-carro" id="carro"${V.verCarro ? ' open' : ''}><summary class="n-sec-cab"><h2>En el carro</h2><span>${comprados.length}</span></summary>${listaFilas(comprados)}</details>`
+    : `<details class="carro-plegado" id="carro"${V.verCarro ? ' open' : ''}><summary class="cat"><span class="emo">🛒</span>En el carro<span class="num">${comprados.length}</span></summary>${listaFilas(comprados)}</details>`;
+  const todoEnElCarro = porComprar.length || !comprados.length ? '' : `<p class="${DISENO5 ? 'n-vacio' : 'vacio'}"><b>Todo en el carro.</b>${DISENO5 ? '<br>' : ' '}${esMercadona() ? 'Al pagar, sube el ticket: con él se termina la compra.' : 'Al acabar, «Terminar la compra».'}</p>`;
+  // Con la compra acabada, queda a la vista cuál fue: «Compra del mié 18», con lo que entró y lo que costó (abre su resumen).
+  const ultima = acabada && E.compras[0], diaUltima = ultima && (ultima.ticket?.fecha || iso(new Date(ultima.f)));
+  const nUltima = ultima ? (ultima.ticket?.lineas?.length || ultima.si.length) : 0, totUltima = ultima ? ultima.ticket?.total ?? ultima.estimado : 0;
   const noFilas = DISENO5 ? [] : noHabia.filter(f => s.alternativas[f.clave]?.estado !== 'nada' && s.alternativas[f.clave]?.estado !== 'aceptada');
   const recetasLista = s.recetasLista.map(x => recetas[x.r] ? `<div class="producto fila-simple"><div class="sinfoto">${emojiReceta(recetas[x.r])}</div><div class="info"><div class="pn">${esc(recetas[x.r].n)}</div><div class="pc">para ${x.quien === 'GP' ? 'los dos' : esc(NOM[x.quien] || x.quien)}</div></div><button class="icono" data-quitar-receta="${x.id}" aria-label="Quitar">${I.papelera}</button></div>` : '').join('');
   const seccionesLista = [...new Set(filas.map(f => f.seccion))];
@@ -2364,6 +2411,7 @@ function vCompra() {
       ${tope ? `<p class="n-presupuesto${total > tope ? ' n-pasa' : ''}">Presupuesto ${euros(tope)}${total > tope ? ' · te pasas' : ''}</p>${total > tope && !s.compraHecha ? '<button type="button" class="n-boton-p" id="b-presupuesto">Ajustar al presupuesto</button>' : ''}` : ''}</div>`}
     <ul class="n-filas n-compra-acc">
       <li class="n-fila${c || aldia ? '' : ' n-pide'}"><button type="button" class="n-fila-abre" id="b-dia-compra"><span class="n-min-ic">${NI.calendario}</span><span class="n-txt"><b>${c ? `Compra ${esc(cuandoCompra(c.f))}` : aldia ? 'Próxima compra' : 'Día de compra'}</b><span>${c ? `Para hasta el ${diaCorto(c.hasta)}${c.antojos?.length ? ' · con vuestros antojos' : ''}` : 'Elige el día y te propongo el menú y la lista'}</span></span>${c ? '' : `<span class="n-flecha" aria-hidden="true">${NI.sigue}</span>`}</button>${c ? '<button type="button" class="n-boton-p" id="b-menu-compra">Ver el menú</button>' : ''}</li>
+      ${ultima ? `<li class="n-fila"><button type="button" class="n-fila-abre" id="b-ultima-compra"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>Compra del ${esc(fechaCorta(diaUltima))}</b><span>${nUltima} producto${nUltima === 1 ? '' : 's'}${totUltima ? ' · ' + euros(totUltima) : ''}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li>` : ''}
       ${esMercadona() && !acabada ? `<li class="n-fila${cerrada ? ' n-pide' : ''}"><span class="n-min-ic">${IC_TICKET.replace('class="ic"', 'class="n-svg" aria-hidden="true"')}</span><span class="n-txt"><b>${conTicket ? 'Ticket leído' : 'Ticket digital'}</b><span>${conTicket ? 'Lo que se marcó y lo que no había' : 'Súbelo al pagar: con él se termina la compra'}</span></span><button type="button" class="n-boton-p" id="${conTicket ? 'b-ver-ticket' : 'b-ticket'}">${conTicket ? 'Ver' : 'Subir'}</button></li>` : ''}
       <li class="n-fila"><button type="button" class="n-fila-abre" id="b-faltan"><span class="n-min-ic">${NI.lista}</span><span class="n-txt"><b>Lo que falta${nFaltan ? ` · ${nFaltan}` : ''}</b><span>${nFaltan ? 'No había o para otro día' : 'Lo que marques «No había» va aquí'}</span></span><span class="n-flecha" aria-hidden="true">${NI.sigue}</span></button></li></ul>
     ${cerrada ? `<p class="n-nota n-cerrada">Lista cerrada: tacha lo que cojas y, al pagar, sube el ticket.</p>` : `<button type="button" class="n-buscar n-anadir" id="b-anadir">${SVG.mas.replace('<svg', '<svg class="n-svg" aria-hidden="true"')}<span>Añadir: huevos, yuca y 2 kéfir</span></button>`}
@@ -2392,7 +2440,7 @@ function vCompra() {
     ${noHabia.length && !DISENO5 ? `${DISENO5 ? '<section class="n-sec">' : ''}${cabSec('No había', noHabia.length, '✕')}${listaFilas(noHabia)}${DISENO5 ? '</section>' : ''}
       <div class="botones" style="margin:8px 0 2px"><button class="chip" id="b-enviar-no">📤 Enviar lo que no había</button></div>` : ''}
     ${noFilas.length ? `<div class="cat"><span class="emo">🔁</span>No lo había: ¿otra cosa?</div><div id="alternativas">${noFilas.map(f => `<div class="tarjeta alt-prop" data-alt="${esc(f.clave)}"><div class="nota">✕ ${esc(nombreFila(f))}</div><div class="alt-cuerpo"><div class="cargando"></div></div></div>`).join('')}</div>` : ''}
-    ${enLista ? porSecciones(filas.filter(f => !s.noComprado[f.clave] && f.tienda === pri)) + porTiendas(filas.filter(f => !s.noComprado[f.clave] && f.tienda !== pri)) : DISENO5 && aldia ? `<p class="n-vacio"><b>Todo comprado hasta el ${diaCorto(cubre)}.</b><br>Lo que se acabe en la Nevera o apuntéis saldrá aquí.</p>` : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
+    ${enLista ? porSecciones(porComprar.filter(f => f.tienda === pri)) + porTiendas(porComprar.filter(f => f.tienda !== pri)) + todoEnElCarro + carro : DISENO5 && aldia ? `<p class="n-vacio"><b>Todo comprado hasta el ${diaCorto(cubre)}.</b><br>Lo que se acabe en la Nevera o apuntéis saldrá aquí.</p>` : !noHabia.length ? (aldia ? `<div class="vacio al-dia"><b>Todo comprado hasta el ${diaCorto(cubre)}</b>Lo que se acabe en la Nevera o apuntéis sale aquí.<button class="boton" id="b-proxima">Preparar la próxima compra</button></div>` : '<div class="vacio">No falta nada para el menú.</div>') : ''}
 
     ${soleis.length ? `<div class="cat"><span class="emo">🔁</span>Lo que soléis comprar<span class="num">${soleis.length}</span><button class="cat-accion" id="b-ocultar-soleis">Ocultar</button></div><p class="nota" style="margin:-2px 0 8px">Está en vuestros tickets y no en la lista ni en casa.</p><div class="lista">${soleis.map(k => `<div class="producto fila-simple">${D.productos[k].foto ? `<img src="${esc(D.productos[k].foto)}" alt="" loading="lazy" width="50" height="50">` : `<div class="sinfoto">${emojiSeccion(D.productos[k].cat)}</div>`}<div class="info"><div class="pn">${esc(nombreCorto(D.productos[k]))}</div><div class="pc">${euros(D.productos[k].precio)}</div></div><button class="chip" data-soleis="${k}">＋ A la lista</button></div>`).join('')}</div>` : ''}
     ${despensa.length ? `<div class="cat"><span class="emo">🫙</span>¿Os queda?<span class="num">${despensa.length}</span><button class="cat-accion" id="b-ocultar-despensa">Ocultar</button></div><div class="lista">${despensa.map(f => `<div class="producto fila-simple"><div class="sinfoto">${emojiSeccion(D.productos[f.k].cat)}</div><div class="info"><div class="pn">${esc(nombreCorto(D.productos[f.k]))}</div><div class="pc">lo usa el menú</div></div><button class="chip si" data-queda="${f.k}">✓ Queda</button><button class="chip" data-falta="${f.k}">＋ Comprar</button><button class="chip" data-noqueda="${f.k}">No</button></div>`).join('')}</div>` : ''}
@@ -2402,9 +2450,11 @@ function vCompra() {
   $$('[data-info]').forEach(b => b.addEventListener('click', () => infoProducto(b.dataset.info, filas.find(f => f.clave === b.dataset.info))));
   $$('[data-fila-mas]').forEach(b => b.addEventListener('click', () => opcionesFila(filas.find(f => f.clave === b.dataset.filaMas))));
   $$('[data-tienda-fila]').forEach(b => b.addEventListener('click', () => abrirTienda(filas.find(f => f.clave === b.dataset.tiendaFila))));
+  $('#carro')?.addEventListener('toggle', e => { V.verCarro = e.target.open; });
+  $('#b-ultima-compra')?.addEventListener('click', () => hojaCompra(E.compras[0]));
   $$('[data-check]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.check, y = window.scrollY;
-    if (s.marcados[k]) delete s.marcados[k]; else { s.marcados[k] = true; delete s.noComprado[k]; }
+    if (s.marcados[k]) delete s.marcados[k]; else { s.marcados[k] = Date.now(); delete s.noComprado[k]; }   // la hora: de ahí sale el orden de los pasillos
     salva(); vCompra(); window.scrollTo({ top: y });
   }));
   // Un ticket aplicado antes de que buscara también en lo quitado (4/11) no encontró nada: se vuelve a cruzar una vez.
@@ -2537,6 +2587,7 @@ function abrirMas() {
     ${cerrada ? `${fila('m-abrir', '', 'Volver a abrir la lista', 'Para añadir algo más')}${fila('m-sin-ticket', '', 'Terminar sin ticket', 'Con lo que has tachado')}`
       : `${fila('m-receta', '', 'Una receta a la lista', 'Suma sus ingredientes')}${fila('m-favoritos', '', 'Favoritos', 'Lo de siempre')}`}
     ${fila('m-enviar', '📤', 'Enviar la lista', 'Lo que falta por comprar, para WhatsApp')}
+    ${fila('m-pasillos', '', 'Orden de los pasillos', 'La lista, en el orden en que recorréis la tienda')}
     ${E.compras.length ? fila('m-ultima', '🗂️', 'Compras anteriores', 'El historial, con sus tickets') : ''}</div>`, h => {
     $('#m-receta', h)?.addEventListener('click', () => { cierraHoja(true); elegirRecetaParaLista(); });
     $('#m-abrir', h)?.addEventListener('click', () => { cierraHoja(); cierraLista(false); refrescaCompra(); tostada('Lista abierta'); });
@@ -2544,6 +2595,7 @@ function abrirMas() {
     $('#m-favoritos', h)?.addEventListener('click', () => { cierraHoja(true); abrirFavoritos(); });
     $('#m-enviar', h).addEventListener('click', () => { cierraHoja(); compartirLista(lineaCompra().filas); });
     $('#m-ultima', h)?.addEventListener('click', abrirHistorial);
+    $('#m-pasillos', h)?.addEventListener('click', () => { cierraHoja(true); abrirPasillos(); });
   });
 }
 // Historial de compras: cada una con su ticket.
@@ -2850,6 +2902,7 @@ function terminarCompra(filas, silencioso = false, chef = false) {
     res.ticket = { fecha: s.ticket.fecha, total: s.ticket.total, cuadra: s.ticket.cuadra, lineas: s.ticket.lineas };
   }
   res.estimado = +res.estimado.toFixed(2);
+  if (!s.ticket) aprendePasillos(s, filas);   // con ticket, ya se aprendió al aplicarlo
   s.noHabia = Object.fromEntries(Object.keys(s.noComprado).filter(k => s.noComprado[k]).map(k => [k, true]));   // para avisar en Semana
   s.listaCerrada = false; s.recetasLista = []; s.marcados = {}; s.noComprado = {}; s.alternativas = {}; s.ticketCant = {}; s.ticket = null; s.compraHecha ||= !aldia;   // con la compra grande hecha, esto era reponer: la semana sigue sin comprar
   if (E.diaCompra && !E.diaCompra.hecha) E.diaCompra = { ...E.diaCompra, hecha: true };   // la próxima vez, se elige otro día
@@ -3119,6 +3172,7 @@ async function muestraTicket(t) {
     ${pares.length ? `<details class="emparejados"><summary>Ver los ${pares.length} de la lista</summary>${pares.map(([i, j]) => `<div class="par"><span>${esc(nombreFila(filas[j]))}</span><span class="nota">${esc(items[i].d)}</span></div>`).join('')}</details>` : ''}
     <button class="boton principal ancho" id="b-aplicar-ticket" style="margin-top:14px">Terminar la compra</button>`, h => {
     $('#b-aplicar-ticket', h).addEventListener('click', () => {
+      aprendePasillos(s, deLista);
       for (const [i, j] of pares) { const f = filas[j], it = items[i]; if (f.retirada) delete s.quitados[f.k]; s.marcados[f.clave] = true; delete s.noComprado[f.clave]; delete s.alternativas[f.clave]; s.ticketCant[f.clave] = { n: it.n, kg: it.kg }; }
       for (const f of faltan) { delete s.marcados[f.clave]; s.noComprado[f.clave] = true; }
       for (const f of otrasNo) apuntaPendiente({ k: f.k || null, n: nombreFila(f) }, true);   // sin «no había»: el menú cuenta con comprarlo allí
