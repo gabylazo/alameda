@@ -507,7 +507,7 @@ body.con-barra .deshacer { bottom: calc(var(--barra) + env(safe-area-inset-botto
 .cambio-menu .nota { font-size: 12.5px; margin-bottom: 2px; }
 .fila-doble .nombre-s .pill { margin-top: 3px; }
 .perfil .campo-largo { display: block; font-size: 12px; color: var(--suave); font-weight: 750; margin-top: 12px; }
-.perfil .campo-largo textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--linea); border-radius: 12px; padding: 9px 10px; background: var(--tarjeta-2); font-size: 15px; font-weight: 600; min-height: 54px; resize: vertical; color: var(--texto); line-height: 1.35; }
+.perfil .campo-largo textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--linea); border-radius: 12px; padding: 9px 10px; background: var(--tarjeta-2); font-size: 16px; font-weight: 600; min-height: 54px; resize: vertical; color: var(--texto); line-height: 1.35; }
 .perfil .campo-largo textarea:focus { border-color: var(--acento-vivo); background: #fff; outline: 0; }
 .pend { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--linea); }
 .pend:last-child { border-bottom: 0; }

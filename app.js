@@ -814,7 +814,10 @@ function cierraVisor() { const v = $('.visor'); if (!v) return; const antes = v.
 // Dos dedos sobre una foto: se abre en grande. Fuera de las fotos, la página no se amplía (iOS no siempre respeta el viewport).
 document.addEventListener('touchstart', e => { if (e.touches.length !== 2 || $('.visor')) return; const f = [...e.touches].map(t => t.target.closest?.('img')).find(esFoto);
   if (f) { e.preventDefault(); abrirVisor(f.currentSrc || f.src, f.alt); } }, { passive: false, capture: true });
-document.addEventListener('gesturestart', e => e.preventDefault());
+// 19/11, petición de la casa: «que todas las app sean estáticas, no se aumente el zoom que se desestabiliza, menos la foto». Safari no hace caso
+// de user-scalable=no: se cortan los gestos de pellizcar y los movimientos con dos dedos, salvo dentro del visor de fotos (que hace su propio zoom).
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => { if (!e.target.closest?.('.visor')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 && !e.target.closest?.('.visor')) e.preventDefault(); }, { passive: false });
 // Tocar la foto de la receta o la de un ingrediente (no son botones) también la abre
 document.addEventListener('click', e => { const f = e.target.closest?.('.n-portada img.n-foto, .n-ingr img, .producto-escaneado img'); if (esFoto(f)) abrirVisor(f.currentSrc || f.src, f.alt || $('#n-rec-t')?.textContent || ''); });
 

@@ -1,6 +1,6 @@
 // sw.js — para que la app abra sin conexión (en el súper sin cobertura): primero la red y, si no hay, lo guardado.
 // Con conexión, siempre pregunta al servidor si hay versión nueva. Las fotos de Mercadona se guardan la primera vez que se ven.
-const CACHE = 'nutrihome-v70', FOTOS = 'alameda-fotos';
+const CACHE = 'nutrihome-v71', FOTOS = 'alameda-fotos';
 const BASE = ['./', 'index.html', 'app.css', 'diseno5.css', 'fuentes/poppins-400.woff2', 'fuentes/poppins-500.woff2', 'fuentes/poppins-600.woff2', 'fuentes/poppins-700.woff2', 'app.js', 'logica.js', 'manifest.webmanifest', 'iconos/nutrihome-hoja-180.png', 'iconos/nutrihome-hoja-192.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== FOTOS).map(k => caches.delete(k)))).then(() => self.clients.claim())));
