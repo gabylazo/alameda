@@ -726,6 +726,20 @@ html.n5 .emparejados[open] { padding-bottom: 8px; }
 html.n5 .emparejados .par { border-bottom-color: var(--n-linea); color: var(--n-tinta); }
 html.n5 .emparejados .par .nota { color: var(--n-gris); }
 @media (prefers-reduced-motion: reduce) { html.n5 :is(details.sin-ticket, details.emparejados) > summary::after { transition: none; } }
+/* «En el carro» (19/11, v69): lo tachado, plegado al final de Compra. La cabecera de sección de siempre (título y número) con la flecha de
+   los desplegables de arriba; se toca entera. Sustituye al CSS provisional que NutriHome puso al final de app.css */
+html.n5 details.n-carro > summary { align-items: center; justify-content: flex-start; column-gap: 8px; min-height: 44px; list-style: none; cursor: pointer; }
+html.n5 details.n-carro > summary::-webkit-details-marker { display: none; }
+html.n5 details.n-carro > summary > span { margin-left: auto; }
+html.n5 details.n-carro > summary::after { content: ''; flex: 0 0 20px; height: 20px; background: var(--n-gris); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / 20px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / 20px no-repeat; transition: transform .2s ease; }
+html.n5 details.n-carro[open] > summary::after { transform: rotate(180deg); }
+html.n5 details.n-carro > summary:focus-visible { outline: 3px solid var(--n-verde); outline-offset: 2px; border-radius: 12px; }
+@media (prefers-reduced-motion: reduce) { html.n5 details.n-carro > summary::after { transition: none; } }
+/* «Orden de los pasillos» (19/11, v69): el número de cada sección a la izquierda, en gris (app.css esconde .sinfoto), y la flecha que no
+   se puede usar (subir en la primera, bajar en la última), apagada */
+:root.n5 #pasillos > .producto > .sinfoto { display: block !important; flex: 0 0 22px; width: 22px; height: auto; border: 0; background: none; color: var(--n-gris); font: 600 14px/1 var(--n-titulo); font-variant-numeric: tabular-nums; text-align: center; }
+:root.n5 #pasillos .icono { flex: 0 0 44px; width: 44px; height: 44px; }   /* se usa con una mano en el súper */
+:root.n5 #pasillos .icono:disabled { opacity: .3; cursor: default; }
 /* En el ticket leído, la línea sin foto guarda el hueco de la foto (app.css esconde .sinfoto), para que el nombre no se salga de la columna */
 :root.n5 .hoja .res > .sinfoto { display: block !important; border: 0; background: var(--n-panel); }
 /* El semáforo de un producto: sin el círculo vacío; el estado lo dice el título, con su color */
