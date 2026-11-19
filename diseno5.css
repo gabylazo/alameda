@@ -706,6 +706,12 @@ html.n5[data-theme="dark"] .nuevo { background: var(--n-verde); }
 html.n5 .hoja .botones > .pill { max-width: 100%; padding: 6px 11px; border-radius: 12px; white-space: normal; font-weight: 500; line-height: 1.35; }
 html.n5 .pill { font-family: var(--n-titulo); font-weight: 500; }
 html.n5 .hoja .fila-simple .chip:not(.si) { background: var(--n-elevado); }
+/* En oscuro, dentro de las hojas, lo que se elige o se escribe (los chips sin elegir, el buscador y la ×) va un escalón por encima de la hoja
+   (#1C1C1E, de app.css): --n-elevado. Con --n-panel (#1F1F21) no se distinguía de la hoja (19/11, v67, «Día de la compra»). En claro no cambia */
+:root.n5[data-theme="dark"] .hoja:not(.n-pantalla) :is(.chip:not([aria-pressed="true"], .si, .chip-tienda), .buscador, .cerrar) { background: var(--n-elevado); }
+:root.n5[data-theme="dark"] .hoja:not(.n-pantalla) .ant-sel .chip { background: none; }
+/* Y el texto de ejemplo del buscador de las hojas, en el gris de la capa (como .n-buscar): el del navegador daba 4,3:1 sobre el relleno oscuro */
+html.n5 .hoja .buscador input::placeholder { color: var(--n-gris); opacity: 1; }
 /* Los desplegables de terminar la compra («No tengo el ticket» y «Ver los N de la lista»): una fila de la capa con su flecha, sin el triángulo
    del navegador; abiertos, la flecha mira arriba. «No tengo el ticket» es una fila gris suelta; «Ver los N» lleva dentro sus pares, en el mismo gris */
 html.n5 :is(details.sin-ticket, details.emparejados) > summary { display: flex; align-items: center; gap: 12px; min-height: 52px; font: 500 15px/1.3 var(--n-titulo); color: var(--n-tinta); text-wrap: balance; list-style: none; cursor: pointer; }
